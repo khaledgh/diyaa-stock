@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
-import { Plus, Trash2, Truck, Package } from 'lucide-react';
+import { Plus, Trash2, Truck, Package, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,11 +47,13 @@ interface Transfer {
   status: string;
   created_by_name?: string;
   created_at: string;
+  items?: TransferItem[];
 }
 
 interface TransferItem {
   product_id: number;
   product_name?: string;
+  name_en?: string;
   quantity: number;
 }
 
@@ -59,6 +61,8 @@ export default function Transfers() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [selectedTransfer, setSelectedTransfer] = useState<Transfer | null>(null);
   const [transferItems, setTransferItems] = useState<TransferItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -80,7 +84,7 @@ export default function Transfers() {
   const selectedVan = watch('to_location_id');
 
   // Update form items when transferItems changes
-  React.useEffect(() => {
+  useEffect(() => {
     setValue('items', transferItems);
   }, [transferItems, setValue]);
 
@@ -148,6 +152,16 @@ export default function Transfers() {
       toast.error(error.response?.data?.message || t('transfers.transferError') || 'Failed to create transfer');
     },
   });
+
+  const handleViewDetails = async (transferId: number) => {
+    try {
+      const response = await transferApi.getById(transferId);
+      setSelectedTransfer(response.data.data);
+      setIsDetailsDialogOpen(true);
+    } catch (error) {
+      toast.error('Failed to load transfer details');
+    }
+  };
 
   const handleAddItem = () => {
     if (!selectedProduct || !quantity) {
@@ -249,6 +263,7 @@ export default function Transfers() {
                       <TableHead className="hidden md:table-cell">{t('transfers.toVan') || 'To Van'}</TableHead>
                       <TableHead className="hidden sm:table-cell">{t('common.status') || 'Status'}</TableHead>
                       <TableHead className="hidden lg:table-cell">Created By</TableHead>
+                      <TableHead className="text-right">{t('common.actions') || 'Actions'}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -266,6 +281,15 @@ export default function Transfers() {
                           </span>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">{transfer.created_by_name || '-'}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewDetails(transfer.id)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -398,6 +422,57 @@ export default function Transfers() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer Details Dialog */}
+      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{t('transfers.transferDetails') || 'Transfer Details'}</DialogTitle>
+          </DialogHeader>
+          {selectedTransfer && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">{t('common.date') || 'Date'}</Label>
+                  <p className="font-medium">{formatDateTime(selectedTransfer.created_at)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">{t('transfers.toVan') || 'To Van'}</Label>
+                  <p className="font-medium">{selectedTransfer.to_van_name || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">{t('common.status') || 'Status'}</Label>
+                  <p className="font-medium capitalize">{selectedTransfer.status}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Created By</Label>
+                  <p className="font-medium">{selectedTransfer.created_by_name || '-'}</p>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="font-semibold mb-3">{t('transfers.items') || 'Items'}</h3>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('transfers.product') || 'Product'}</TableHead>
+                      <TableHead className="text-right">{t('common.quantity') || 'Quantity'}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedTransfer.items?.map((item, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{item.product_name || item.name_en}</TableCell>
+                        <TableCell className="text-right">{item.quantity}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -12,7 +12,12 @@ class Validator {
 
     public function required($fields) {
         foreach ($fields as $field) {
-            if (!isset($this->data[$field]) || trim($this->data[$field]) === '') {
+            $value = $this->data[$field] ?? null;
+            
+            // Check if field is missing or empty
+            if ($value === null || 
+                (is_string($value) && trim($value) === '') || 
+                (is_array($value) && empty($value))) {
                 $this->errors[$field] = ucfirst($field) . ' is required';
             }
         }
@@ -27,8 +32,13 @@ class Validator {
     }
 
     public function min($field, $min) {
-        if (isset($this->data[$field]) && strlen($this->data[$field]) < $min) {
-            $this->errors[$field] = ucfirst($field) . " must be at least $min characters";
+        if (isset($this->data[$field])) {
+            $value = $this->data[$field];
+            if (is_string($value) && strlen($value) < $min) {
+                $this->errors[$field] = ucfirst($field) . " must be at least $min characters";
+            } elseif (is_numeric($value) && $value < $min) {
+                $this->errors[$field] = ucfirst($field) . " must be at least $min";
+            }
         }
         return $this;
     }
