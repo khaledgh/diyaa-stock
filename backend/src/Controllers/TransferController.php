@@ -64,7 +64,7 @@ class TransferController {
             }
 
             try {
-                $db = $this->transferModel->db;
+                $db = $this->transferModel->getDb();
                 $db->beginTransaction();
 
                 // Validate stock availability

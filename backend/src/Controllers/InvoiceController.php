@@ -60,7 +60,7 @@ class InvoiceController {
         }
 
         try {
-            $db = $this->invoiceModel->db;
+            $db = $this->invoiceModel->getDb();
             $db->beginTransaction();
 
             // Calculate totals
@@ -155,7 +155,7 @@ class InvoiceController {
         }
 
         try {
-            $db = $this->invoiceModel->db;
+            $db = $this->invoiceModel->getDb();
             $db->beginTransaction();
 
             // Validate van stock

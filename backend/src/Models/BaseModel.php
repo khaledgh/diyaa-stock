@@ -14,6 +14,10 @@ abstract class BaseModel {
         $this->db = Database::getInstance()->getConnection();
     }
 
+    public function getDb() {
+        return $this->db;
+    }
+
     public function findAll($conditions = [], $orderBy = null, $limit = null, $offset = null) {
         $sql = "SELECT * FROM {$this->table}";
         

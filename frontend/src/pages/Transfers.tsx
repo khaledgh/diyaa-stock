@@ -188,6 +188,7 @@ export default function Transfers() {
     // Add the current transfer items to the form data
     const formDataWithItems = {
       ...data,
+      to_location_type: 'van',
       items: transferItems,
     };
 

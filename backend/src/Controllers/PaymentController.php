@@ -53,7 +53,7 @@ class PaymentController {
         }
 
         try {
-            $db = $this->paymentModel->db;
+            $db = $this->paymentModel->getDb();
             $db->beginTransaction();
 
             // Create payment
