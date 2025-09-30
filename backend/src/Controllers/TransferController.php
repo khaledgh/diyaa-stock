@@ -55,6 +55,7 @@ class TransferController {
 
             if (!empty($errors)) {
                 Response::error('Validation failed', 400, $errors);
+                return;
             }
 
             if (empty($data['items']) || !is_array($data['items'])) {
