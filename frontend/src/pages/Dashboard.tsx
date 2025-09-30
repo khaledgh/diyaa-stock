@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Package, DollarSign, AlertCircle, Truck } from 'lucide-react';
+import { Package, DollarSign, AlertCircle, Truck, CreditCard, TrendingDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { reportApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
@@ -47,9 +47,18 @@ export default function Dashboard() {
     {
       title: t('dashboard.pendingPayments'),
       value: formatCurrency(dashboardData?.pending_payments || 0),
+      subtitle: 'Receivables from customers',
       icon: AlertCircle,
       color: 'text-red-600',
       bgColor: 'bg-red-100 dark:bg-red-900',
+    },
+    {
+      title: 'Amount to Pay',
+      value: formatCurrency(dashboardData?.payables || 0),
+      subtitle: 'Unpaid purchase invoices',
+      icon: TrendingDown,
+      color: 'text-red-700',
+      bgColor: 'bg-red-200 dark:bg-red-950',
     },
     {
       title: t('dashboard.lowStock'),

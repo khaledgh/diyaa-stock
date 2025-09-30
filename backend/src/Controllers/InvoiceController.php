@@ -2,7 +2,8 @@
 
 namespace App\Controllers;
 
-use App\Models\Invoice;
+use App\Models\PurchaseInvoice;
+use App\Models\SalesInvoice;
 use App\Models\Stock;
 use App\Models\StockMovement;
 use App\Models\Payment;
@@ -10,23 +11,27 @@ use App\Utils\Response;
 use App\Utils\Validator;
 
 class InvoiceController {
-    private $invoiceModel;
+    private $purchaseInvoiceModel;
+    private $salesInvoiceModel;
     private $stockModel;
     private $movementModel;
     private $paymentModel;
 
     public function __construct() {
-        $this->invoiceModel = new Invoice();
+        $this->purchaseInvoiceModel = new PurchaseInvoice();
+        $this->salesInvoiceModel = new SalesInvoice();
         $this->stockModel = new Stock();
         $this->movementModel = new StockMovement();
         $this->paymentModel = new Payment();
     }
 
     public function index() {
+        $invoiceType = $_GET['invoice_type'] ?? 'sales';
+        
         $filters = [
-            'invoice_type' => $_GET['invoice_type'] ?? null,
             'payment_status' => $_GET['payment_status'] ?? null,
             'customer_id' => $_GET['customer_id'] ?? null,
+            'supplier_id' => $_GET['supplier_id'] ?? null,
             'van_id' => $_GET['van_id'] ?? null,
             'from_date' => $_GET['from_date'] ?? null,
             'to_date' => $_GET['to_date'] ?? null,
@@ -34,15 +39,27 @@ class InvoiceController {
             'offset' => $_GET['offset'] ?? 0
         ];
 
-        $invoices = $this->invoiceModel->getInvoicesWithDetails($filters);
+        if ($invoiceType === 'purchase') {
+            $invoices = $this->purchaseInvoiceModel->getInvoicesWithDetails($filters);
+        } else {
+            $invoices = $this->salesInvoiceModel->getInvoicesWithDetails($filters);
+        }
+        
         Response::success($invoices);
     }
 
     public function show($id) {
-        $invoice = $this->invoiceModel->getInvoiceWithItems($id);
+        $invoiceType = $_GET['invoice_type'] ?? 'sales';
+        
+        if ($invoiceType === 'purchase') {
+            $invoice = $this->purchaseInvoiceModel->getInvoiceWithItems($id);
+        } else {
+            $invoice = $this->salesInvoiceModel->getInvoiceWithItems($id);
+        }
         
         if (!$invoice) {
             Response::notFound('Invoice not found');
+            return;
         }
 
         Response::success($invoice);
@@ -63,7 +80,7 @@ class InvoiceController {
         }
 
         try {
-            $db = $this->invoiceModel->getDb();
+            $db = $this->purchaseInvoiceModel->getDb();
             $db->beginTransaction();
 
             // Calculate totals
@@ -78,11 +95,10 @@ class InvoiceController {
             $discountAmount = $data['discount_amount'] ?? 0;
             $totalAmount = $subtotal + $taxAmount - $discountAmount;
 
-            // Create invoice
+            // Create purchase invoice
             $invoiceData = [
-                'invoice_number' => $this->invoiceModel->generateInvoiceNumber('purchase'),
-                'invoice_type' => 'purchase',
-                'customer_id' => $data['customer_id'] ?? null,
+                'invoice_number' => $this->purchaseInvoiceModel->generateInvoiceNumber(),
+                'supplier_id' => $data['customer_id'] ?? null, // Using customer_id as supplier_id for now
                 'subtotal' => $subtotal,
                 'tax_amount' => $taxAmount,
                 'discount_amount' => $discountAmount,
@@ -93,16 +109,16 @@ class InvoiceController {
                 'created_by' => $user['id']
             ];
 
-            $invoiceId = $this->invoiceModel->create($invoiceData);
+            $invoiceId = $this->purchaseInvoiceModel->create($invoiceData);
 
-            // Create invoice items and update stock
+            // Create purchase invoice items and update stock
             foreach ($data['items'] as $item) {
                 $itemTotal = $item['quantity'] * $item['unit_price'];
                 $itemTotal -= $itemTotal * ($item['discount_percent'] ?? 0) / 100;
                 $itemTotal += $itemTotal * ($item['tax_percent'] ?? 0) / 100;
 
-                // Insert invoice item
-                $db->prepare("INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, discount_percent, tax_percent, total) 
+                // Insert purchase invoice item
+                $db->prepare("INSERT INTO purchase_invoice_items (invoice_id, product_id, quantity, unit_price, discount_percent, tax_percent, total) 
                              VALUES (?, ?, ?, ?, ?, ?, ?)")
                    ->execute([
                        $invoiceId,
@@ -114,16 +130,16 @@ class InvoiceController {
                        $itemTotal
                    ]);
 
-                // Reduce warehouse stock (purchase invoice subtracts from warehouse)
-                $this->stockModel->updateStock($item['product_id'], 'warehouse', 0, -$item['quantity']);
+                // Add to warehouse stock (purchase invoice adds to warehouse)
+                $this->stockModel->updateStock($item['product_id'], 'warehouse', 0, $item['quantity']);
 
                 // Record stock movement
                 $this->movementModel->create([
                     'product_id' => $item['product_id'],
-                    'from_location_type' => 'warehouse',
+                    'from_location_type' => 'supplier',
                     'from_location_id' => 0,
-                    'to_location_type' => 'customer',
-                    'to_location_id' => $data['customer_id'] ?? 0,
+                    'to_location_type' => 'warehouse',
+                    'to_location_id' => 0,
                     'quantity' => $item['quantity'],
                     'movement_type' => 'purchase',
                     'reference_type' => 'invoice',
@@ -146,7 +162,7 @@ class InvoiceController {
 
             $db->commit();
 
-            $invoice = $this->invoiceModel->getInvoiceWithItems($invoiceId);
+            $invoice = $this->purchaseInvoiceModel->getInvoiceWithItems($invoiceId);
             Response::success($invoice, 'Purchase invoice created successfully', 201);
 
         } catch (\Exception $e) {
@@ -170,7 +186,7 @@ class InvoiceController {
         }
 
         try {
-            $db = $this->invoiceModel->getDb();
+            $db = $this->salesInvoiceModel->getDb();
             $db->beginTransaction();
 
             // Validate van stock
@@ -198,10 +214,9 @@ class InvoiceController {
             $discountAmount = $data['discount_amount'] ?? 0;
             $totalAmount = $subtotal + $taxAmount - $discountAmount;
 
-            // Create invoice
+            // Create sales invoice
             $invoiceData = [
-                'invoice_number' => $this->invoiceModel->generateInvoiceNumber('sales'),
-                'invoice_type' => 'sales',
+                'invoice_number' => $this->salesInvoiceModel->generateInvoiceNumber(),
                 'customer_id' => $data['customer_id'] ?? null,
                 'van_id' => $data['van_id'],
                 'subtotal' => $subtotal,
@@ -214,16 +229,16 @@ class InvoiceController {
                 'created_by' => $user['id']
             ];
 
-            $invoiceId = $this->invoiceModel->create($invoiceData);
+            $invoiceId = $this->salesInvoiceModel->create($invoiceData);
 
-            // Create invoice items and update stock
+            // Create sales invoice items and update stock
             foreach ($data['items'] as $item) {
                 $itemTotal = $item['quantity'] * $item['unit_price'];
                 $itemTotal -= $itemTotal * ($item['discount_percent'] ?? 0) / 100;
                 $itemTotal += $itemTotal * ($item['tax_percent'] ?? 0) / 100;
 
-                // Insert invoice item
-                $db->prepare("INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, discount_percent, tax_percent, total) 
+                // Insert sales invoice item
+                $db->prepare("INSERT INTO sales_invoice_items (invoice_id, product_id, quantity, unit_price, discount_percent, tax_percent, total) 
                              VALUES (?, ?, ?, ?, ?, ?, ?)")
                    ->execute([
                        $invoiceId,
@@ -267,7 +282,7 @@ class InvoiceController {
 
             $db->commit();
 
-            $invoice = $this->invoiceModel->getInvoiceWithItems($invoiceId);
+            $invoice = $this->salesInvoiceModel->getInvoiceWithItems($invoiceId);
             Response::success($invoice, 'Sales invoice created successfully', 201);
 
         } catch (\Exception $e) {

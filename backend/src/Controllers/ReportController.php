@@ -185,18 +185,26 @@ class ReportController {
         // Today's sales
         $stmt = $this->db->query("
             SELECT COUNT(*) as count, SUM(total_amount) as total
-            FROM invoices
-            WHERE invoice_type = 'sales' AND DATE(created_at) = CURDATE()
+            FROM sales_invoices
+            WHERE DATE(created_at) = CURDATE()
         ");
         $todaySales = $stmt->fetch();
 
-        // Pending payments
+        // Pending payments (Receivables from sales)
         $stmt = $this->db->query("
             SELECT SUM(total_amount - paid_amount) as total
-            FROM invoices
-            WHERE invoice_type = 'sales' AND payment_status IN ('unpaid', 'partial')
+            FROM sales_invoices
+            WHERE payment_status IN ('unpaid', 'partial')
         ");
         $pendingPayments = $stmt->fetch()['total'] ?? 0;
+
+        // Payables (Amount to pay for purchases)
+        $stmt = $this->db->query("
+            SELECT SUM(total_amount - paid_amount) as total
+            FROM purchase_invoices
+            WHERE payment_status IN ('unpaid', 'partial')
+        ");
+        $payables = $stmt->fetch()['total'] ?? 0;
 
         // Low stock products
         $stmt = $this->db->query("
@@ -216,9 +224,8 @@ class ReportController {
         // Recent sales chart (last 7 days)
         $stmt = $this->db->query("
             SELECT DATE(created_at) as date, SUM(total_amount) as total
-            FROM invoices
-            WHERE invoice_type = 'sales' 
-            AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            FROM sales_invoices
+            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
             GROUP BY DATE(created_at)
             ORDER BY date ASC
         ");
@@ -230,6 +237,7 @@ class ReportController {
             'today_sales_count' => $todaySales['count'],
             'today_sales_total' => round($todaySales['total'] ?? 0, 2),
             'pending_payments' => round($pendingPayments, 2),
+            'payables' => round($payables, 2),
             'low_stock_count' => $lowStockCount,
             'active_vans' => $activeVans,
             'sales_chart' => $salesChart

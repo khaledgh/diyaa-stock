@@ -590,27 +590,54 @@ export default function Invoices() {
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl md:text-3xl font-bold">{t('invoices.title') || 'Invoices'}</h1>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <Button
-            variant={invoiceType === 'purchase' ? 'default' : 'outline'}
-            onClick={() => setInvoiceType('purchase')}
-            className="flex-1 sm:flex-none"
-          >
-            {t('invoices.purchase') || 'Purchase'}
-          </Button>
-          <Button
-            variant={invoiceType === 'sales' ? 'default' : 'outline'}
-            onClick={() => setInvoiceType('sales')}
-            className="flex-1 sm:flex-none"
-          >
-            {t('invoices.sales') || 'Sales'}
-          </Button>
-          <Button onClick={() => setIsCreateDialogOpen(true)} className="flex-1 sm:flex-none">
-            <Plus className="mr-2 h-4 w-4" />
-            {t('common.create') || 'Create'}
-          </Button>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">{t('invoices.title') || 'Invoices'}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {invoiceType === 'purchase' 
+              ? 'Purchase invoices reduce warehouse stock and record expenses' 
+              : 'Sales invoices reduce van stock and record income'}
+          </p>
         </div>
+        <Button onClick={() => setIsCreateDialogOpen(true)} size="lg">
+          <Plus className="mr-2 h-4 w-4" />
+          {invoiceType === 'purchase' ? 'New Purchase' : 'New Sale'}
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Card 
+          className={`cursor-pointer transition-all ${invoiceType === 'purchase' ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950' : 'hover:bg-muted'}`}
+          onClick={() => setInvoiceType('purchase')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Purchase Invoices</h3>
+                <p className="text-sm text-muted-foreground">Buying from suppliers</p>
+              </div>
+              <div className="text-3xl font-bold text-red-600">
+                {invoices?.filter((inv: any) => inv.invoice_type === 'purchase').length || 0}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer transition-all ${invoiceType === 'sales' ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950' : 'hover:bg-muted'}`}
+          onClick={() => setInvoiceType('sales')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Sales Invoices</h3>
+                <p className="text-sm text-muted-foreground">Selling to customers</p>
+              </div>
+              <div className="text-3xl font-bold text-green-600">
+                {invoices?.filter((inv: any) => inv.invoice_type === 'sales').length || 0}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -677,14 +704,23 @@ export default function Invoices() {
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {invoiceType === 'purchase' ? 'Create Purchase Invoice' : 'Create Sales Invoice'}
-            </DialogTitle>
+            <div className={`p-4 rounded-lg mb-4 ${invoiceType === 'purchase' ? 'bg-red-50 dark:bg-red-950' : 'bg-green-50 dark:bg-green-950'}`}>
+              <DialogTitle className={`flex items-center gap-2 ${invoiceType === 'purchase' ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>
+                <FileText className="h-5 w-5" />
+                {invoiceType === 'purchase' ? 'Create Purchase Invoice' : 'Create Sales Invoice'}
+              </DialogTitle>
+              <p className="text-sm mt-1 text-muted-foreground">
+                {invoiceType === 'purchase' 
+                  ? '📦 Buying products - Adds to warehouse stock - Payment is expense (-)' 
+                  : '💰 Selling products - Reduces van stock - Payment is income (+)'}
+              </p>
+            </div>
           </DialogHeader>
           <div className="space-y-4">
             {invoiceType === 'sales' && (
-              <div>
-                <Label>Select Van <span className="text-red-500">*</span></Label>
+              <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md">
+                <Label className="text-blue-700 dark:text-blue-300">Select Van <span className="text-red-500">*</span></Label>
+                <p className="text-xs text-muted-foreground mb-2">Products will be deducted from this van's stock</p>
                 <Combobox
                   options={[{ value: '', label: 'Select a van...' }, ...vanOptions]}
                   value={selectedVan}
@@ -696,17 +732,34 @@ export default function Invoices() {
               </div>
             )}
 
-            <div>
-              <Label>Customer (Optional)</Label>
-              <Combobox
-                options={[{ value: '', label: 'Select a customer...' }, ...customerOptions]}
-                value={selectedCustomer}
-                onChange={setSelectedCustomer}
-                placeholder="Select customer"
-                searchPlaceholder="Search..."
-                emptyText="No customers found"
-              />
-            </div>
+            {invoiceType === 'purchase' && (
+              <div className="bg-amber-50 dark:bg-amber-950 p-3 rounded-md">
+                <Label className="text-amber-700 dark:text-amber-300">Supplier/Vendor</Label>
+                <p className="text-xs text-muted-foreground mb-2">Who are you buying from? (Optional)</p>
+                <Combobox
+                  options={[{ value: '', label: 'Select supplier...' }, ...customerOptions]}
+                  value={selectedCustomer}
+                  onChange={setSelectedCustomer}
+                  placeholder="Select supplier"
+                  searchPlaceholder="Search..."
+                  emptyText="No suppliers found"
+                />
+              </div>
+            )}
+
+            {invoiceType === 'sales' && (
+              <div>
+                <Label>Customer (Optional)</Label>
+                <Combobox
+                  options={[{ value: '', label: 'Walk-in customer' }, ...customerOptions]}
+                  value={selectedCustomer}
+                  onChange={setSelectedCustomer}
+                  placeholder="Select customer"
+                  searchPlaceholder="Search..."
+                  emptyText="No customers found"
+                />
+              </div>
+            )}
 
             <div className="border-t pt-4">
               <h3 className="font-semibold mb-4">Add Items</h3>
@@ -812,8 +865,16 @@ export default function Invoices() {
               )}
             </div>
 
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-4">Payment Information (Optional)</h3>
+            <div className={`border-t pt-4 ${invoiceType === 'purchase' ? 'bg-red-50 dark:bg-red-950' : 'bg-green-50 dark:bg-green-950'} p-4 rounded-lg`}>
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Payment Information (Optional)
+              </h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                {invoiceType === 'purchase' 
+                  ? '⚠️ Payment will be recorded as EXPENSE (negative amount in red)' 
+                  : '✅ Payment will be recorded as INCOME (positive amount in green)'}
+              </p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Paid Amount</Label>
@@ -824,7 +885,13 @@ export default function Invoices() {
                     placeholder="0.00"
                     min="0"
                     step="0.01"
+                    className={paidAmount ? (invoiceType === 'purchase' ? 'border-red-500' : 'border-green-500') : ''}
                   />
+                  {paidAmount && (
+                    <p className={`text-xs mt-1 font-medium ${invoiceType === 'purchase' ? 'text-red-600' : 'text-green-600'}`}>
+                      Will be recorded as: {invoiceType === 'purchase' ? '-' : '+'}{formatCurrency(Number(paidAmount))}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label>Payment Method</Label>
