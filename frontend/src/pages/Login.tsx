@@ -22,13 +22,18 @@ export default function Login() {
     setLoading(true);
 
     try {
+      console.log('Attempting login with:', email);
       const response = await authApi.login(email, password);
+      console.log('Login response:', response);
       const { token, user } = response.data.data;
       setAuth(user, token);
       toast.success(t('auth.loginSuccess') || 'Login successful');
       navigate('/dashboard');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || t('auth.loginError'));
+      console.error('Login error:', error);
+      console.error('Error response:', error.response);
+      const errorMessage = error.response?.data?.message || error.message || t('auth.loginError') || 'Login failed';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
