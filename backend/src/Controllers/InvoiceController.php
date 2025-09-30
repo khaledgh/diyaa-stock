@@ -114,16 +114,16 @@ class InvoiceController {
                        $itemTotal
                    ]);
 
-                // Add to warehouse stock
-                $this->stockModel->updateStock($item['product_id'], 'warehouse', 0, $item['quantity']);
+                // Reduce warehouse stock (purchase invoice subtracts from warehouse)
+                $this->stockModel->updateStock($item['product_id'], 'warehouse', 0, -$item['quantity']);
 
                 // Record stock movement
                 $this->movementModel->create([
                     'product_id' => $item['product_id'],
-                    'from_location_type' => 'supplier',
+                    'from_location_type' => 'warehouse',
                     'from_location_id' => 0,
-                    'to_location_type' => 'warehouse',
-                    'to_location_id' => 0,
+                    'to_location_type' => 'customer',
+                    'to_location_id' => $data['customer_id'] ?? 0,
                     'quantity' => $item['quantity'],
                     'movement_type' => 'purchase',
                     'reference_type' => 'invoice',
@@ -132,14 +132,14 @@ class InvoiceController {
                 ]);
             }
 
-            // Create payment record if paid_amount > 0
+            // Create payment record if paid_amount > 0 (negative for purchase = expense)
             if (isset($data['paid_amount']) && $data['paid_amount'] > 0) {
                 $this->paymentModel->create([
                     'invoice_id' => $invoiceId,
-                    'amount' => $data['paid_amount'],
+                    'amount' => -$data['paid_amount'], // Negative for purchase invoice (expense)
                     'payment_method' => $data['payment_method'] ?? 'cash',
                     'reference_number' => $data['reference_number'] ?? null,
-                    'notes' => 'Initial payment with invoice',
+                    'notes' => 'Initial payment with purchase invoice',
                     'created_by' => $user['id']
                 ]);
             }

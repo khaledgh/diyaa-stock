@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import Customers from './pages/Customers';
+import Employees from './pages/Employees';
 import Vans from './pages/Vans';
 import Stock from './pages/Stock';
 import Transfers from './pages/Transfers';
@@ -17,8 +18,11 @@ import Invoices from './pages/Invoices';
 import Payments from './pages/Payments';
 import Reports from './pages/Reports';
 
+
 // Layout
 import Layout from './components/Layout';
+import POS from './pages/POS';
+import Settings from './pages/Settings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,12 +64,15 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="products" element={<Products />} />
             <Route path="customers" element={<Customers />} />
+            <Route path="employees" element={<Employees />} />
             <Route path="vans" element={<Vans />} />
             <Route path="stock" element={<Stock />} />
             <Route path="transfers" element={<Transfers />} />
             <Route path="invoices" element={<Invoices />} />
             <Route path="payments" element={<Payments />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="pos" element={<POS />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
       </BrowserRouter>

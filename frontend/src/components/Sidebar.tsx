@@ -4,25 +4,31 @@ import {
   LayoutDashboard,
   Package,
   Users,
+  UserCog,
   Truck,
   Warehouse,
   ArrowRightLeft,
   FileText,
   CreditCard,
   BarChart3,
+  ShoppingCart,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'pos', href: '/pos', icon: ShoppingCart },
   { name: 'products', href: '/products', icon: Package },
   { name: 'customers', href: '/customers', icon: Users },
+  { name: 'employees', href: '/employees', icon: UserCog },
   { name: 'vans', href: '/vans', icon: Truck },
   { name: 'stock', href: '/stock', icon: Warehouse },
   { name: 'transfers', href: '/transfers', icon: ArrowRightLeft },
   { name: 'invoices', href: '/invoices', icon: FileText },
   { name: 'payments', href: '/payments', icon: CreditCard },
   { name: 'reports', href: '/reports', icon: BarChart3 },
+  { name: 'settings', href: '/settings', icon: Settings },
 ];
 
 export default function Sidebar() {

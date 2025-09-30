@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { FileText, Eye, Plus, Trash2, DollarSign, Printer } from 'lucide-react';
+import { FileText, Eye, Plus, Trash2, DollarSign, Printer, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -265,6 +265,26 @@ export default function Invoices() {
   const handlePrintInvoice = () => {
     if (!selectedInvoice) return;
     
+    // Load company settings
+    const savedSettings = localStorage.getItem('company_settings');
+    let companySettings: any = {
+      company_name: 'Company Name',
+      company_address: '',
+      company_phone: '',
+      company_email: '',
+      company_tax_id: '',
+      company_logo_url: '',
+      invoice_footer: 'Thank you for your business!',
+    };
+    
+    if (savedSettings) {
+      try {
+        companySettings = JSON.parse(savedSettings);
+      } catch (error) {
+        console.error('Failed to load company settings');
+      }
+    }
+    
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -274,26 +294,40 @@ export default function Invoices() {
       <head>
         <title>Invoice ${selectedInvoice.invoice_number}</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
+          body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
           .header { text-align: center; margin-bottom: 30px; }
-          .header h1 { margin: 0; color: #333; }
+          .header img { max-height: 80px; margin-bottom: 10px; }
+          .header h1 { margin: 10px 0; color: #333; }
+          .header p { margin: 5px 0; color: #666; font-size: 14px; }
+          .invoice-title { font-size: 24px; font-weight: bold; margin: 20px 0; }
           .info { display: flex; justify-content: space-between; margin-bottom: 30px; }
           .info-section { flex: 1; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
           th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
           th { background-color: #f5f5f5; font-weight: bold; }
           .text-right { text-align: right; }
-          .totals { margin-top: 20px; }
+          .totals { margin-top: 20px; max-width: 400px; margin-left: auto; }
           .totals-row { display: flex; justify-content: space-between; padding: 5px 0; }
-          .total-row { font-weight: bold; font-size: 1.2em; border-top: 2px solid #333; padding-top: 10px; }
+          .total-row { font-weight: bold; font-size: 1.2em; border-top: 2px solid #333; padding-top: 10px; margin-top: 10px; }
+          .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px; }
           @media print { button { display: none; } }
         </style>
       </head>
       <body>
         <div class="header">
-          <h1>INVOICE</h1>
-          <p>${selectedInvoice.invoice_number}</p>
+          ${companySettings.company_logo_url ? `<img src="${companySettings.company_logo_url}" alt="Company Logo" />` : ''}
+          <h1>${companySettings.company_name}</h1>
+          ${companySettings.company_address ? `<p>${companySettings.company_address}</p>` : ''}
+          <p>
+            ${companySettings.company_phone ? `Tel: ${companySettings.company_phone}` : ''}
+            ${companySettings.company_phone && companySettings.company_email ? ' | ' : ''}
+            ${companySettings.company_email ? `Email: ${companySettings.company_email}` : ''}
+          </p>
+          ${companySettings.company_tax_id ? `<p>Tax ID: ${companySettings.company_tax_id}</p>` : ''}
         </div>
+        
+        <div class="invoice-title">INVOICE</div>
+        <p><strong>Invoice Number:</strong> ${selectedInvoice.invoice_number}</p>
         
         <div class="info">
           <div class="info-section">
@@ -359,6 +393,12 @@ export default function Invoices() {
           </div>
         </div>
 
+        ${companySettings.invoice_footer ? `
+          <div class="footer">
+            ${companySettings.invoice_footer}
+          </div>
+        ` : ''}
+        
         <div style="margin-top: 50px; text-align: center;">
           <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">Print Invoice</button>
         </div>
@@ -367,6 +407,158 @@ export default function Invoices() {
     `;
 
     printWindow.document.write(invoiceHtml);
+    printWindow.document.close();
+  };
+
+  const handlePrintPOSReceipt = () => {
+    if (!selectedInvoice) return;
+    
+    // Load company settings
+    const savedSettings = localStorage.getItem('company_settings');
+    let companySettings: any = {
+      company_name: 'Company Name',
+      company_phone: '',
+      company_tax_id: '',
+    };
+    
+    if (savedSettings) {
+      try {
+        companySettings = JSON.parse(savedSettings);
+      } catch (error) {
+        console.error('Failed to load company settings');
+      }
+    }
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    // POS thermal receipt format (80mm width)
+    const receiptHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt ${selectedInvoice.invoice_number}</title>
+        <style>
+          @media print {
+            @page { margin: 0; size: 80mm auto; }
+          }
+          body { 
+            font-family: 'Courier New', monospace; 
+            width: 80mm;
+            margin: 0;
+            padding: 5mm;
+            font-size: 12px;
+            line-height: 1.4;
+          }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .large { font-size: 16px; }
+          .line { border-top: 1px dashed #000; margin: 5px 0; }
+          .double-line { border-top: 2px solid #000; margin: 5px 0; }
+          .row { display: flex; justify-content: space-between; margin: 2px 0; }
+          .item-row { display: flex; justify-content: space-between; margin: 3px 0; }
+          .item-name { flex: 1; }
+          .item-qty { width: 30px; text-align: center; }
+          .item-price { width: 60px; text-align: right; }
+          .total-row { font-size: 14px; font-weight: bold; margin: 5px 0; }
+          button { margin: 10px auto; display: block; padding: 10px 20px; }
+          @media print { button { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="center bold large">${companySettings.company_name}</div>
+        ${companySettings.company_phone ? `<div class="center">Tel: ${companySettings.company_phone}</div>` : ''}
+        ${companySettings.company_tax_id ? `<div class="center">Tax ID: ${companySettings.company_tax_id}</div>` : ''}
+        
+        <div class="line"></div>
+        
+        <div class="row">
+          <span>Invoice:</span>
+          <span class="bold">${selectedInvoice.invoice_number}</span>
+        </div>
+        <div class="row">
+          <span>Date:</span>
+          <span>${new Date(selectedInvoice.created_at).toLocaleString()}</span>
+        </div>
+        ${selectedInvoice.customer_name ? `
+          <div class="row">
+            <span>Customer:</span>
+            <span>${selectedInvoice.customer_name}</span>
+          </div>
+        ` : ''}
+        ${selectedInvoice.van_name ? `
+          <div class="row">
+            <span>Van:</span>
+            <span>${selectedInvoice.van_name}</span>
+          </div>
+        ` : ''}
+        
+        <div class="double-line"></div>
+        
+        ${selectedInvoice.items?.map((item: any) => `
+          <div class="item-row">
+            <div class="item-name">${item.product_name || item.name_en}</div>
+          </div>
+          <div class="item-row">
+            <div class="item-qty">${item.quantity} x</div>
+            <div class="item-price">${formatCurrency(item.unit_price)}</div>
+            <div class="item-price">${formatCurrency(item.total)}</div>
+          </div>
+        `).join('')}
+        
+        <div class="line"></div>
+        
+        <div class="row">
+          <span>Subtotal:</span>
+          <span>${formatCurrency(selectedInvoice.subtotal)}</span>
+        </div>
+        ${selectedInvoice.tax_amount > 0 ? `
+          <div class="row">
+            <span>Tax:</span>
+            <span>${formatCurrency(selectedInvoice.tax_amount)}</span>
+          </div>
+        ` : ''}
+        ${selectedInvoice.discount_amount > 0 ? `
+          <div class="row">
+            <span>Discount:</span>
+            <span>-${formatCurrency(selectedInvoice.discount_amount)}</span>
+          </div>
+        ` : ''}
+        
+        <div class="double-line"></div>
+        
+        <div class="row total-row">
+          <span>TOTAL:</span>
+          <span>${formatCurrency(selectedInvoice.total_amount)}</span>
+        </div>
+        
+        <div class="row">
+          <span>Paid:</span>
+          <span>${formatCurrency(selectedInvoice.paid_amount)}</span>
+        </div>
+        
+        ${selectedInvoice.total_amount - selectedInvoice.paid_amount > 0 ? `
+          <div class="row bold">
+            <span>Balance Due:</span>
+            <span>${formatCurrency(selectedInvoice.total_amount - selectedInvoice.paid_amount)}</span>
+          </div>
+        ` : ''}
+        
+        <div class="line"></div>
+        
+        <div class="center" style="margin-top: 10px;">
+          <div>Thank you for your business!</div>
+          <div style="font-size: 10px; margin-top: 5px;">
+            Status: ${selectedInvoice.payment_status.toUpperCase()}
+          </div>
+        </div>
+        
+        <button onclick="window.print()">Print Receipt</button>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(receiptHtml);
     printWindow.document.close();
   };
 
@@ -693,14 +885,26 @@ export default function Invoices() {
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle>Invoice Details</DialogTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrintInvoice}
-              >
-                <Printer className="mr-2 h-4 w-4" />
-                Print
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrintPOSReceipt}
+                  title="Print POS Receipt (80mm)"
+                >
+                  <Receipt className="mr-2 h-4 w-4" />
+                  Receipt
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrintInvoice}
+                  title="Print A4 Invoice"
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Invoice
+                </Button>
+              </div>
             </div>
           </DialogHeader>
           {selectedInvoice && (

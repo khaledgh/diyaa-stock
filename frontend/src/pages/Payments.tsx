@@ -71,7 +71,7 @@ export default function Payments() {
                         <TableCell className="hidden md:table-cell font-mono text-sm">
                           #{payment.invoice_id}
                         </TableCell>
-                        <TableCell className="text-right font-bold text-green-600">
+                        <TableCell className={`text-right font-bold ${payment.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
                           {formatCurrency(payment.amount)}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
