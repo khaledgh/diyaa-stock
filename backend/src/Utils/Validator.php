@@ -83,14 +83,14 @@ class Validator {
 
                 // Required rule
                 if ($ruleName === 'required') {
-                    if ($fieldValue === null || trim($fieldValue) === '') {
+                    if ($fieldValue === null || (is_string($fieldValue) && trim($fieldValue) === '') || (is_array($fieldValue) && empty($fieldValue))) {
                         $errors[$field] = ucfirst($field) . ' is required';
                         break;
                     }
                 }
 
                 // Skip other validations if field is empty and not required
-                if ($fieldValue === null || trim($fieldValue) === '') {
+                if ($fieldValue === null || (is_string($fieldValue) && trim($fieldValue) === '') || (is_array($fieldValue) && empty($fieldValue))) {
                     continue;
                 }
 
@@ -162,14 +162,14 @@ class Validator {
 
                 // Required rule
                 if ($ruleName === 'required') {
-                    if ($fieldValue === null || trim($fieldValue) === '') {
+                    if ($fieldValue === null || (is_string($fieldValue) && trim($fieldValue) === '') || (is_array($fieldValue) && empty($fieldValue))) {
                         $errors["{$arrayField}.{$index}.{$itemField}"] = ucfirst($itemField) . ' is required';
                         break;
                     }
                 }
 
                 // Skip other validations if field is empty and not required
-                if ($fieldValue === null || trim($fieldValue) === '') {
+                if ($fieldValue === null || (is_string($fieldValue) && trim($fieldValue) === '') || (is_array($fieldValue) && empty($fieldValue))) {
                     continue;
                 }
 
