@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { FileText, Eye, Plus, Trash2, DollarSign } from 'lucide-react';
+import { FileText, Eye, Plus, Trash2, DollarSign, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,9 +47,11 @@ export default function Invoices() {
   const [discount, setDiscount] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
   const [notes, setNotes] = useState('');
-  const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDialogMethod, setPaymentDialogMethod] = useState('cash');
+  const [paymentDialogReference, setPaymentDialogReference] = useState('');
 
   const { data: invoices, isLoading } = useQuery({
     queryKey: ['invoices', invoiceType],
@@ -190,6 +192,8 @@ export default function Invoices() {
     setUnitPrice('');
     setDiscount('');
     setPaidAmount('');
+    setPaymentMethod('cash');
+    setReferenceNumber('');
     setNotes('');
   };
 
@@ -212,6 +216,8 @@ export default function Invoices() {
         discount_percent: item.discount_percent || 0,
       })),
       paid_amount: Number(paidAmount) || 0,
+      payment_method: paymentMethod,
+      reference_number: referenceNumber || undefined,
       notes: notes || undefined,
     };
 
@@ -251,9 +257,117 @@ export default function Invoices() {
     createPaymentMutation.mutate({
       invoice_id: selectedInvoice.id,
       amount: Number(paymentAmount),
-      payment_method: paymentMethod,
-      reference_number: referenceNumber || undefined,
+      payment_method: paymentDialogMethod,
+      reference_number: paymentDialogReference || undefined,
     });
+  };
+
+  const handlePrintInvoice = () => {
+    if (!selectedInvoice) return;
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const invoiceHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Invoice ${selectedInvoice.invoice_number}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .header h1 { margin: 0; color: #333; }
+          .info { display: flex; justify-content: space-between; margin-bottom: 30px; }
+          .info-section { flex: 1; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+          th { background-color: #f5f5f5; font-weight: bold; }
+          .text-right { text-align: right; }
+          .totals { margin-top: 20px; }
+          .totals-row { display: flex; justify-content: space-between; padding: 5px 0; }
+          .total-row { font-weight: bold; font-size: 1.2em; border-top: 2px solid #333; padding-top: 10px; }
+          @media print { button { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>INVOICE</h1>
+          <p>${selectedInvoice.invoice_number}</p>
+        </div>
+        
+        <div class="info">
+          <div class="info-section">
+            <strong>Date:</strong> ${formatDateTime(selectedInvoice.created_at)}<br>
+            ${selectedInvoice.customer_name ? `<strong>Customer:</strong> ${selectedInvoice.customer_name}<br>` : ''}
+            ${selectedInvoice.van_name ? `<strong>Van:</strong> ${selectedInvoice.van_name}<br>` : ''}
+          </div>
+          <div class="info-section" style="text-align: right;">
+            <strong>Status:</strong> ${selectedInvoice.payment_status.toUpperCase()}<br>
+            <strong>Type:</strong> ${selectedInvoice.invoice_type.toUpperCase()}
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th class="text-right">Quantity</th>
+              <th class="text-right">Unit Price</th>
+              <th class="text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${selectedInvoice.items?.map((item: any) => `
+              <tr>
+                <td>${item.product_name || item.name_en}</td>
+                <td class="text-right">${item.quantity}</td>
+                <td class="text-right">${formatCurrency(item.unit_price)}</td>
+                <td class="text-right">${formatCurrency(item.total)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="totals">
+          <div class="totals-row">
+            <span>Subtotal:</span>
+            <span>${formatCurrency(selectedInvoice.subtotal)}</span>
+          </div>
+          ${selectedInvoice.tax_amount > 0 ? `
+            <div class="totals-row">
+              <span>Tax:</span>
+              <span>${formatCurrency(selectedInvoice.tax_amount)}</span>
+            </div>
+          ` : ''}
+          ${selectedInvoice.discount_amount > 0 ? `
+            <div class="totals-row">
+              <span>Discount:</span>
+              <span>-${formatCurrency(selectedInvoice.discount_amount)}</span>
+            </div>
+          ` : ''}
+          <div class="totals-row total-row">
+            <span>Total:</span>
+            <span>${formatCurrency(selectedInvoice.total_amount)}</span>
+          </div>
+          <div class="totals-row" style="color: green;">
+            <span>Paid:</span>
+            <span>${formatCurrency(selectedInvoice.paid_amount)}</span>
+          </div>
+          <div class="totals-row" style="color: red; font-weight: bold;">
+            <span>Remaining:</span>
+            <span>${formatCurrency(selectedInvoice.total_amount - selectedInvoice.paid_amount)}</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 50px; text-align: center;">
+          <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">Print Invoice</button>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(invoiceHtml);
+    printWindow.document.close();
   };
 
   const vanOptions = vans?.filter((van: any) => van.is_active).map((van: any) => ({
@@ -506,25 +620,49 @@ export default function Invoices() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Paid Amount</Label>
-                <Input
-                  type="number"
-                  value={paidAmount}
-                  onChange={(e) => setPaidAmount(e.target.value)}
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              <div>
-                <Label>Notes</Label>
-                <Input
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Optional notes"
-                />
+            <div className="border-t pt-4">
+              <h3 className="font-semibold mb-4">Payment Information (Optional)</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Paid Amount</Label>
+                  <Input
+                    type="number"
+                    value={paidAmount}
+                    onChange={(e) => setPaidAmount(e.target.value)}
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                <div>
+                  <Label>Payment Method</Label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full border rounded-md p-2"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="check">Check</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Reference Number</Label>
+                  <Input
+                    value={referenceNumber}
+                    onChange={(e) => setReferenceNumber(e.target.value)}
+                    placeholder="Transaction reference"
+                  />
+                </div>
+                <div>
+                  <Label>Notes</Label>
+                  <Input
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Optional notes"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -553,7 +691,17 @@ export default function Invoices() {
       <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Invoice Details</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Invoice Details</DialogTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrintInvoice}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Print
+              </Button>
+            </div>
           </DialogHeader>
           {selectedInvoice && (
             <div className="space-y-4">
@@ -690,8 +838,8 @@ export default function Invoices() {
               <div>
                 <Label>Payment Method</Label>
                 <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  value={paymentDialogMethod}
+                  onChange={(e) => setPaymentDialogMethod(e.target.value)}
                   className="w-full border rounded-md p-2"
                 >
                   <option value="cash">Cash</option>
@@ -704,8 +852,8 @@ export default function Invoices() {
               <div>
                 <Label>Reference Number (Optional)</Label>
                 <Input
-                  value={referenceNumber}
-                  onChange={(e) => setReferenceNumber(e.target.value)}
+                  value={paymentDialogReference}
+                  onChange={(e) => setPaymentDialogReference(e.target.value)}
                   placeholder="Transaction reference"
                 />
               </div>
@@ -719,8 +867,8 @@ export default function Invoices() {
               onClick={() => {
                 setIsPaymentDialogOpen(false);
                 setPaymentAmount('');
-                setPaymentMethod('cash');
-                setReferenceNumber('');
+                setPaymentDialogMethod('cash');
+                setPaymentDialogReference('');
               }}
               className="w-full sm:w-auto"
             >

@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Models\Invoice;
 use App\Models\Stock;
 use App\Models\StockMovement;
+use App\Models\Payment;
 use App\Utils\Response;
 use App\Utils\Validator;
 
@@ -12,11 +13,13 @@ class InvoiceController {
     private $invoiceModel;
     private $stockModel;
     private $movementModel;
+    private $paymentModel;
 
     public function __construct() {
         $this->invoiceModel = new Invoice();
         $this->stockModel = new Stock();
         $this->movementModel = new StockMovement();
+        $this->paymentModel = new Payment();
     }
 
     public function index() {
@@ -129,6 +132,18 @@ class InvoiceController {
                 ]);
             }
 
+            // Create payment record if paid_amount > 0
+            if (isset($data['paid_amount']) && $data['paid_amount'] > 0) {
+                $this->paymentModel->create([
+                    'invoice_id' => $invoiceId,
+                    'amount' => $data['paid_amount'],
+                    'payment_method' => $data['payment_method'] ?? 'cash',
+                    'reference_number' => $data['reference_number'] ?? null,
+                    'notes' => 'Initial payment with invoice',
+                    'created_by' => $user['id']
+                ]);
+            }
+
             $db->commit();
 
             $invoice = $this->invoiceModel->getInvoiceWithItems($invoiceId);
@@ -234,6 +249,18 @@ class InvoiceController {
                     'movement_type' => 'sale',
                     'reference_type' => 'invoice',
                     'reference_id' => $invoiceId,
+                    'created_by' => $user['id']
+                ]);
+            }
+
+            // Create payment record if paid_amount > 0
+            if (isset($data['paid_amount']) && $data['paid_amount'] > 0) {
+                $this->paymentModel->create([
+                    'invoice_id' => $invoiceId,
+                    'amount' => $data['paid_amount'],
+                    'payment_method' => $data['payment_method'] ?? 'cash',
+                    'reference_number' => $data['reference_number'] ?? null,
+                    'notes' => 'Initial payment with invoice',
                     'created_by' => $user['id']
                 ]);
             }
