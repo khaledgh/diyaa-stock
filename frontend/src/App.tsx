@@ -1,0 +1,77 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'sonner';
+import { useAuthStore } from './store/authStore';
+import { useSettingsStore } from './store/settingsStore';
+import { useEffect } from 'react';
+
+// Pages
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import Products from './pages/Products';
+import Customers from './pages/Customers';
+import Vans from './pages/Vans';
+import Stock from './pages/Stock';
+import Transfers from './pages/Transfers';
+import Invoices from './pages/Invoices';
+import Payments from './pages/Payments';
+import Reports from './pages/Reports';
+
+// Layout
+import Layout from './components/Layout';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
+
+function PrivateRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+}
+
+function App() {
+  const { theme, language, setLanguage, setTheme } = useSettingsStore();
+
+  useEffect(() => {
+    // Initialize theme and language
+    setTheme(theme);
+    setLanguage(language);
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/"
+            element={
+              <PrivateRoute>
+                <Layout />
+              </PrivateRoute>
+            }
+          >
+            <Route index element={<Navigate to="/dashboard" />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="products" element={<Products />} />
+            <Route path="customers" element={<Customers />} />
+            <Route path="vans" element={<Vans />} />
+            <Route path="stock" element={<Stock />} />
+            <Route path="transfers" element={<Transfers />} />
+            <Route path="invoices" element={<Invoices />} />
+            <Route path="payments" element={<Payments />} />
+            <Route path="reports" element={<Reports />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+      <Toaster position="top-right" richColors />
+    </QueryClientProvider>
+  );
+}
+
+export default App;
