@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Package, DollarSign, AlertCircle, Truck, CreditCard, TrendingDown } from 'lucide-react';
+import { Package, DollarSign, AlertCircle, Truck, TrendingDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { reportApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';

@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { ShoppingCart, Plus, Minus, Trash2, X, Printer } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { invoiceApi, productApi, vanApi, customerApi, stockApi } from '@/lib/api';
+import { invoiceApi, productApi, vanApi, customerApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Combobox } from '@/components/ui/combobox';
 
@@ -28,7 +27,6 @@ interface CartItem {
 }
 
 export default function POS() {
-  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedVan, setSelectedVan] = useState('');
