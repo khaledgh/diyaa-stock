@@ -61,4 +61,130 @@ class Validator {
         }
         return htmlspecialchars(strip_tags(trim($data)), ENT_QUOTES, 'UTF-8');
     }
+
+    public static function validate($data, $rules) {
+        $errors = [];
+
+        foreach ($rules as $field => $ruleString) {
+            $fieldRules = explode('|', $ruleString);
+
+            // Handle array field validation (e.g., items.*.product_id)
+            if (strpos($field, '.*.') !== false) {
+                $errors = array_merge($errors, self::validateArrayField($data, $field, $fieldRules));
+                continue;
+            }
+
+            foreach ($fieldRules as $rule) {
+                $ruleParts = explode(':', $rule);
+                $ruleName = $ruleParts[0];
+                $ruleValue = $ruleParts[1] ?? null;
+
+                $fieldValue = isset($data[$field]) ? $data[$field] : null;
+
+                // Required rule
+                if ($ruleName === 'required') {
+                    if ($fieldValue === null || trim($fieldValue) === '') {
+                        $errors[$field] = ucfirst($field) . ' is required';
+                        break;
+                    }
+                }
+
+                // Skip other validations if field is empty and not required
+                if ($fieldValue === null || trim($fieldValue) === '') {
+                    continue;
+                }
+
+                // Array rule
+                if ($ruleName === 'array' && !is_array($fieldValue)) {
+                    $errors[$field] = ucfirst($field) . ' must be an array';
+                    break;
+                }
+
+                // String rule
+                if ($ruleName === 'string' && !is_string($fieldValue)) {
+                    $errors[$field] = ucfirst($field) . ' must be a string';
+                }
+
+                // Numeric rule
+                if ($ruleName === 'numeric' && !is_numeric($fieldValue)) {
+                    $errors[$field] = ucfirst($field) . ' must be numeric';
+                }
+
+                // Email rule
+                if ($ruleName === 'email' && !filter_var($fieldValue, FILTER_VALIDATE_EMAIL)) {
+                    $errors[$field] = 'Invalid email format';
+                }
+
+                // Max length rule
+                if ($ruleName === 'max' && strlen($fieldValue) > $ruleValue) {
+                    $errors[$field] = ucfirst($field) . " must not exceed $ruleValue characters";
+                }
+
+                // Min length rule
+                if ($ruleName === 'min' && strlen($fieldValue) < $ruleValue) {
+                    $errors[$field] = ucfirst($field) . " must be at least $ruleValue characters";
+                }
+
+                // In rule (enum)
+                if ($ruleName === 'in') {
+                    $allowedValues = explode(',', $ruleValue);
+                    if (!in_array($fieldValue, $allowedValues)) {
+                        $errors[$field] = ucfirst($field) . ' must be one of: ' . implode(', ', $allowedValues);
+                    }
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    private static function validateArrayField($data, $field, $fieldRules) {
+        $errors = [];
+        $fieldParts = explode('.*.', $field);
+        $arrayField = $fieldParts[0];
+        $itemField = $fieldParts[1];
+
+        if (!isset($data[$arrayField]) || !is_array($data[$arrayField])) {
+            return $errors;
+        }
+
+        foreach ($data[$arrayField] as $index => $item) {
+            if (!isset($item[$itemField])) {
+                continue;
+            }
+
+            $fieldValue = $item[$itemField];
+
+            foreach ($fieldRules as $rule) {
+                $ruleParts = explode(':', $rule);
+                $ruleName = $ruleParts[0];
+                $ruleValue = $ruleParts[1] ?? null;
+
+                // Required rule
+                if ($ruleName === 'required') {
+                    if ($fieldValue === null || trim($fieldValue) === '') {
+                        $errors["{$arrayField}.{$index}.{$itemField}"] = ucfirst($itemField) . ' is required';
+                        break;
+                    }
+                }
+
+                // Skip other validations if field is empty and not required
+                if ($fieldValue === null || trim($fieldValue) === '') {
+                    continue;
+                }
+
+                // Numeric rule
+                if ($ruleName === 'numeric' && !is_numeric($fieldValue)) {
+                    $errors["{$arrayField}.{$index}.{$itemField}"] = ucfirst($itemField) . ' must be numeric';
+                }
+
+                // Min rule for numbers
+                if ($ruleName === 'min' && $fieldValue < $ruleValue) {
+                    $errors["{$arrayField}.{$index}.{$itemField}"] = ucfirst($itemField) . " must be at least {$ruleValue}";
+                }
+            }
+        }
+
+        return $errors;
+    }
 }

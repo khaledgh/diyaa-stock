@@ -29,57 +29,76 @@ class VanController {
     }
 
     public function store() {
-        $data = json_decode(file_get_contents('php://input'), true);
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
 
-        $validator = new Validator($data);
-        $validator->required(['name']);
+            $errors = Validator::validate($data, [
+                'name' => 'required|string|max:100',
+                'plate_number' => 'string|max:50',
+                'owner_type' => 'required|in:company,rental',
+                'employee_id' => 'numeric'
+            ]);
 
-        if ($validator->fails()) {
-            Response::validationError($validator->errors());
+            if (!empty($errors)) {
+                Response::error('Validation failed', 400, $errors);
+                return;
+            }
+
+            $vanData = [
+                'name' => $data['name'],
+                'plate_number' => $data['plate_number'] ?? null,
+                'owner_type' => $data['owner_type'],
+                'employee_id' => $data['employee_id'] ?? null,
+                'is_active' => $data['is_active'] ?? 1
+            ];
+
+            $vanId = $this->vanModel->create($vanData);
+            $van = $this->vanModel->findById($vanId);
+
+            Response::success($van, 'Van created successfully', 201);
+        } catch (\Exception $e) {
+            Response::error($e->getMessage());
         }
-
-        $vanData = [
-            'name' => $data['name'],
-            'plate_number' => $data['plate_number'] ?? null,
-            'owner_type' => $data['owner_type'] ?? 'company',
-            'sales_rep_id' => $data['sales_rep_id'] ?? null,
-            'is_active' => $data['is_active'] ?? 1
-        ];
-
-        $vanId = $this->vanModel->create($vanData);
-        $van = $this->vanModel->findById($vanId);
-
-        Response::success($van, 'Van created successfully', 201);
     }
 
     public function update($id) {
-        $van = $this->vanModel->findById($id);
-        
-        if (!$van) {
-            Response::notFound('Van not found');
+        try {
+            $van = $this->vanModel->findById($id);
+
+            if (!$van) {
+                Response::notFound('Van not found');
+                return;
+            }
+
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            $errors = Validator::validate($data, [
+                'name' => 'required|string|max:100',
+                'plate_number' => 'string|max:50',
+                'owner_type' => 'required|in:company,rental',
+                'employee_id' => 'numeric'
+            ]);
+
+            if (!empty($errors)) {
+                Response::error('Validation failed', 400, $errors);
+                return;
+            }
+
+            $vanData = [
+                'name' => $data['name'],
+                'plate_number' => $data['plate_number'] ?? null,
+                'owner_type' => $data['owner_type'],
+                'employee_id' => $data['employee_id'] ?? null,
+                'is_active' => $data['is_active'] ?? 1
+            ];
+
+            $this->vanModel->update($id, $vanData);
+            $updatedVan = $this->vanModel->findById($id);
+
+            Response::success($updatedVan, 'Van updated successfully');
+        } catch (\Exception $e) {
+            Response::error($e->getMessage());
         }
-
-        $data = json_decode(file_get_contents('php://input'), true);
-
-        $validator = new Validator($data);
-        $validator->required(['name']);
-
-        if ($validator->fails()) {
-            Response::validationError($validator->errors());
-        }
-
-        $vanData = [
-            'name' => $data['name'],
-            'plate_number' => $data['plate_number'] ?? null,
-            'owner_type' => $data['owner_type'] ?? 'company',
-            'sales_rep_id' => $data['sales_rep_id'] ?? null,
-            'is_active' => $data['is_active'] ?? 1
-        ];
-
-        $this->vanModel->update($id, $vanData);
-        $updatedVan = $this->vanModel->findById($id);
-
-        Response::success($updatedVan, 'Van updated successfully');
     }
 
     public function delete($id) {

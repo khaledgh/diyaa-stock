@@ -42,35 +42,42 @@ class TransferController {
     }
 
     public function store($user) {
-        $data = json_decode(file_get_contents('php://input'), true);
-
-        $validator = new Validator($data);
-        $validator->required(['to_location_type', 'to_location_id', 'items']);
-
-        if ($validator->fails()) {
-            Response::validationError($validator->errors());
-        }
-
-        if (empty($data['items']) || !is_array($data['items'])) {
-            Response::error('Transfer must have at least one item', 422);
-        }
-
         try {
-            $db = $this->transferModel->db;
-            $db->beginTransaction();
+            $data = json_decode(file_get_contents('php://input'), true);
 
-            // Validate stock availability
-            foreach ($data['items'] as $item) {
-                $stock = $this->stockModel->getProductStock(
-                    $item['product_id'],
-                    'warehouse',
-                    0
-                );
+            $errors = Validator::validate($data, [
+                'to_location_id' => 'required|numeric',
+                'to_location_type' => 'required|in:van',
+                'items' => 'required|array',
+                'items.*.product_id' => 'required|numeric',
+                'items.*.quantity' => 'required|numeric|min:1'
+            ]);
 
-                if (!$stock || $stock['quantity'] < $item['quantity']) {
-                    throw new \Exception("Insufficient stock for product ID {$item['product_id']}");
-                }
+            if (!empty($errors)) {
+                Response::error('Validation failed', 400, $errors);
             }
+
+            if (empty($data['items']) || !is_array($data['items'])) {
+                Response::error('Transfer must have at least one item', 422);
+                return;
+            }
+
+            try {
+                $db = $this->transferModel->db;
+                $db->beginTransaction();
+
+                // Validate stock availability
+                foreach ($data['items'] as $item) {
+                    $stock = $this->stockModel->getProductStock(
+                        $item['product_id'],
+                        'warehouse',
+                        0
+                    );
+
+                    if (!$stock || $stock['quantity'] < $item['quantity']) {
+                        throw new \Exception("Insufficient stock for product ID {$item['product_id']}");
+                    }
+                }
 
             // Create transfer
             $transferData = [
@@ -127,4 +134,3 @@ class TransferController {
             Response::error($e->getMessage(), 500);
         }
     }
-}

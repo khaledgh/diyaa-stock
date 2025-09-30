@@ -15,6 +15,8 @@ use App\Controllers\TransferController;
 use App\Controllers\InvoiceController;
 use App\Controllers\PaymentController;
 use App\Controllers\ReportController;
+use App\Controllers\LocationController;
+use App\Controllers\EmployeeController;
 
 // Handle CORS
 Cors::handle();
@@ -87,6 +89,44 @@ try {
     // Customer routes
     elseif ($resource === 'customers') {
         $controller = new CustomerController();
+        
+        if ($method === 'GET' && !$id) {
+            $controller->index();
+        } elseif ($method === 'GET' && $id) {
+            $controller->show($id);
+        } elseif ($method === 'POST') {
+            $controller->store();
+        } elseif ($method === 'PUT' && $id) {
+            $controller->update($id);
+        } elseif ($method === 'DELETE' && $id) {
+            $controller->delete($id);
+        } else {
+            Response::notFound('Route not found');
+        }
+    }
+
+    // Location routes
+    elseif ($resource === 'locations') {
+        $controller = new LocationController();
+        
+        if ($method === 'GET' && !$id) {
+            $controller->index();
+        } elseif ($method === 'GET' && $id) {
+            $controller->show($id);
+        } elseif ($method === 'POST') {
+            $controller->store();
+        } elseif ($method === 'PUT' && $id) {
+            $controller->update($id);
+        } elseif ($method === 'DELETE' && $id) {
+            $controller->delete($id);
+        } else {
+            Response::notFound('Route not found');
+        }
+    }
+
+    // Employee routes
+    elseif ($resource === 'employees') {
+        $controller = new EmployeeController();
         
         if ($method === 'GET' && !$id) {
             $controller->index();

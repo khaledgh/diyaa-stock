@@ -58,6 +58,22 @@ export const categoryApi = {
   delete: (id: number) => api.delete(`/categories/${id}`),
 };
 
+export const locationApi = {
+  getAll: () => api.get('/locations'),
+  getById: (id: number) => api.get(`/locations/${id}`),
+  create: (data: any) => api.post('/locations', data),
+  update: (id: number, data: any) => api.put(`/locations/${id}`, data),
+  delete: (id: number) => api.delete(`/locations/${id}`),
+};
+
+export const employeeApi = {
+  getAll: () => api.get('/employees'),
+  getById: (id: number) => api.get(`/employees/${id}`),
+  create: (data: any) => api.post('/employees', data),
+  update: (id: number, data: any) => api.put(`/employees/${id}`, data),
+  delete: (id: number) => api.delete(`/employees/${id}`),
+};
+
 export const customerApi = {
   getAll: (params?: any) => api.get('/customers', { params }),
   getById: (id: number) => api.get(`/customers/${id}`),
