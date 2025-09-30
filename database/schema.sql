@@ -106,13 +106,16 @@ CREATE TABLE vans (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     plate_number VARCHAR(50),
-    owner_type ENUM('company', 'personal') DEFAULT 'company',
+    owner_type ENUM('company', 'rental') DEFAULT 'company',
     sales_rep_id INT,
+    employee_id INT,
     is_active TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (sales_rep_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL,
     INDEX idx_sales_rep (sales_rep_id),
+    INDEX idx_employee (employee_id),
     INDEX idx_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -182,18 +185,40 @@ CREATE TABLE transfer_items (
 -- CUSTOMERS
 -- =============================================
 
-CREATE TABLE customers (
+-- =============================================
+-- EMPLOYEES
+-- =============================================
+
+CREATE TABLE employees (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    phone VARCHAR(50),
     email VARCHAR(191),
-    address TEXT,
-    tax_number VARCHAR(100),
-    credit_limit DECIMAL(10, 2) DEFAULT 0.00,
+    phone VARCHAR(50),
+    position VARCHAR(100),
+    hire_date DATE,
+    salary DECIMAL(10, 2),
     is_active TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_name (name(191)),
+    INDEX idx_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- LOCATIONS
+-- =============================================
+
+CREATE TABLE locations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    address TEXT,
+    phone VARCHAR(50),
+    type ENUM('warehouse', 'branch', 'van') NOT NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_name (name(191)),
+    INDEX idx_type (type),
     INDEX idx_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -329,10 +354,22 @@ INSERT INTO products (sku, barcode, name_en, name_ar, category_id, type_id, unit
 ('PROD-003', '1234567890125', 'Coffee Beans 1kg', 'حبوب قهوة 1 كجم', 2, 1, 15.99, 10.00, 'kg', 50, 1),
 ('PROD-004', '1234567890126', 'T-Shirt', 'تي شيرت', 3, 1, 19.99, 8.00, 'piece', 100, 1);
 
+-- Insert Sample Employees
+INSERT INTO employees (name, email, phone, position, hire_date, salary, is_active) VALUES
+('Ahmed Hassan', 'ahmed.hassan@company.com', '+966501234567', 'Sales Representative', '2024-01-15', 3500.00, 1),
+('Fatima Al-Rashid', 'fatima.rashid@company.com', '+966501234568', 'Delivery Driver', '2024-02-01', 2800.00, 1),
+('Omar Al-Mansouri', 'omar.mansouri@company.com', '+966501234569', 'Warehouse Manager', '2023-12-01', 4000.00, 1);
+
+-- Insert Sample Locations
+INSERT INTO locations (name, address, phone, type, is_active) VALUES
+('Main Warehouse', 'Industrial Area, Riyadh, Saudi Arabia', '+966114567890', 'warehouse', 1),
+('North Branch', 'King Fahd Road, Riyadh, Saudi Arabia', '+966114567891', 'branch', 1),
+('South Branch', 'Prince Sultan Road, Jeddah, Saudi Arabia', '+966126543210', 'branch', 1);
+
 -- Insert Sample Vans
-INSERT INTO vans (name, plate_number, owner_type, sales_rep_id, is_active) VALUES
-('Van 1 - North Route', 'ABC-123', 'company', 3, 1),
-('Van 2 - South Route', 'XYZ-789', 'company', 3, 1);
+INSERT INTO vans (name, plate_number, owner_type, sales_rep_id, employee_id, is_active) VALUES
+('Van 1 - North Route', 'ABC-123', 'company', 3, 1, 1),
+('Van 2 - South Route', 'XYZ-789', 'company', 3, 2, 1);
 
 -- Initialize Warehouse Stock
 INSERT INTO stock (product_id, location_type, location_id, quantity) VALUES

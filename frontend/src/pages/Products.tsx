@@ -47,16 +47,26 @@ export default function Products() {
   const { data: products, isLoading } = useQuery({
     queryKey: ['products', searchTerm],
     queryFn: async () => {
-      const response = await productApi.getAll({ search: searchTerm });
-      return response.data.data;
+      try {
+        const response = await productApi.getAll({ search: searchTerm });
+        return response.data.data || [];
+      } catch (error) {
+        console.error('Failed to fetch products:', error);
+        return [];
+      }
     },
   });
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
-      const response = await categoryApi.getAll();
-      return response.data.data;
+      try {
+        const response = await categoryApi.getAll();
+        return response.data.data || [];
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+        return [];
+      }
     },
   });
 
@@ -135,6 +145,25 @@ export default function Products() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Basic validation
+    if (!formData.sku.trim()) {
+      toast.error('SKU is required');
+      return;
+    }
+    if (!formData.name_en.trim()) {
+      toast.error('Product name is required');
+      return;
+    }
+    if (!formData.unit_price || parseFloat(formData.unit_price) <= 0) {
+      toast.error('Unit price must be greater than 0');
+      return;
+    }
+    if (!formData.cost_price || parseFloat(formData.cost_price) < 0) {
+      toast.error('Cost price cannot be negative');
+      return;
+    }
+
     if (editingProduct) {
       updateMutation.mutate({ id: editingProduct.id, data: formData });
     } else {
@@ -317,7 +346,6 @@ export default function Products() {
                   step="0.01"
                   value={formData.unit_price}
                   onChange={(e) => setFormData({ ...formData, unit_price: e.target.value })}
-                  required
                 />
               </div>
               <div className="space-y-2">
@@ -328,7 +356,6 @@ export default function Products() {
                   step="0.01"
                   value={formData.cost_price}
                   onChange={(e) => setFormData({ ...formData, cost_price: e.target.value })}
-                  required
                 />
               </div>
               <div className="space-y-2">

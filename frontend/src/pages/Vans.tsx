@@ -72,16 +72,26 @@ export default function Vans() {
   const { data: vans, isLoading } = useQuery({
     queryKey: ['vans'],
     queryFn: async () => {
-      const response = await vanApi.getAll();
-      return response.data.data;
+      try {
+        const response = await vanApi.getAll();
+        return response.data.data || [];
+      } catch (error) {
+        console.error('Failed to fetch vans:', error);
+        return [];
+      }
     },
   });
 
   const { data: employees } = useQuery({
     queryKey: ['employees'],
     queryFn: async () => {
-      const response = await employeeApi.getAll();
-      return response.data.data;
+      try {
+        const response = await employeeApi.getAll();
+        return response.data.data || [];
+      } catch (error) {
+        console.error('Failed to fetch employees:', error);
+        return [];
+      }
     },
   });
 

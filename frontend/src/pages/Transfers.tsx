@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
@@ -71,39 +71,68 @@ export default function Transfers() {
     reset,
   } = useForm<TransferFormData>({
     resolver: zodResolver(transferSchema),
+    defaultValues: {
+      to_location_id: 0,
+      items: [],
+    },
   });
 
   const selectedVan = watch('to_location_id');
 
+  // Update form items when transferItems changes
+  React.useEffect(() => {
+    setValue('items', transferItems);
+  }, [transferItems, setValue]);
+
   const { data: transfers, isLoading } = useQuery({
     queryKey: ['transfers'],
     queryFn: async () => {
-      const response = await transferApi.getAll();
-      return response.data.data;
+      try {
+        const response = await transferApi.getAll();
+        return response.data.data || [];
+      } catch (error) {
+        console.error('Failed to fetch transfers:', error);
+        return [];
+      }
     },
   });
 
   const { data: vans } = useQuery({
     queryKey: ['vans'],
     queryFn: async () => {
-      const response = await vanApi.getAll();
-      return response.data.data;
+      try {
+        const response = await vanApi.getAll();
+        return response.data.data || [];
+      } catch (error) {
+        console.error('Failed to fetch vans:', error);
+        return [];
+      }
     },
   });
 
   const { data: products } = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
-      const response = await productApi.getAll();
-      return response.data.data;
+      try {
+        const response = await productApi.getAll();
+        return response.data.data || [];
+      } catch (error) {
+        console.error('Failed to fetch products:', error);
+        return [];
+      }
     },
   });
 
   const { data: warehouseStock } = useQuery({
     queryKey: ['warehouse-stock'],
     queryFn: async () => {
-      const response = await stockApi.getWarehouse();
-      return response.data.data;
+      try {
+        const response = await stockApi.getWarehouse();
+        return response.data.data || [];
+      } catch (error) {
+        console.error('Failed to fetch warehouse stock:', error);
+        return [];
+      }
     },
   });
 
@@ -156,7 +185,19 @@ export default function Transfers() {
   };
 
   const onSubmit = (data: TransferFormData) => {
-    createMutation.mutate(data);
+    // Add the current transfer items to the form data
+    const formDataWithItems = {
+      ...data,
+      items: transferItems,
+    };
+
+    // Validate that we have items
+    if (transferItems.length === 0) {
+      toast.error(t('transfers.addAtLeastOneItem') || 'Please add at least one item to the transfer');
+      return;
+    }
+
+    createMutation.mutate(formDataWithItems);
   };
 
   const vanOptions = vans?.filter((van: any) => van.is_active).map((van: any) => ({

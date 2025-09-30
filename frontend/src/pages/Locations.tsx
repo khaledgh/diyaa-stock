@@ -69,8 +69,13 @@ export default function Locations() {
   const { data: locations, isLoading } = useQuery({
     queryKey: ['locations'],
     queryFn: async () => {
-      const response = await locationApi.getAll();
-      return response.data.data;
+      try {
+        const response = await locationApi.getAll();
+        return response.data.data || [];
+      } catch (error) {
+        console.error('Failed to fetch locations:', error);
+        return [];
+      }
     },
   });
 
