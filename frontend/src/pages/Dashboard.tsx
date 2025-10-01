@@ -17,7 +17,7 @@ export default function Dashboard() {
     queryKey: ['dashboard'],
     queryFn: async () => {
       const response = await reportApi.dashboard();
-      return response.data.data;
+      return response.data.data || response.data;
     },
   });
 
@@ -25,7 +25,9 @@ export default function Dashboard() {
     queryKey: ['low-stock-products'],
     queryFn: async () => {
       const response = await productApi.getAll({ low_stock: true });
-      return response.data.data || [];
+      // Handle paginated response
+      const apiData = response.data.data || response.data;
+      return Array.isArray(apiData) ? apiData : (apiData.data || []);
     },
     enabled: dashboardData?.low_stock_count > 0,
   });

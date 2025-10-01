@@ -19,23 +19,27 @@ class Product extends BaseModel {
         $params = [];
 
         if (!empty($filters['search'])) {
-            $sql .= " AND (p.name_en LIKE :search OR p.name_ar LIKE :search OR p.sku LIKE :search OR p.barcode LIKE :search)";
-            $params['search'] = '%' . $filters['search'] . '%';
+            $sql .= " AND (p.name_en LIKE ? OR p.name_ar LIKE ? OR p.sku LIKE ? OR p.barcode LIKE ?)";
+            $searchParam = '%' . $filters['search'] . '%';
+            $params[] = $searchParam;
+            $params[] = $searchParam;
+            $params[] = $searchParam;
+            $params[] = $searchParam;
         }
 
         if (!empty($filters['category_id'])) {
-            $sql .= " AND p.category_id = :category_id";
-            $params['category_id'] = $filters['category_id'];
+            $sql .= " AND p.category_id = ?";
+            $params[] = $filters['category_id'];
         }
 
         if (!empty($filters['type_id'])) {
-            $sql .= " AND p.type_id = :type_id";
-            $params['type_id'] = $filters['type_id'];
+            $sql .= " AND p.type_id = ?";
+            $params[] = $filters['type_id'];
         }
 
         if (isset($filters['is_active'])) {
-            $sql .= " AND p.is_active = :is_active";
-            $params['is_active'] = $filters['is_active'];
+            $sql .= " AND p.is_active = ?";
+            $params[] = $filters['is_active'];
         }
 
         $sql .= " ORDER BY p.created_at DESC";
@@ -43,24 +47,12 @@ class Product extends BaseModel {
         // Add pagination
         if (!empty($filters['limit'])) {
             $sql .= " LIMIT ? OFFSET ?";
-            
-            $stmt = $this->db->prepare($sql);
-            
-            // Build parameters array in correct order
-            $executeParams = [];
-            if (!empty($filters['search'])) {
-                $searchParam = '%' . $filters['search'] . '%';
-                $executeParams = [$searchParam, $searchParam, $searchParam, $searchParam];
-            }
-            $executeParams[] = (int)$filters['limit'];
-            $executeParams[] = (int)($filters['offset'] ?? 0);
-            
-            $stmt->execute($executeParams);
-        } else {
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
+            $params[] = (int)$filters['limit'];
+            $params[] = (int)($filters['offset'] ?? 0);
         }
-        
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll();
     }
 
@@ -69,23 +61,27 @@ class Product extends BaseModel {
         $params = [];
 
         if (!empty($filters['search'])) {
-            $sql .= " AND (p.name_en LIKE :search OR p.name_ar LIKE :search OR p.sku LIKE :search OR p.barcode LIKE :search)";
-            $params['search'] = '%' . $filters['search'] . '%';
+            $sql .= " AND (p.name_en LIKE ? OR p.name_ar LIKE ? OR p.sku LIKE ? OR p.barcode LIKE ?)";
+            $searchParam = '%' . $filters['search'] . '%';
+            $params[] = $searchParam;
+            $params[] = $searchParam;
+            $params[] = $searchParam;
+            $params[] = $searchParam;
         }
 
         if (!empty($filters['category_id'])) {
-            $sql .= " AND p.category_id = :category_id";
-            $params['category_id'] = $filters['category_id'];
+            $sql .= " AND p.category_id = ?";
+            $params[] = $filters['category_id'];
         }
 
         if (!empty($filters['type_id'])) {
-            $sql .= " AND p.type_id = :type_id";
-            $params['type_id'] = $filters['type_id'];
+            $sql .= " AND p.type_id = ?";
+            $params[] = $filters['type_id'];
         }
 
         if (isset($filters['is_active'])) {
-            $sql .= " AND p.is_active = :is_active";
-            $params['is_active'] = $filters['is_active'];
+            $sql .= " AND p.is_active = ?";
+            $params[] = $filters['is_active'];
         }
 
         $stmt = $this->db->prepare($sql);

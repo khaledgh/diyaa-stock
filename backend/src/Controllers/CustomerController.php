@@ -19,38 +19,41 @@ class CustomerController {
         $offset = ($page - 1) * $perPage;
         $search = $_GET['search'] ?? null;
         
-        // Build query
+        // Build query with positional parameters
         $sql = "SELECT * FROM customers WHERE 1=1";
         $params = [];
         
         if ($search) {
-            $sql .= " AND (name LIKE :search OR phone LIKE :search OR email LIKE :search)";
-            $params['search'] = "%$search%";
+            $sql .= " AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)";
+            $searchParam = "%$search%";
+            $params[] = $searchParam;
+            $params[] = $searchParam;
+            $params[] = $searchParam;
         }
         
         $sql .= " ORDER BY name ASC";
         
         // Get total count
         $countSql = "SELECT COUNT(*) as count FROM customers WHERE 1=1";
+        $countParams = [];
         if ($search) {
-            $countSql .= " AND (name LIKE :search OR phone LIKE :search OR email LIKE :search)";
+            $countSql .= " AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)";
+            $searchParam = "%$search%";
+            $countParams[] = $searchParam;
+            $countParams[] = $searchParam;
+            $countParams[] = $searchParam;
         }
         $stmt = $this->customerModel->getDb()->prepare($countSql);
-        $stmt->execute($params);
+        $stmt->execute($countParams);
         $total = $stmt->fetch()['count'];
         
         // Get paginated results
         $sql .= " LIMIT ? OFFSET ?";
+        $params[] = $perPage;
+        $params[] = $offset;
         
         $stmt = $this->customerModel->getDb()->prepare($sql);
-        
-        // Bind parameters - search params first (if any), then limit and offset
-        if ($search) {
-            $stmt->execute(["%$search%", "%$search%", "%$search%", $perPage, $offset]);
-        } else {
-            $stmt->execute([$perPage, $offset]);
-        }
-        
+        $stmt->execute($params);
         $customers = $stmt->fetchAll();
 
         Response::success([
