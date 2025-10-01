@@ -19,38 +19,25 @@ class UserController {
             
             $db = $this->userModel->getDb();
             
-            // Try with role column first, fallback if it doesn't exist
-            try {
-                if ($search) {
-                    $sql = "SELECT id, full_name, email, role, is_active, created_at FROM users 
-                            WHERE full_name LIKE ? OR email LIKE ?
-                            ORDER BY created_at DESC";
-                    $stmt = $db->prepare($sql);
-                    $searchTerm = "%{$search}%";
-                    $stmt->execute([$searchTerm, $searchTerm]);
-                    $users = $stmt->fetchAll();
-                } else {
-                    $sql = "SELECT id, full_name, email, role, is_active, created_at FROM users ORDER BY created_at DESC";
-                    $stmt = $db->prepare($sql);
-                    $stmt->execute();
-                    $users = $stmt->fetchAll();
-                }
-            } catch (\PDOException $e) {
-                // If role column doesn't exist, query without it
-                if ($search) {
-                    $sql = "SELECT id, full_name, email, is_active, created_at FROM users 
-                            WHERE full_name LIKE ? OR email LIKE ?
-                            ORDER BY created_at DESC";
-                    $stmt = $db->prepare($sql);
-                    $searchTerm = "%{$search}%";
-                    $stmt->execute([$searchTerm, $searchTerm]);
-                    $users = $stmt->fetchAll();
-                } else {
-                    $sql = "SELECT id, full_name, email, is_active, created_at FROM users ORDER BY created_at DESC";
-                    $stmt = $db->prepare($sql);
-                    $stmt->execute();
-                    $users = $stmt->fetchAll();
-                }
+            // Query without role column since it doesn't exist in the schema
+            if ($search) {
+                $sql = "SELECT id, full_name, email, is_active, created_at FROM users 
+                        WHERE full_name LIKE ? OR email LIKE ?
+                        ORDER BY created_at DESC";
+                $stmt = $db->prepare($sql);
+                $searchTerm = "%{$search}%";
+                $stmt->execute([$searchTerm, $searchTerm]);
+                $users = $stmt->fetchAll();
+            } else {
+                $sql = "SELECT id, full_name, email, is_active, created_at FROM users ORDER BY created_at DESC";
+                $stmt = $db->prepare($sql);
+                $stmt->execute();
+                $users = $stmt->fetchAll();
+            }
+            
+            // Add default role to each user for frontend compatibility
+            foreach ($users as &$user) {
+                $user['role'] = 'user';
             }
             
             Response::success($users);
@@ -78,8 +65,7 @@ class UserController {
             $errors = Validator::validate($data, [
                 'full_name' => 'required|string|max:100',
                 'email' => 'required|email|max:100',
-                'password' => 'required|string|min:6',
-                'role' => 'string|in:admin,manager,sales,user'
+                'password' => 'required|string|min:6'
             ]);
 
             if (!empty($errors)) {
@@ -98,7 +84,6 @@ class UserController {
                 'full_name' => $data['full_name'],
                 'email' => $data['email'],
                 'password' => password_hash($data['password'], PASSWORD_DEFAULT),
-                'role' => $data['role'] ?? 'user',
                 'is_active' => $data['is_active'] ?? 1
             ];
 
@@ -122,8 +107,7 @@ class UserController {
 
             $rules = [
                 'full_name' => 'string|max:100',
-                'email' => 'email|max:100',
-                'role' => 'string|in:admin,manager,sales,user'
+                'email' => 'email|max:100'
             ];
 
             if (isset($data['password']) && !empty($data['password'])) {
@@ -149,7 +133,6 @@ class UserController {
             $userData = [];
             if (isset($data['full_name'])) $userData['full_name'] = $data['full_name'];
             if (isset($data['email'])) $userData['email'] = $data['email'];
-            if (isset($data['role'])) $userData['role'] = $data['role'];
             if (isset($data['is_active'])) $userData['is_active'] = $data['is_active'];
             
             if (isset($data['password']) && !empty($data['password'])) {
@@ -173,19 +156,7 @@ class UserController {
                 return;
             }
 
-            // Prevent deleting the last admin user
-            if ($user['role'] === 'admin') {
-                $db = $this->userModel->getDb();
-                $sql = "SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND is_active = 1";
-                $stmt = $db->prepare($sql);
-                $stmt->execute();
-                $result = $stmt->fetch();
-                
-                if ($result['count'] <= 1) {
-                    Response::error('Cannot delete the last admin user', 400);
-                    return;
-                }
-            }
+            // Role-based deletion check removed since role column doesn't exist
 
             $this->userModel->delete($id);
             Response::success(null, 'User deleted successfully');
