@@ -104,6 +104,7 @@ export const transferApi = {
 
 export const invoiceApi = {
   getAll: (params?: any) => api.get('/invoices', { params }),
+  getStats: () => api.get('/invoices/stats'),
   getById: (id: number) => api.get(`/invoices/${id}`),
   createPurchase: (data: any) => api.post('/invoices/purchase', data),
   createSales: (data: any) => api.post('/invoices/sales', data),

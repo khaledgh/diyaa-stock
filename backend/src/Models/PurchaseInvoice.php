@@ -16,6 +16,11 @@ class PurchaseInvoice extends BaseModel {
 
         $params = [];
 
+        if (!empty($filters['search'])) {
+            $sql .= " AND (i.invoice_number LIKE :search OR c.name LIKE :search)";
+            $params['search'] = '%' . $filters['search'] . '%';
+        }
+
         if (!empty($filters['payment_status'])) {
             $sql .= " AND i.payment_status = :payment_status";
             $params['payment_status'] = $filters['payment_status'];
@@ -45,6 +50,43 @@ class PurchaseInvoice extends BaseModel {
         }
 
         return $this->query($sql, $params);
+    }
+
+    public function getCount($filters = []) {
+        $sql = "SELECT COUNT(*) as total
+                FROM purchase_invoices i
+                LEFT JOIN customers c ON i.supplier_id = c.id
+                WHERE 1=1";
+
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $sql .= " AND (i.invoice_number LIKE :search OR c.name LIKE :search)";
+            $params['search'] = '%' . $filters['search'] . '%';
+        }
+
+        if (!empty($filters['payment_status'])) {
+            $sql .= " AND i.payment_status = :payment_status";
+            $params['payment_status'] = $filters['payment_status'];
+        }
+
+        if (!empty($filters['supplier_id'])) {
+            $sql .= " AND i.supplier_id = :supplier_id";
+            $params['supplier_id'] = $filters['supplier_id'];
+        }
+
+        if (!empty($filters['from_date'])) {
+            $sql .= " AND DATE(i.created_at) >= :from_date";
+            $params['from_date'] = $filters['from_date'];
+        }
+
+        if (!empty($filters['to_date'])) {
+            $sql .= " AND DATE(i.created_at) <= :to_date";
+            $params['to_date'] = $filters['to_date'];
+        }
+
+        $result = $this->query($sql, $params);
+        return $result[0]['total'] ?? 0;
     }
 
     public function getInvoiceWithItems($id) {

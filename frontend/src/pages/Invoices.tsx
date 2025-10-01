@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { FileText, Eye, Plus, Trash2, DollarSign, Printer, Receipt } from 'lucide-react';
+import { FileText, Eye, Plus, Trash2, DollarSign, Printer, Receipt, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,14 +54,33 @@ export default function Invoices() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDialogMethod, setPaymentDialogMethod] = useState('cash');
   const [paymentDialogReference, setPaymentDialogReference] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
 
-  const { data: invoices, isLoading } = useQuery({
-    queryKey: ['invoices', invoiceType],
+  const { data: invoicesData, isLoading } = useQuery({
+    queryKey: ['invoices', invoiceType, searchQuery, currentPage, pageSize],
     queryFn: async () => {
-      const response = await invoiceApi.getAll({ invoice_type: invoiceType });
-      return response.data.data || [];
+      const response = await invoiceApi.getAll({ 
+        invoice_type: invoiceType,
+        search: searchQuery || undefined,
+        limit: pageSize,
+        offset: (currentPage - 1) * pageSize
+      });
+      return response.data.data;
     },
   });
+
+  const { data: invoiceStats } = useQuery({
+    queryKey: ['invoice-stats'],
+    queryFn: async () => {
+      const response = await invoiceApi.getStats();
+      return response.data.data;
+    },
+  });
+
+  const invoices = invoicesData?.data || [];
+  const pagination = invoicesData?.pagination || { total: 0, pages: 1, page: 1 };
 
   const { data: products } = useQuery({
     queryKey: ['products'],
@@ -613,7 +632,11 @@ export default function Invoices() {
       <div className="grid grid-cols-2 gap-4">
         <Card 
           className={`cursor-pointer transition-all ${invoiceType === 'purchase' ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950' : 'hover:bg-muted'}`}
-          onClick={() => setInvoiceType('purchase')}
+          onClick={() => {
+            setInvoiceType('purchase');
+            setCurrentPage(1);
+            setSearchQuery('');
+          }}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -622,7 +645,7 @@ export default function Invoices() {
                 <p className="text-sm text-muted-foreground">Buying from suppliers</p>
               </div>
               <div className="text-3xl font-bold text-red-600">
-                {invoices?.filter((inv: any) => inv.invoice_type === 'purchase').length || 0}
+                {invoiceStats?.purchase_count || 0}
               </div>
             </div>
           </CardContent>
@@ -630,7 +653,11 @@ export default function Invoices() {
 
         <Card 
           className={`cursor-pointer transition-all ${invoiceType === 'sales' ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950' : 'hover:bg-muted'}`}
-          onClick={() => setInvoiceType('sales')}
+          onClick={() => {
+            setInvoiceType('sales');
+            setCurrentPage(1);
+            setSearchQuery('');
+          }}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -639,7 +666,7 @@ export default function Invoices() {
                 <p className="text-sm text-muted-foreground">Selling to customers</p>
               </div>
               <div className="text-3xl font-bold text-green-600">
-                {invoices?.filter((inv: any) => inv.invoice_type === 'sales').length || 0}
+                {invoiceStats?.sales_count || 0}
               </div>
             </div>
           </CardContent>
@@ -648,10 +675,25 @@ export default function Invoices() {
 
       <Card>
         <CardContent className="pt-6">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by invoice number, customer, or van..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="pl-10"
+              />
+            </div>
+          </div>
           {isLoading ? (
             <div className="text-center py-8">{t('common.loading') || 'Loading...'}</div>
           ) : (
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <>
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -702,6 +744,39 @@ export default function Invoices() {
                 </TableBody>
               </Table>
             </div>
+            
+            {/* Pagination */}
+            {pagination.pages > 1 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <div className="text-sm text-muted-foreground">
+                  Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, pagination.total)} of {pagination.total} results
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <div className="text-sm">
+                    Page {currentPage} of {pagination.pages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(pagination.pages, p + 1))}
+                    disabled={currentPage === pagination.pages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+            </>
           )}
         </CardContent>
       </Card>

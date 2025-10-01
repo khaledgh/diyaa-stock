@@ -31,7 +31,7 @@ export default function Users() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [formData, setFormData] = useState({
-    name: '',
+    full_name: '',
     email: '',
     password: '',
     role: 'user',
@@ -90,7 +90,7 @@ export default function Users() {
     if (user) {
       setEditingUser(user);
       setFormData({
-        name: user.name,
+        full_name: user.full_name,
         email: user.email,
         password: '',
         role: user.role || 'user',
@@ -99,7 +99,7 @@ export default function Users() {
     } else {
       setEditingUser(null);
       setFormData({
-        name: '',
+        full_name: '',
         email: '',
         password: '',
         role: 'user',
@@ -117,8 +117,8 @@ export default function Users() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name.trim()) {
-      toast.error('Name is required');
+    if (!formData.full_name.trim()) {
+      toast.error('Full name is required');
       return;
     }
     if (!formData.email.trim()) {
@@ -215,7 +215,7 @@ export default function Users() {
                 ) : (
                   users?.map((user: any) => (
                     <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell className="font-medium">{user.full_name}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)}`}>
@@ -274,11 +274,11 @@ export default function Users() {
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name *</Label>
+                <Label htmlFor="full_name">Full Name *</Label>
                 <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  id="full_name"
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   required
                   className="h-11"
                 />

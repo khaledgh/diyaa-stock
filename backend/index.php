@@ -198,7 +198,9 @@ try {
     elseif ($resource === 'invoices') {
         $controller = new InvoiceController();
         
-        if ($method === 'GET' && !$id) {
+        if ($method === 'GET' && $id === 'stats') {
+            $controller->stats();
+        } elseif ($method === 'GET' && !$id) {
             $controller->index();
         } elseif ($method === 'GET' && $id) {
             $controller->show($id);

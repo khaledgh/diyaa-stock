@@ -29,23 +29,45 @@ class InvoiceController {
         $invoiceType = $_GET['invoice_type'] ?? 'sales';
         
         $filters = [
+            'search' => $_GET['search'] ?? null,
             'payment_status' => $_GET['payment_status'] ?? null,
             'customer_id' => $_GET['customer_id'] ?? null,
             'supplier_id' => $_GET['supplier_id'] ?? null,
             'van_id' => $_GET['van_id'] ?? null,
             'from_date' => $_GET['from_date'] ?? null,
             'to_date' => $_GET['to_date'] ?? null,
-            'limit' => $_GET['limit'] ?? 50,
+            'limit' => $_GET['limit'] ?? 10,
             'offset' => $_GET['offset'] ?? 0
         ];
 
         if ($invoiceType === 'purchase') {
             $invoices = $this->purchaseInvoiceModel->getInvoicesWithDetails($filters);
+            $total = $this->purchaseInvoiceModel->getCount($filters);
         } else {
             $invoices = $this->salesInvoiceModel->getInvoicesWithDetails($filters);
+            $total = $this->salesInvoiceModel->getCount($filters);
         }
         
-        Response::success($invoices);
+        Response::success([
+            'data' => $invoices,
+            'pagination' => [
+                'total' => $total,
+                'limit' => (int)$filters['limit'],
+                'offset' => (int)$filters['offset'],
+                'page' => floor($filters['offset'] / $filters['limit']) + 1,
+                'pages' => ceil($total / $filters['limit'])
+            ]
+        ]);
+    }
+
+    public function stats() {
+        $purchaseCount = $this->purchaseInvoiceModel->getCount([]);
+        $salesCount = $this->salesInvoiceModel->getCount([]);
+        
+        Response::success([
+            'purchase_count' => $purchaseCount,
+            'sales_count' => $salesCount
+        ]);
     }
 
     public function show($id) {

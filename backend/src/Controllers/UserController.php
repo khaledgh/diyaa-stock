@@ -22,15 +22,15 @@ class UserController {
             // Try with role column first, fallback if it doesn't exist
             try {
                 if ($search) {
-                    $sql = "SELECT id, name, email, role, is_active, created_at FROM users 
-                            WHERE name LIKE ? OR email LIKE ?
+                    $sql = "SELECT id, full_name, email, role, is_active, created_at FROM users 
+                            WHERE full_name LIKE ? OR email LIKE ?
                             ORDER BY created_at DESC";
                     $stmt = $db->prepare($sql);
                     $searchTerm = "%{$search}%";
                     $stmt->execute([$searchTerm, $searchTerm]);
                     $users = $stmt->fetchAll();
                 } else {
-                    $sql = "SELECT id, name, email, role, is_active, created_at FROM users ORDER BY created_at DESC";
+                    $sql = "SELECT id, full_name, email, role, is_active, created_at FROM users ORDER BY created_at DESC";
                     $stmt = $db->prepare($sql);
                     $stmt->execute();
                     $users = $stmt->fetchAll();
@@ -38,15 +38,15 @@ class UserController {
             } catch (\PDOException $e) {
                 // If role column doesn't exist, query without it
                 if ($search) {
-                    $sql = "SELECT id, name, email, is_active, created_at FROM users 
-                            WHERE name LIKE ? OR email LIKE ?
+                    $sql = "SELECT id, full_name, email, is_active, created_at FROM users 
+                            WHERE full_name LIKE ? OR email LIKE ?
                             ORDER BY created_at DESC";
                     $stmt = $db->prepare($sql);
                     $searchTerm = "%{$search}%";
                     $stmt->execute([$searchTerm, $searchTerm]);
                     $users = $stmt->fetchAll();
                 } else {
-                    $sql = "SELECT id, name, email, is_active, created_at FROM users ORDER BY created_at DESC";
+                    $sql = "SELECT id, full_name, email, is_active, created_at FROM users ORDER BY created_at DESC";
                     $stmt = $db->prepare($sql);
                     $stmt->execute();
                     $users = $stmt->fetchAll();
@@ -76,7 +76,7 @@ class UserController {
             $data = json_decode(file_get_contents('php://input'), true);
 
             $errors = Validator::validate($data, [
-                'name' => 'required|string|max:100',
+                'full_name' => 'required|string|max:100',
                 'email' => 'required|email|max:100',
                 'password' => 'required|string|min:6',
                 'role' => 'string|in:admin,manager,sales,user'
@@ -95,7 +95,7 @@ class UserController {
             }
 
             $userData = [
-                'name' => $data['name'],
+                'full_name' => $data['full_name'],
                 'email' => $data['email'],
                 'password' => password_hash($data['password'], PASSWORD_DEFAULT),
                 'role' => $data['role'] ?? 'user',
@@ -121,7 +121,7 @@ class UserController {
             }
 
             $rules = [
-                'name' => 'string|max:100',
+                'full_name' => 'string|max:100',
                 'email' => 'email|max:100',
                 'role' => 'string|in:admin,manager,sales,user'
             ];
@@ -147,7 +147,7 @@ class UserController {
             }
 
             $userData = [];
-            if (isset($data['name'])) $userData['name'] = $data['name'];
+            if (isset($data['full_name'])) $userData['full_name'] = $data['full_name'];
             if (isset($data['email'])) $userData['email'] = $data['email'];
             if (isset($data['role'])) $userData['role'] = $data['role'];
             if (isset($data['is_active'])) $userData['is_active'] = $data['is_active'];
