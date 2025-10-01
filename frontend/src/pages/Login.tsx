@@ -25,12 +25,42 @@ export default function Login() {
       console.log('Attempting login with:', email);
       const response = await authApi.login(email, password);
       console.log('Login response:', response);
+      console.log('Response data:', response.data);
+      
       // Handle both response.data.data and response.data structures
       const responseData = response.data.data || response.data;
+      console.log('Response data extracted:', responseData);
+      
       const { token, user } = responseData;
+      console.log('Token:', token);
+      console.log('User:', user);
+      console.log('User role:', user?.role);
+      console.log('User navigation:', user?.navigation);
+      console.log('User permissions:', user?.permissions);
+      
       setAuth(user, token);
+      console.log('Auth set successfully');
+      
+      // Log to localStorage so we can see it after refresh
+      localStorage.setItem('debug_last_login', JSON.stringify({
+        timestamp: new Date().toISOString(),
+        user: user,
+        token: token ? 'exists' : 'missing',
+        navigation: user?.navigation,
+        permissions: user?.permissions,
+        role: user?.role
+      }));
+      
       toast.success(t('auth.loginSuccess') || 'Login successful');
-      navigate('/dashboard');
+      
+      console.log('=== LOGIN SUCCESS ===');
+      console.log('Navigating to dashboard in 200ms...');
+      
+      // Navigate after ensuring state is persisted
+      setTimeout(() => {
+        console.log('Navigating now...');
+        navigate('/dashboard');
+      }, 200);
     } catch (error: any) {
       console.error('Login error:', error);
       console.error('Error response:', error.response);

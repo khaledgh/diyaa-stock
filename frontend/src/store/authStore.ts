@@ -28,8 +28,10 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isAuthenticated: false,
       setAuth: (user, token) => {
+        console.log('setAuth called with:', { user, token });
         localStorage.setItem('auth_token', token);
         set({ user, token, isAuthenticated: true });
+        console.log('Auth state updated');
       },
       logout: () => {
         localStorage.removeItem('auth_token');

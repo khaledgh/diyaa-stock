@@ -28,9 +28,14 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Only logout if not on login page to avoid redirect loops
+      const isLoginRequest = error.config?.url?.includes('/login');
+      if (!isLoginRequest) {
+        console.log('401 Unauthorized - logging out');
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

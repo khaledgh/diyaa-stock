@@ -12,6 +12,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 export default function Dashboard() {
   const { t } = useTranslation();
   const [showLowStockAlert, setShowLowStockAlert] = useState(true);
+  
+  // Debug logging
+  console.log('Dashboard component mounted');
+  console.log('Auth from localStorage:', localStorage.getItem('auth-storage'));
+  console.log('Debug last login:', localStorage.getItem('debug_last_login'));
 
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['dashboard'],

@@ -47,12 +47,9 @@ class Auth {
             // Verify token in database
             $db = Database::getInstance()->getConnection();
             $stmt = $db->prepare("
-                SELECT u.*, GROUP_CONCAT(r.name) as roles, GROUP_CONCAT(r.permissions) as permissions
+                SELECT u.* 
                 FROM users u
-                JOIN user_roles ur ON u.id = ur.user_id
-                JOIN roles r ON ur.role_id = r.id
                 WHERE u.id = ? AND u.is_active = 1
-                GROUP BY u.id
             ");
             $stmt->execute([$decoded->user_id]);
             $user = $stmt->fetch();
@@ -61,25 +58,17 @@ class Auth {
                 Response::unauthorized('Invalid token');
             }
 
-            // Parse permissions
-            $permissions = [];
-            if ($user['permissions']) {
-                $permissionSets = explode(',', $user['permissions']);
-                foreach ($permissionSets as $set) {
-                    $perms = json_decode($set, true);
-                    if (is_array($perms)) {
-                        $permissions = array_merge($permissions, $perms);
-                    }
-                }
-            }
-
-            $user['permissions'] = array_unique($permissions);
-            $user['roles'] = explode(',', $user['roles']);
+            // Get permissions based on role
+            require_once __DIR__ . '/../Config/Permissions.php';
+            $userRole = $user['role'] ?? 'user';
+            $user['permissions'] = \App\Config\Permissions::getPermissionsForRole($userRole);
+            $user['navigation'] = \App\Config\Permissions::getNavigationForRole($userRole);
+            
             unset($user['password']);
 
             return $user;
         } catch (\Exception $e) {
-            Response::unauthorized('Invalid or expired token');
+            Response::unauthorized('Invalid or expired token: ' . $e->getMessage());
         }
     }
 
