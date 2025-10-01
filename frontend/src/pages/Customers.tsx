@@ -32,17 +32,48 @@ export default function Customers() {
   const { data: customersResponse, isLoading } = useQuery({
     queryKey: ['customers', searchTerm, page],
     queryFn: async () => {
-      const response = await customerApi.getAll({
-        search: searchTerm,
-        page,
-        per_page: perPage
-      });
-      return response.data;
+      try {
+        const response = await customerApi.getAll({
+          search: searchTerm,
+          page,
+          per_page: perPage
+        });
+        
+        console.log('Customer API Response:', response.data);
+        
+        // The API returns: { success: true, message: "Success", data: { data: [], pagination: {} } }
+        // So we need response.data.data to get { data: [...], pagination: {...} }
+        
+        const apiData = response.data.data || response.data;
+        
+        // Check if apiData has the nested structure
+        if (apiData?.data && Array.isArray(apiData.data)) {
+          console.log('Correct format detected: nested data array');
+          return {
+            data: apiData.data,
+            pagination: apiData.pagination || null
+          };
+        }
+        
+        // Fallback: if apiData is directly an array (old format)
+        if (Array.isArray(apiData)) {
+          console.log('Old format: direct array');
+          return { data: apiData, pagination: null };
+        }
+        
+        console.log('Unknown format, returning empty. ApiData:', apiData);
+        return { data: [], pagination: null };
+      } catch (error) {
+        console.error('Failed to fetch customers:', error);
+        return { data: [], pagination: null };
+      }
     },
   });
 
-  const customers = customersResponse?.data || [];
+  const customers = Array.isArray(customersResponse?.data) ? customersResponse.data : [];
   const pagination = customersResponse?.pagination;
+  
+  console.log('Customers:', customers, 'Pagination:', pagination);
 
   const createMutation = useMutation({
     mutationFn: customerApi.create,

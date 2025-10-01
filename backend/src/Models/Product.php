@@ -42,13 +42,25 @@ class Product extends BaseModel {
 
         // Add pagination
         if (!empty($filters['limit'])) {
-            $sql .= " LIMIT :limit OFFSET :offset";
-            $params['limit'] = (int)$filters['limit'];
-            $params['offset'] = (int)($filters['offset'] ?? 0);
+            $sql .= " LIMIT ? OFFSET ?";
+            
+            $stmt = $this->db->prepare($sql);
+            
+            // Build parameters array in correct order
+            $executeParams = [];
+            if (!empty($filters['search'])) {
+                $searchParam = '%' . $filters['search'] . '%';
+                $executeParams = [$searchParam, $searchParam, $searchParam, $searchParam];
+            }
+            $executeParams[] = (int)$filters['limit'];
+            $executeParams[] = (int)($filters['offset'] ?? 0);
+            
+            $stmt->execute($executeParams);
+        } else {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
         }
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
+        
         return $stmt->fetchAll();
     }
 

@@ -14,26 +14,49 @@ class UserController {
     }
 
     public function index() {
-        $search = $_GET['search'] ?? null;
-        
-        $db = $this->userModel->getDb();
-        
-        if ($search) {
-            $sql = "SELECT id, name, email, role, is_active, created_at FROM users 
-                    WHERE name LIKE ? OR email LIKE ?
-                    ORDER BY created_at DESC";
-            $stmt = $db->prepare($sql);
-            $searchTerm = "%{$search}%";
-            $stmt->execute([$searchTerm, $searchTerm]);
-            $users = $stmt->fetchAll();
-        } else {
-            $sql = "SELECT id, name, email, role, is_active, created_at FROM users ORDER BY created_at DESC";
-            $stmt = $db->prepare($sql);
-            $stmt->execute();
-            $users = $stmt->fetchAll();
+        try {
+            $search = $_GET['search'] ?? null;
+            
+            $db = $this->userModel->getDb();
+            
+            // Try with role column first, fallback if it doesn't exist
+            try {
+                if ($search) {
+                    $sql = "SELECT id, name, email, role, is_active, created_at FROM users 
+                            WHERE name LIKE ? OR email LIKE ?
+                            ORDER BY created_at DESC";
+                    $stmt = $db->prepare($sql);
+                    $searchTerm = "%{$search}%";
+                    $stmt->execute([$searchTerm, $searchTerm]);
+                    $users = $stmt->fetchAll();
+                } else {
+                    $sql = "SELECT id, name, email, role, is_active, created_at FROM users ORDER BY created_at DESC";
+                    $stmt = $db->prepare($sql);
+                    $stmt->execute();
+                    $users = $stmt->fetchAll();
+                }
+            } catch (\PDOException $e) {
+                // If role column doesn't exist, query without it
+                if ($search) {
+                    $sql = "SELECT id, name, email, is_active, created_at FROM users 
+                            WHERE name LIKE ? OR email LIKE ?
+                            ORDER BY created_at DESC";
+                    $stmt = $db->prepare($sql);
+                    $searchTerm = "%{$search}%";
+                    $stmt->execute([$searchTerm, $searchTerm]);
+                    $users = $stmt->fetchAll();
+                } else {
+                    $sql = "SELECT id, name, email, is_active, created_at FROM users ORDER BY created_at DESC";
+                    $stmt = $db->prepare($sql);
+                    $stmt->execute();
+                    $users = $stmt->fetchAll();
+                }
+            }
+            
+            Response::success($users);
+        } catch (\Exception $e) {
+            Response::error('Failed to fetch users: ' . $e->getMessage(), 500);
         }
-        
-        Response::success($users);
     }
 
     public function show($id) {

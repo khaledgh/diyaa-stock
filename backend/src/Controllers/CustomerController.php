@@ -40,12 +40,17 @@ class CustomerController {
         $total = $stmt->fetch()['count'];
         
         // Get paginated results
-        $sql .= " LIMIT :limit OFFSET :offset";
-        $params['limit'] = $perPage;
-        $params['offset'] = $offset;
+        $sql .= " LIMIT ? OFFSET ?";
         
         $stmt = $this->customerModel->getDb()->prepare($sql);
-        $stmt->execute($params);
+        
+        // Bind parameters - search params first (if any), then limit and offset
+        if ($search) {
+            $stmt->execute(["%$search%", "%$search%", "%$search%", $perPage, $offset]);
+        } else {
+            $stmt->execute([$perPage, $offset]);
+        }
+        
         $customers = $stmt->fetchAll();
 
         Response::success([

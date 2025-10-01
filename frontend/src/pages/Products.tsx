@@ -36,7 +36,31 @@ export default function Products() {
           page,
           per_page: perPage
         });
-        return response.data;
+        
+        console.log('Product API Response:', response.data);
+        
+        // The API returns: { success: true, message: "Success", data: { data: [], pagination: {} } }
+        // So we need response.data.data to get { data: [...], pagination: {...} }
+        
+        const apiData = response.data.data || response.data;
+        
+        // Check if apiData has the nested structure
+        if (apiData?.data && Array.isArray(apiData.data)) {
+          console.log('Correct format detected: nested data array');
+          return {
+            data: apiData.data,
+            pagination: apiData.pagination || null
+          };
+        }
+        
+        // Fallback: if apiData is directly an array (old format)
+        if (Array.isArray(apiData)) {
+          console.log('Old format: direct array');
+          return { data: apiData, pagination: null };
+        }
+        
+        console.log('Unknown format, returning empty. ApiData:', apiData);
+        return { data: [], pagination: null };
       } catch (error) {
         console.error('Failed to fetch products:', error);
         return { data: [], pagination: null };
@@ -44,8 +68,10 @@ export default function Products() {
     },
   });
 
-  const products = productsResponse?.data || [];
+  const products = Array.isArray(productsResponse?.data) ? productsResponse.data : [];
   const pagination = productsResponse?.pagination;
+  
+  console.log('Products:', products, 'Pagination:', pagination);
 
 
   const deleteMutation = useMutation({

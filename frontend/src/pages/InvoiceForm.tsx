@@ -43,7 +43,9 @@ export default function InvoiceForm() {
     queryKey: ['products'],
     queryFn: async () => {
       const response = await productApi.getAll();
-      return response.data.data || [];
+      // Handle paginated response
+      const apiData = response.data.data || response.data;
+      return Array.isArray(apiData) ? apiData : (apiData.data || []);
     },
   });
 
@@ -59,7 +61,9 @@ export default function InvoiceForm() {
     queryKey: ['customers'],
     queryFn: async () => {
       const response = await customerApi.getAll();
-      return response.data.data || [];
+      // Handle paginated response
+      const apiData = response.data.data || response.data;
+      return Array.isArray(apiData) ? apiData : (apiData.data || []);
     },
   });
 

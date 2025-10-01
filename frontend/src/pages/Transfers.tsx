@@ -119,7 +119,9 @@ export default function Transfers() {
     queryFn: async () => {
       try {
         const response = await productApi.getAll();
-        return response.data.data || [];
+        // Handle paginated response
+        const apiData = response.data.data || response.data;
+        return Array.isArray(apiData) ? apiData : (apiData.data || []);
       } catch (error) {
         console.error('Failed to fetch products:', error);
         return [];

@@ -49,7 +49,9 @@ export default function POS() {
     queryKey: ['customers'],
     queryFn: async () => {
       const response = await customerApi.getAll();
-      return response.data.data || [];
+      // Handle paginated response
+      const apiData = response.data.data || response.data;
+      return Array.isArray(apiData) ? apiData : (apiData.data || []);
     },
   });
 
@@ -57,7 +59,9 @@ export default function POS() {
     queryKey: ['products'],
     queryFn: async () => {
       const response = await productApi.getAll();
-      return response.data.data || [];
+      // Handle paginated response
+      const apiData = response.data.data || response.data;
+      return Array.isArray(apiData) ? apiData : (apiData.data || []);
     },
   });
 
@@ -85,50 +89,55 @@ export default function POS() {
     },
   });
 
+  const addProductToCart = (productId: number, qty: number = 1) => {
+    if (!selectedVan) {
+      toast.error('Please select a van first');
+      return;
+    }
+
+    const product = products?.find((p: any) => p.id === productId);
+    const stock = vanStock?.find((s: any) => s.product_id === productId);
+
+    if (!stock || stock.quantity < qty) {
+      toast.error('Insufficient stock in selected van');
+      return;
+    }
+
+    const existingItem = cart.find(item => item.product_id === productId);
+    
+    if (existingItem) {
+      const newQuantity = existingItem.quantity + qty;
+      if (newQuantity > stock.quantity) {
+        toast.error('Insufficient stock');
+        return;
+      }
+      setCart(cart.map(item =>
+        item.product_id === productId
+          ? { ...item, quantity: newQuantity, total: newQuantity * item.unit_price }
+          : item
+      ));
+    } else {
+      const newItem: CartItem = {
+        product_id: productId,
+        product_name: product?.name_en || '',
+        sku: product?.sku || '',
+        quantity: qty,
+        unit_price: product?.unit_price || 0,
+        total: qty * (product?.unit_price || 0),
+      };
+      setCart([...cart, newItem]);
+    }
+
+    toast.success(`${product?.name_en} added to cart`);
+  };
+
   const handleAddToCart = () => {
     if (!selectedProduct || !quantity) {
       toast.error('Please select product and quantity');
       return;
     }
 
-    if (!selectedVan) {
-      toast.error('Please select a van first');
-      return;
-    }
-
-    const product = products?.find((p: any) => p.id === Number(selectedProduct));
-    const stock = vanStock?.find((s: any) => s.product_id === Number(selectedProduct));
-
-    if (!stock || stock.quantity < Number(quantity)) {
-      toast.error('Insufficient stock in selected van');
-      return;
-    }
-
-    const existingItem = cart.find(item => item.product_id === Number(selectedProduct));
-    
-    if (existingItem) {
-      const newQuantity = existingItem.quantity + Number(quantity);
-      if (newQuantity > stock.quantity) {
-        toast.error('Insufficient stock');
-        return;
-      }
-      setCart(cart.map(item =>
-        item.product_id === Number(selectedProduct)
-          ? { ...item, quantity: newQuantity, total: newQuantity * item.unit_price }
-          : item
-      ));
-    } else {
-      const newItem: CartItem = {
-        product_id: Number(selectedProduct),
-        product_name: product?.name_en || '',
-        sku: product?.sku || '',
-        quantity: Number(quantity),
-        unit_price: product?.unit_price || 0,
-        total: Number(quantity) * (product?.unit_price || 0),
-      };
-      setCart([...cart, newItem]);
-    }
-
+    addProductToCart(Number(selectedProduct), Number(quantity));
     setSelectedProduct('');
     setQuantity('1');
   };
@@ -330,11 +339,7 @@ export default function POS() {
                   return (
                     <button
                       key={stock.product_id}
-                      onClick={() => {
-                        setSelectedProduct(stock.product_id.toString());
-                        setQuantity('1');
-                        setTimeout(() => handleAddToCart(), 100);
-                      }}
+                      onClick={() => addProductToCart(stock.product_id, 1)}
                       className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-left"
                     >
                       <div className="font-semibold text-sm mb-1 truncate">{product.name_en}</div>
