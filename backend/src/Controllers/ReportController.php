@@ -27,12 +27,11 @@ class ReportController {
                     c.name as customer_name,
                     v.name as van_name,
                     u.full_name as created_by_name
-                FROM invoices i
+                FROM sales_invoices i
                 LEFT JOIN customers c ON i.customer_id = c.id
                 LEFT JOIN vans v ON i.van_id = v.id
                 LEFT JOIN users u ON i.created_by = u.id
-                WHERE i.invoice_type = 'sales'
-                AND DATE(i.created_at) BETWEEN ? AND ?";
+                WHERE DATE(i.created_at) BETWEEN ? AND ?";
 
         $params = [$fromDate, $toDate];
 
@@ -112,11 +111,10 @@ class ReportController {
                     c.name as customer_name,
                     c.phone as customer_phone,
                     v.name as van_name
-                FROM invoices i
+                FROM sales_invoices i
                 LEFT JOIN customers c ON i.customer_id = c.id
                 LEFT JOIN vans v ON i.van_id = v.id
-                WHERE i.invoice_type = 'sales'
-                AND i.payment_status IN ('unpaid', 'partial')
+                WHERE i.payment_status IN ('unpaid', 'partial')
                 ORDER BY i.created_at DESC";
 
         $stmt = $this->db->prepare($sql);
@@ -153,8 +151,8 @@ class ReportController {
                     SUM(ii.total) as total_revenue,
                     COUNT(DISTINCT i.id) as invoice_count
                 FROM products p
-                LEFT JOIN invoice_items ii ON p.id = ii.product_id
-                LEFT JOIN invoices i ON ii.invoice_id = i.id AND i.invoice_type = 'sales'
+                LEFT JOIN sales_invoice_items ii ON p.id = ii.product_id
+                LEFT JOIN sales_invoices i ON ii.invoice_id = i.id
                     AND DATE(i.created_at) BETWEEN ? AND ?
                 LEFT JOIN categories c ON p.category_id = c.id
                 GROUP BY p.id
@@ -185,24 +183,24 @@ class ReportController {
         // Today's sales
         $stmt = $this->db->query("
             SELECT COUNT(*) as count, SUM(total_amount) as total
-            FROM invoices
-            WHERE invoice_type = 'sales' AND DATE(created_at) = CURDATE()
+            FROM sales_invoices
+            WHERE DATE(created_at) = CURDATE()
         ");
         $todaySales = $stmt->fetch();
 
         // Pending payments (Receivables from sales)
         $stmt = $this->db->query("
             SELECT SUM(total_amount - paid_amount) as total
-            FROM invoices
-            WHERE invoice_type = 'sales' AND payment_status IN ('unpaid', 'partial')
+            FROM sales_invoices
+            WHERE payment_status IN ('unpaid', 'partial')
         ");
         $pendingPayments = $stmt->fetch()['total'] ?? 0;
 
         // Payables (Amount to pay for purchases)
         $stmt = $this->db->query("
             SELECT SUM(total_amount - paid_amount) as total
-            FROM invoices
-            WHERE invoice_type = 'purchase' AND payment_status IN ('unpaid', 'partial')
+            FROM purchase_invoices
+            WHERE payment_status IN ('unpaid', 'partial')
         ");
         $payables = $stmt->fetch()['total'] ?? 0;
 
@@ -224,8 +222,8 @@ class ReportController {
         // Recent sales chart (last 7 days)
         $stmt = $this->db->query("
             SELECT DATE(created_at) as date, SUM(total_amount) as total
-            FROM invoices
-            WHERE invoice_type = 'sales' AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            FROM sales_invoices
+            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
             GROUP BY DATE(created_at)
             ORDER BY date ASC
         ");
