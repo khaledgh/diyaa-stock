@@ -17,7 +17,6 @@ import { invoiceApi, productApi, vanApi, customerApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Combobox } from '@/components/ui/combobox';
 import { InvoicePrint } from '@/components/InvoicePrint';
-import { useReactToPrint } from 'react-to-print';
 
 interface CartItem {
   product_id: number;
@@ -79,9 +78,23 @@ export default function POS() {
     enabled: !!selectedVan,
   });
 
-  const handlePrint = useReactToPrint({
-    content: () => printRef.current,
-  });
+  const handlePrint = () => {
+    if (printRef.current) {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write('<html><head><title>Print Receipt</title>');
+        printWindow.document.write('</head><body>');
+        printWindow.document.write(printRef.current.innerHTML);
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 250);
+      }
+    }
+  };
 
   const createSaleMutation = useMutation({
     mutationFn: (data: any) => invoiceApi.createSales(data),

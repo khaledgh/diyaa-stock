@@ -37,7 +37,7 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
     ref
   ) => {
     return (
-      <div ref={ref} className="hidden print:block">
+      <div ref={ref} style={{ display: 'none' }}>
         <style>
           {`
             @media print {
@@ -48,12 +48,6 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
               body {
                 margin: 0;
                 padding: 0;
-              }
-              .print\\:block {
-                display: block !important;
-              }
-              .hidden {
-                display: none !important;
               }
             }
           `}
