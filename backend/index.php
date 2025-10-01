@@ -17,6 +17,7 @@ use App\Controllers\PaymentController;
 use App\Controllers\ReportController;
 use App\Controllers\LocationController;
 use App\Controllers\EmployeeController;
+use App\Controllers\UserController;
 
 // Handle CORS
 Cors::handle();
@@ -237,6 +238,25 @@ try {
             $controller->productPerformance();
         } elseif ($method === 'GET' && $id === 'dashboard') {
             $controller->dashboard();
+        } else {
+            Response::notFound('Route not found');
+        }
+    }
+
+    // User routes
+    elseif ($resource === 'users') {
+        $controller = new UserController();
+        
+        if ($method === 'GET' && !$id) {
+            $controller->index();
+        } elseif ($method === 'GET' && $id) {
+            $controller->show($id);
+        } elseif ($method === 'POST') {
+            $controller->store();
+        } elseif ($method === 'PUT' && $id) {
+            $controller->update($id);
+        } elseif ($method === 'DELETE' && $id) {
+            $controller->delete($id);
         } else {
             Response::notFound('Route not found');
         }

@@ -185,24 +185,24 @@ class ReportController {
         // Today's sales
         $stmt = $this->db->query("
             SELECT COUNT(*) as count, SUM(total_amount) as total
-            FROM sales_invoices
-            WHERE DATE(created_at) = CURDATE()
+            FROM invoices
+            WHERE invoice_type = 'sales' AND DATE(created_at) = CURDATE()
         ");
         $todaySales = $stmt->fetch();
 
         // Pending payments (Receivables from sales)
         $stmt = $this->db->query("
             SELECT SUM(total_amount - paid_amount) as total
-            FROM sales_invoices
-            WHERE payment_status IN ('unpaid', 'partial')
+            FROM invoices
+            WHERE invoice_type = 'sales' AND payment_status IN ('unpaid', 'partial')
         ");
         $pendingPayments = $stmt->fetch()['total'] ?? 0;
 
         // Payables (Amount to pay for purchases)
         $stmt = $this->db->query("
             SELECT SUM(total_amount - paid_amount) as total
-            FROM purchase_invoices
-            WHERE payment_status IN ('unpaid', 'partial')
+            FROM invoices
+            WHERE invoice_type = 'purchase' AND payment_status IN ('unpaid', 'partial')
         ");
         $payables = $stmt->fetch()['total'] ?? 0;
 
@@ -224,8 +224,8 @@ class ReportController {
         // Recent sales chart (last 7 days)
         $stmt = $this->db->query("
             SELECT DATE(created_at) as date, SUM(total_amount) as total
-            FROM sales_invoices
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            FROM invoices
+            WHERE invoice_type = 'sales' AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
             GROUP BY DATE(created_at)
             ORDER BY date ASC
         ");

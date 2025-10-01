@@ -13,6 +13,7 @@ import {
   BarChart3,
   ShoppingCart,
   Settings,
+  Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -22,6 +23,7 @@ const navigation = [
   { name: 'products', href: '/products', icon: Package },
   { name: 'customers', href: '/customers', icon: Users },
   { name: 'employees', href: '/employees', icon: UserCog },
+  { name: 'users', href: '/users', icon: Shield },
   { name: 'vans', href: '/vans', icon: Truck },
   { name: 'stock', href: '/stock', icon: Warehouse },
   { name: 'transfers', href: '/transfers', icon: ArrowRightLeft },

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,18 +79,43 @@ export default function Customers() {
     }
   };
 
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredCustomers = customers?.filter((customer: any) =>
+    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.phone?.includes(searchTerm) ||
+    customer.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">{t('customers.title')}</h1>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="mr-2 h-4 w-4" />
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <Users className="h-8 w-8 text-blue-600" />
+            {t('customers.title')}
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your customer database</p>
+        </div>
+        <Button onClick={() => handleOpenDialog()} size="lg" className="shadow-lg">
+          <Plus className="mr-2 h-5 w-5" />
           {t('customers.addCustomer')}
         </Button>
       </div>
 
-      <Card>
+      <Card className="border-0 shadow-lg">
         <CardContent className="pt-6">
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Input
+                placeholder="Search customers by name, phone, or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-11"
+              />
+            </div>
+          </div>
           {isLoading ? (
             <div className="text-center py-8">{t('common.loading')}</div>
           ) : (
@@ -104,23 +129,31 @@ export default function Customers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customers?.map((customer: any) => (
-                  <TableRow key={customer.id}>
-                    <TableCell className="font-medium">{customer.name}</TableCell>
-                    <TableCell>{customer.phone}</TableCell>
-                    <TableCell>{customer.email}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(customer)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(customer.id)}>
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
-                      </div>
+                {filteredCustomers?.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                      {searchTerm ? 'No customers found matching your search' : 'No customers yet'}
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredCustomers?.map((customer: any) => (
+                    <TableRow key={customer.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <TableCell className="font-medium">{customer.name}</TableCell>
+                      <TableCell>{customer.phone || '-'}</TableCell>
+                      <TableCell>{customer.email || '-'}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(customer)} title="Edit">
+                            <Edit className="h-4 w-4 text-blue-600" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(customer.id)} title="Delete">
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           )}
@@ -128,32 +161,62 @@ export default function Customers() {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingCustomer ? t('customers.editCustomer') : t('customers.addCustomer')}</DialogTitle>
+            <DialogTitle className="text-xl">
+              {editingCustomer ? t('customers.editCustomer') : t('customers.addCustomer')}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
-            <div className="space-y-4 py-4">
+            <div className="space-y-5 py-4">
               <div className="space-y-2">
                 <Label htmlFor="name">{t('customers.name')} *</Label>
-                <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
+                <Input 
+                  id="name" 
+                  value={formData.name} 
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
+                  required 
+                  className="h-11"
+                  placeholder="Enter customer name"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">{t('customers.phone')}</Label>
-                <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+                <Input 
+                  id="phone" 
+                  value={formData.phone} 
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })} 
+                  className="h-11"
+                  placeholder="Enter phone number"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">{t('customers.email')}</Label>
-                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  value={formData.email} 
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
+                  className="h-11"
+                  placeholder="Enter email address"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="address">{t('customers.address')}</Label>
-                <Input id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
+                <Input 
+                  id="address" 
+                  value={formData.address} 
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })} 
+                  className="h-11"
+                  placeholder="Enter address"
+                />
               </div>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>{t('common.cancel')}</Button>
-              <Button type="submit">{t('common.save')}</Button>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} size="lg">
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit" size="lg">{t('common.save')}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

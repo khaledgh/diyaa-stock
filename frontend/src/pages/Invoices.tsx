@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { FileText, Eye, Plus, Trash2, DollarSign, Printer, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ interface InvoiceItem {
 
 export default function Invoices() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [invoiceType, setInvoiceType] = useState<'purchase' | 'sales'>('sales');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -598,8 +600,8 @@ export default function Invoices() {
               : 'Sales invoices reduce van stock and record income'}
           </p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)} size="lg">
-          <Plus className="mr-2 h-4 w-4" />
+        <Button onClick={() => navigate(`/invoices/new?type=${invoiceType}`)} size="lg" className="shadow-lg">
+          <Plus className="mr-2 h-5 w-5" />
           {invoiceType === 'purchase' ? 'New Purchase' : 'New Sale'}
         </Button>
       </div>

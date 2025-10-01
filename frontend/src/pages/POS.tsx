@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ShoppingCart, Plus, Minus, Trash2, X } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, X, DollarSign, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -229,148 +229,218 @@ export default function POS() {
   }) || [];
 
   return (
-    <div className="h-full flex flex-col lg:flex-row gap-4">
+    <div className="h-full flex flex-col lg:flex-row gap-6 p-6">
       {/* Left Side - Product Selection */}
-      <div className="flex-1 space-y-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" />
-              <h2 className="text-lg font-semibold">Point of Sale</h2>
-            </div>
+      <div className="flex-1 space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <ShoppingCart className="h-8 w-8 text-green-600" />
+            Point of Sale
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Quick sales checkout system</p>
+        </div>
+
+        {/* Van & Customer Selection */}
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <h2 className="text-lg font-semibold">Sale Information</h2>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label>Select Van <span className="text-red-500">*</span></Label>
+                <Label className="text-base">Select Van <span className="text-red-500">*</span></Label>
                 <Combobox
                   options={[{ value: '', label: 'Select van...' }, ...vanOptions]}
                   value={selectedVan}
                   onChange={setSelectedVan}
                   placeholder="Select van"
-                  searchPlaceholder="Search..."
+                  searchPlaceholder="Search vans..."
                   emptyText="No vans found"
                 />
               </div>
               <div>
-                <Label>Customer (Optional)</Label>
+                <Label className="text-base">Customer (Optional)</Label>
                 <Combobox
                   options={[{ value: '', label: 'Walk-in customer' }, ...customerOptions]}
                   value={selectedCustomer}
                   onChange={setSelectedCustomer}
                   placeholder="Select customer"
-                  searchPlaceholder="Search..."
+                  searchPlaceholder="Search customers..."
                   emptyText="No customers found"
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-3">Add Products</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="md:col-span-2">
-                  <Label>Product</Label>
-                  <Combobox
-                    options={[{ value: '', label: 'Select product...' }, ...productOptions]}
-                    value={selectedProduct}
-                    onChange={setSelectedProduct}
-                    placeholder="Select product"
-                    searchPlaceholder="Search..."
-                    emptyText="No products in van"
-                    disabled={!selectedVan}
+        {/* Product Selection */}
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-blue-600" />
+              <h2 className="text-lg font-semibold">Add Products</h2>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-3">
+                <Label className="text-base">Product</Label>
+                <Combobox
+                  options={[{ value: '', label: 'Select product...' }, ...productOptions]}
+                  value={selectedProduct}
+                  onChange={setSelectedProduct}
+                  placeholder="Search products..."
+                  searchPlaceholder="Type to search..."
+                  emptyText="No products in van"
+                  disabled={!selectedVan}
+                />
+              </div>
+              <div>
+                <Label className="text-base">Quantity</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    placeholder="1"
+                    min="1"
+                    className="flex-1 h-11"
                   />
-                </div>
-                <div>
-                  <Label>Quantity</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                      placeholder="1"
-                      min="1"
-                      className="flex-1"
-                    />
-                    <Button onClick={handleAddToCart} disabled={!selectedVan}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Button onClick={handleAddToCart} disabled={!selectedVan} size="lg" className="px-6">
+                    <Plus className="h-5 w-5" />
+                  </Button>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Quick Product Grid */}
+        {selectedVan && vanStock && vanStock.length > 0 && (
+          <Card className="border-0 shadow-lg">
+            <CardHeader>
+              <h2 className="text-lg font-semibold">Quick Select</h2>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {vanStock.slice(0, 12).map((stock: any) => {
+                  const product = products?.find((p: any) => p.id === stock.product_id);
+                  if (!product || stock.quantity === 0) return null;
+                  return (
+                    <button
+                      key={stock.product_id}
+                      onClick={() => {
+                        setSelectedProduct(stock.product_id.toString());
+                        setQuantity('1');
+                        setTimeout(() => handleAddToCart(), 100);
+                      }}
+                      className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-left"
+                    >
+                      <div className="font-semibold text-sm mb-1 truncate">{product.name_en}</div>
+                      <div className="text-xs text-gray-500 mb-2">{product.sku}</div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-lg font-bold text-green-600">{formatCurrency(product.unit_price)}</span>
+                        <span className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">Stock: {stock.quantity}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Right Side - Cart */}
-      <div className="lg:w-96 space-y-4">
-        <Card>
-          <CardHeader className="pb-3">
+      <div className="lg:w-[420px] space-y-4">
+        <Card className="border-0 shadow-xl sticky top-6">
+          <CardHeader className="bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-t-lg">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Cart</h2>
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="h-6 w-6" />
+                <h2 className="text-xl font-bold">Cart ({cart.length})</h2>
+              </div>
               {cart.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={handleClearCart}>
+                <Button variant="ghost" size="sm" onClick={handleClearCart} className="text-white hover:bg-white/20">
                   <X className="h-4 w-4 mr-1" />
                   Clear
                 </Button>
               )}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             {cart.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Cart is empty
+              <div className="text-center py-12">
+                <ShoppingCart className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500 font-medium">Cart is empty</p>
+                <p className="text-sm text-gray-400 mt-1">Add products to get started</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {cart.map((item) => (
-                  <div key={item.product_id} className="flex items-center gap-2 p-2 border rounded">
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{item.product_name}</div>
-                      <div className="text-xs text-muted-foreground">{item.sku}</div>
-                      <div className="text-sm font-bold mt-1">{formatCurrency(item.total)}</div>
+                <div className="max-h-[400px] overflow-y-auto space-y-3 pr-2">
+                  {cart.map((item) => (
+                    <div key={item.product_id} className="flex items-center gap-3 p-3 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-semibold text-sm mb-1">{item.product_name}</div>
+                        <div className="text-xs text-gray-500 mb-2">{item.sku}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600">{formatCurrency(item.unit_price)} × {item.quantity}</span>
+                          <span className="text-base font-bold text-green-600">{formatCurrency(item.total)}</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUpdateQuantity(item.product_id, item.quantity - 1)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <span className="w-10 text-center text-sm font-bold">{item.quantity}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUpdateQuantity(item.product_id, item.quantity + 1)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveItem(item.product_id)}
+                          className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleUpdateQuantity(item.product_id, item.quantity - 1)}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleUpdateQuantity(item.product_id, item.quantity + 1)}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveItem(item.product_id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
 
-                <div className="border-t pt-3 mt-3">
-                  <div className="flex justify-between text-lg font-bold">
+                <div className="border-t-2 pt-4 mt-4 space-y-2">
+                  <div className="flex justify-between text-base text-gray-600 dark:text-gray-400">
+                    <span>Items:</span>
+                    <span>{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-2xl font-bold text-gray-900 dark:text-white">
                     <span>Total:</span>
-                    <span>{formatCurrency(calculateTotal())}</span>
+                    <span className="text-green-600">{formatCurrency(calculateTotal())}</span>
                   </div>
                 </div>
 
                 <Button
-                  className="w-full"
+                  className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white"
                   size="lg"
                   onClick={handleCheckout}
                   disabled={cart.length === 0 || !selectedVan}
                 >
-                  Checkout
+                  <DollarSign className="mr-2 h-5 w-5" />
+                  Proceed to Checkout
                 </Button>
               </div>
             )}
@@ -393,7 +463,19 @@ export default function POS() {
             </div>
 
             <div>
-              <Label>Amount Paid</Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label>Amount Paid</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPaidAmount(calculateTotal().toString())}
+                  className="h-8"
+                >
+                  <DollarSign className="h-3 w-3 mr-1" />
+                  Full Amount
+                </Button>
+              </div>
               <Input
                 type="number"
                 value={paidAmount}
@@ -401,6 +483,7 @@ export default function POS() {
                 placeholder="0.00"
                 min="0"
                 step="0.01"
+                className="h-11"
               />
             </div>
 

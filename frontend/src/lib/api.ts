@@ -121,3 +121,11 @@ export const reportApi = {
   receivables: () => api.get('/reports/receivables'),
   productPerformance: (params?: any) => api.get('/reports/product-performance', { params }),
 };
+
+export const userApi = {
+  getAll: (params?: any) => api.get('/users', { params }),
+  getById: (id: number) => api.get(`/users/${id}`),
+  create: (data: any) => api.post('/users', data),
+  update: (id: number, data: any) => api.put(`/users/${id}`, data),
+  delete: (id: number) => api.delete(`/users/${id}`),
+};

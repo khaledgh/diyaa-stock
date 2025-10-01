@@ -9,8 +9,11 @@ import { useEffect } from 'react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
+import ProductForm from './pages/ProductForm';
 import Customers from './pages/Customers';
 import Employees from './pages/Employees';
+import InvoiceForm from './pages/InvoiceForm';
+
 import Vans from './pages/Vans';
 import Stock from './pages/Stock';
 import Transfers from './pages/Transfers';
@@ -23,6 +26,7 @@ import Reports from './pages/Reports';
 import Layout from './components/Layout';
 import POS from './pages/POS';
 import Settings from './pages/Settings';
+import Users from './pages/Users';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,12 +67,16 @@ function App() {
             <Route index element={<Navigate to="/dashboard" />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="products" element={<Products />} />
+            <Route path="products/new" element={<ProductForm />} />
+            <Route path="products/edit/:id" element={<ProductForm />} />
             <Route path="customers" element={<Customers />} />
             <Route path="employees" element={<Employees />} />
+            <Route path="users" element={<Users />} />
             <Route path="vans" element={<Vans />} />
             <Route path="stock" element={<Stock />} />
             <Route path="transfers" element={<Transfers />} />
             <Route path="invoices" element={<Invoices />} />
+            <Route path="invoices/new" element={<InvoiceForm />} />
             <Route path="payments" element={<Payments />} />
             <Route path="reports" element={<Reports />} />
             <Route path="pos" element={<POS />} />
