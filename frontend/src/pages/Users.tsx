@@ -310,7 +310,26 @@ export default function Users() {
                 />
               </div>
 
-              {/* Role field hidden - not supported in current schema */}
+              <div className="space-y-2">
+                <Label htmlFor="role">Role *</Label>
+                <select
+                  id="role"
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="user">User - Basic access</option>
+                  <option value="sales">Sales - Can create invoices and manage customers</option>
+                  <option value="manager">Manager - Full access except user management</option>
+                  <option value="admin">Admin - Full system access</option>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  {formData.role === 'admin' && '✓ Full access to all features including user management'}
+                  {formData.role === 'manager' && '✓ Can manage products, stock, invoices, and view reports'}
+                  {formData.role === 'sales' && '✓ Can create invoices, manage customers, and access POS'}
+                  {formData.role === 'user' && '✓ View-only access to products and basic features'}
+                </p>
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="is_active">Status</Label>

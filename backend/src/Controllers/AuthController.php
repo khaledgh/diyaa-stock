@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Utils\Response;
 use App\Utils\Validator;
 use Firebase\JWT\JWT;
+use App\Config\Permissions;
 
 class AuthController {
     private $userModel;
@@ -98,8 +99,14 @@ class AuthController {
 
         // Remove password from response
         unset($userWithRoles['password']);
-        $userWithRoles['permissions'] = array_unique($permissions);
-        $userWithRoles['roles'] = explode(',', $userWithRoles['roles']);
+        
+        // Get user role and permissions
+        $userRole = $userWithRoles['role'] ?? 'user';
+        $userPermissions = Permissions::getPermissionsForRole($userRole);
+        $allowedNavigation = Permissions::getNavigationForRole($userRole);
+        
+        $userWithRoles['permissions'] = $userPermissions;
+        $userWithRoles['navigation'] = $allowedNavigation;
 
         Response::success([
             'token' => $token,

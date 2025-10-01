@@ -5,8 +5,10 @@ interface User {
   id: number;
   email: string;
   full_name: string;
-  roles: string[];
+  role: string;
+  roles?: string[];
   permissions: string[];
+  navigation: string[];
 }
 
 interface AuthState {
@@ -41,7 +43,7 @@ export const useAuthStore = create<AuthState>()(
       hasRole: (role) => {
         const { user } = get();
         if (!user) return false;
-        return user.roles.includes(role);
+        return user.role === role || (user.roles?.includes(role) ?? false);
       },
     }),
     {

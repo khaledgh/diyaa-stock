@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const navigation = [
   { name: 'dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -42,6 +43,10 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { t } = useTranslation();
+  const { canView } = usePermissions();
+
+  // Filter navigation based on user permissions
+  const filteredNavigation = navigation.filter(item => canView(item.name));
 
   return (
     <>
@@ -76,7 +81,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
           <div className="mt-8 flex-grow flex flex-col">
             <nav className="flex-1 px-2 space-y-1">
-              {navigation.map((item) => (
+              {filteredNavigation.map((item) => (
                 <NavLink
                   key={item.name}
                   to={item.href}

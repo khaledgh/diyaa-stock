@@ -25,7 +25,9 @@ export default function Login() {
       console.log('Attempting login with:', email);
       const response = await authApi.login(email, password);
       console.log('Login response:', response);
-      const { token, user } = response.data.data;
+      // Handle both response.data.data and response.data structures
+      const responseData = response.data.data || response.data;
+      const { token, user } = responseData;
       setAuth(user, token);
       toast.success(t('auth.loginSuccess') || 'Login successful');
       navigate('/dashboard');
