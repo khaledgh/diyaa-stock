@@ -14,15 +14,33 @@ class ProductController {
     }
 
     public function index() {
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20;
+        $offset = ($page - 1) * $perPage;
+
         $filters = [
             'search' => $_GET['search'] ?? null,
             'category_id' => $_GET['category_id'] ?? null,
             'type_id' => $_GET['type_id'] ?? null,
-            'is_active' => isset($_GET['is_active']) ? $_GET['is_active'] : null
+            'is_active' => isset($_GET['is_active']) ? $_GET['is_active'] : null,
+            'limit' => $perPage,
+            'offset' => $offset
         ];
 
         $products = $this->productModel->getProductsWithDetails($filters);
-        Response::success($products);
+        $total = $this->productModel->countProducts($filters);
+
+        Response::success([
+            'data' => $products,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'total_pages' => ceil($total / $perPage),
+                'from' => $offset + 1,
+                'to' => min($offset + $perPage, $total)
+            ]
+        ]);
     }
 
     public function show($id) {

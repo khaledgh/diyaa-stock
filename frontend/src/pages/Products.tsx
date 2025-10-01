@@ -7,6 +7,7 @@ import { Plus, Edit, Trash2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Pagination } from '@/components/ui/pagination';
 import {
   Table,
   TableBody,
@@ -23,19 +24,28 @@ export default function Products() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
 
-  const { data: products, isLoading } = useQuery({
-    queryKey: ['products', searchTerm],
+  const { data: productsResponse, isLoading } = useQuery({
+    queryKey: ['products', searchTerm, page],
     queryFn: async () => {
       try {
-        const response = await productApi.getAll({ search: searchTerm });
-        return response.data.data || [];
+        const response = await productApi.getAll({ 
+          search: searchTerm,
+          page,
+          per_page: perPage
+        });
+        return response.data;
       } catch (error) {
         console.error('Failed to fetch products:', error);
-        return [];
+        return { data: [], pagination: null };
       }
     },
   });
+
+  const products = productsResponse?.data || [];
+  const pagination = productsResponse?.pagination;
 
 
   const deleteMutation = useMutation({
@@ -77,7 +87,10 @@ export default function Products() {
               <Input
                 placeholder={t('common.search')}
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(1); // Reset to first page on search
+                }}
                 className="pl-10 h-11"
               />
             </div>
@@ -150,6 +163,16 @@ export default function Products() {
                 )}
               </TableBody>
             </Table>
+          )}
+          
+          {pagination && pagination.total_pages > 1 && (
+            <Pagination
+              currentPage={pagination.current_page}
+              totalPages={pagination.total_pages}
+              onPageChange={setPage}
+              totalItems={pagination.total}
+              itemsPerPage={pagination.per_page}
+            />
           )}
         </CardContent>
       </Card>

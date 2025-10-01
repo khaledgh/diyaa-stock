@@ -9,11 +9,13 @@
 -- Check if old tables exist before dropping
 SELECT 'Checking for old tables...' as status;
 
--- Drop old unified tables (NOT USED - we use separate tables)
+-- Drop old unified invoice tables (NOT USED - we use separate sales/purchase tables)
 DROP TABLE IF EXISTS `invoices`;
 DROP TABLE IF EXISTS `invoice_items`;
 
--- Drop any other legacy tables that might exist
+-- Drop old separate stock tables (NOT USED - we use unified 'stock' table with location_type)
+-- Old system had: warehouse_stock + van_stock
+-- New system has: stock (with location_type = 'warehouse' or 'van')
 DROP TABLE IF EXISTS `warehouse_stock`;
 DROP TABLE IF EXISTS `van_stock`;
 

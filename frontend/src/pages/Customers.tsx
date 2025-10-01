@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Pagination } from '@/components/ui/pagination';
 import { customerApi } from '@/lib/api';
 
 export default function Customers() {
@@ -16,6 +17,9 @@ export default function Customers() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -25,13 +29,20 @@ export default function Customers() {
     credit_limit: '0',
   });
 
-  const { data: customers, isLoading } = useQuery({
-    queryKey: ['customers'],
+  const { data: customersResponse, isLoading } = useQuery({
+    queryKey: ['customers', searchTerm, page],
     queryFn: async () => {
-      const response = await customerApi.getAll();
-      return response.data.data;
+      const response = await customerApi.getAll({
+        search: searchTerm,
+        page,
+        per_page: perPage
+      });
+      return response.data;
     },
   });
+
+  const customers = customersResponse?.data || [];
+  const pagination = customersResponse?.pagination;
 
   const createMutation = useMutation({
     mutationFn: customerApi.create,
@@ -79,13 +90,6 @@ export default function Customers() {
     }
   };
 
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const filteredCustomers = customers?.filter((customer: any) =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.phone?.includes(searchTerm) ||
-    customer.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
     <div className="space-y-6 p-6">
@@ -111,7 +115,10 @@ export default function Customers() {
               <Input
                 placeholder="Search customers by name, phone, or email..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(1);
+                }}
                 className="pl-10 h-11"
               />
             </div>
@@ -129,14 +136,14 @@ export default function Customers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCustomers?.length === 0 ? (
+                {customers?.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                       {searchTerm ? 'No customers found matching your search' : 'No customers yet'}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCustomers?.map((customer: any) => (
+                  customers?.map((customer: any) => (
                     <TableRow key={customer.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                       <TableCell className="font-medium">{customer.name}</TableCell>
                       <TableCell>{customer.phone || '-'}</TableCell>
@@ -156,6 +163,16 @@ export default function Customers() {
                 )}
               </TableBody>
             </Table>
+          )}
+          
+          {pagination && pagination.total_pages > 1 && (
+            <Pagination
+              currentPage={pagination.current_page}
+              totalPages={pagination.total_pages}
+              onPageChange={setPage}
+              totalItems={pagination.total}
+              itemsPerPage={pagination.per_page}
+            />
           )}
         </CardContent>
       </Card>

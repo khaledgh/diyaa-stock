@@ -14,16 +14,51 @@ class CustomerController {
     }
 
     public function index() {
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20;
+        $offset = ($page - 1) * $perPage;
         $search = $_GET['search'] ?? null;
         
+        // Build query
+        $sql = "SELECT * FROM customers WHERE 1=1";
+        $params = [];
+        
         if ($search) {
-            $sql = "SELECT * FROM customers WHERE name LIKE ? OR phone LIKE ? OR email LIKE ? ORDER BY name ASC";
-            $customers = $this->customerModel->query($sql, ["%$search%", "%$search%", "%$search%"]);
-        } else {
-            $customers = $this->customerModel->findAll(['is_active' => 1], 'name ASC');
+            $sql .= " AND (name LIKE :search OR phone LIKE :search OR email LIKE :search)";
+            $params['search'] = "%$search%";
         }
+        
+        $sql .= " ORDER BY name ASC";
+        
+        // Get total count
+        $countSql = "SELECT COUNT(*) as count FROM customers WHERE 1=1";
+        if ($search) {
+            $countSql .= " AND (name LIKE :search OR phone LIKE :search OR email LIKE :search)";
+        }
+        $stmt = $this->customerModel->getDb()->prepare($countSql);
+        $stmt->execute($params);
+        $total = $stmt->fetch()['count'];
+        
+        // Get paginated results
+        $sql .= " LIMIT :limit OFFSET :offset";
+        $params['limit'] = $perPage;
+        $params['offset'] = $offset;
+        
+        $stmt = $this->customerModel->getDb()->prepare($sql);
+        $stmt->execute($params);
+        $customers = $stmt->fetchAll();
 
-        Response::success($customers);
+        Response::success([
+            'data' => $customers,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'total_pages' => ceil($total / $perPage),
+                'from' => $offset + 1,
+                'to' => min($offset + $perPage, $total)
+            ]
+        ]);
     }
 
     public function show($id) {

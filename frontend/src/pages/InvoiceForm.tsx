@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Plus, Trash2, ShoppingCart, Package } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, ShoppingCart, Package, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,6 +37,7 @@ export default function InvoiceForm() {
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   const { data: products } = useQuery({
     queryKey: ['products'],
@@ -155,16 +156,34 @@ export default function InvoiceForm() {
     return invoiceItems.reduce((sum, item) => sum + (item.total || 0), 0);
   };
 
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {};
+
+    if (invoiceType === 'sales' && !selectedVan) {
+      newErrors.van = 'Van is required for sales invoices';
+    }
+
+    if (invoiceItems.length === 0) {
+      newErrors.items = 'Please add at least one item to the invoice';
+    }
+
+    if (paidAmount && Number(paidAmount) < 0) {
+      newErrors.paidAmount = 'Paid amount cannot be negative';
+    }
+
+    if (paidAmount && Number(paidAmount) > calculateTotal()) {
+      newErrors.paidAmount = 'Paid amount cannot exceed total amount';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (invoiceItems.length === 0) {
-      toast.error('Please add at least one item');
-      return;
-    }
-
-    if (invoiceType === 'sales' && !selectedVan) {
-      toast.error('Please select a van');
+    if (!validateForm()) {
+      toast.error('Please fix the errors before submitting');
       return;
     }
 
@@ -234,8 +253,8 @@ export default function InvoiceForm() {
                       <select
                         id="van"
                         value={selectedVan}
-                        onChange={(e) => setSelectedVan(e.target.value)}
-                        className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onChange={(e) => {setSelectedVan(e.target.value); setErrors({...errors, van: ''})}}
+                        className={`flex h-11 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.van ? 'border-red-500' : 'border-input'}`}
                         required
                       >
                         <option value="">Select van</option>
@@ -245,6 +264,12 @@ export default function InvoiceForm() {
                           </option>
                         ))}
                       </select>
+                      {errors.van && (
+                        <p className="text-sm text-red-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {errors.van}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -334,6 +359,15 @@ export default function InvoiceForm() {
                   <Plus className="mr-2 h-4 w-4" />
                   Add Item
                 </Button>
+
+                {errors.items && (
+                  <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                    <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      {errors.items}
+                    </p>
+                  </div>
+                )}
 
                 {/* Items Table */}
                 {invoiceItems.length > 0 && (
@@ -440,9 +474,15 @@ export default function InvoiceForm() {
                     min="0"
                     max={total}
                     value={paidAmount}
-                    onChange={(e) => setPaidAmount(e.target.value)}
-                    className="h-11"
+                    onChange={(e) => {setPaidAmount(e.target.value); setErrors({...errors, paidAmount: ''})}}
+                    className={`h-11 ${errors.paidAmount ? 'border-red-500' : ''}`}
                   />
+                  {errors.paidAmount && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.paidAmount}
+                    </p>
+                  )}
                 </div>
 
                 <div className="border-t pt-4 space-y-2">

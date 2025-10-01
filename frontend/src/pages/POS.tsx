@@ -248,7 +248,7 @@ export default function POS() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+              <div className="w-full space-y-2">
                 <Label className="text-base">Select Van <span className="text-red-500">*</span></Label>
                 <Combobox
                   options={[{ value: '', label: 'Select van...' }, ...vanOptions]}
@@ -259,7 +259,7 @@ export default function POS() {
                   emptyText="No vans found"
                 />
               </div>
-              <div>
+              <div className="w-full space-y-2">
                 <Label className="text-base">Customer (Optional)</Label>
                 <Combobox
                   options={[{ value: '', label: 'Walk-in customer' }, ...customerOptions]}
@@ -284,7 +284,7 @@ export default function POS() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-3">
+              <div className="md:col-span-3 w-full space-y-2">
                 <Label className="text-base">Product</Label>
                 <Combobox
                   options={[{ value: '', label: 'Select product...' }, ...productOptions]}
@@ -296,7 +296,7 @@ export default function POS() {
                   disabled={!selectedVan}
                 />
               </div>
-              <div>
+              <div className="w-full space-y-2">
                 <Label className="text-base">Quantity</Label>
                 <div className="flex gap-2">
                   <Input
