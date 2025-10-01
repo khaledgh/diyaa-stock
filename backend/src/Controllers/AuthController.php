@@ -72,20 +72,8 @@ class AuthController {
             Response::error('Account is inactive', 403);
         }
 
-        // Get user with roles and permissions
+        // Get user data
         $userWithRoles = $this->userModel->getUserWithRoles($user['id']);
-
-        // Parse permissions
-        $permissions = [];
-        if ($userWithRoles['permissions']) {
-            $permissionSets = explode(',', $userWithRoles['permissions']);
-            foreach ($permissionSets as $set) {
-                $perms = json_decode($set, true);
-                if (is_array($perms)) {
-                    $permissions = array_merge($permissions, $perms);
-                }
-            }
-        }
 
         // Generate JWT token
         $payload = [

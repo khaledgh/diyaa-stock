@@ -9,7 +9,9 @@ export function usePermissions() {
   };
 
   const canView = (page: string): boolean => {
-    if (!user || !user.navigation) return false;
+    if (!user) return false;
+    // If navigation array doesn't exist or is empty, allow all pages (backward compatibility)
+    if (!user.navigation || user.navigation.length === 0) return true;
     return user.navigation.includes(page);
   };
 
