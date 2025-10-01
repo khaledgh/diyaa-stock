@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Moon, Sun, Globe, LogOut } from 'lucide-react';
+import { Moon, Sun, Globe, LogOut, Menu } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { Button } from './ui/button';
@@ -10,7 +10,11 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 
-export default function Header() {
+interface HeaderProps {
+  onMenuClick: () => void;
+}
+
+export default function Header({ onMenuClick }: HeaderProps) {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme, setLanguage } = useSettingsStore();
@@ -24,7 +28,17 @@ export default function Header() {
     <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
+          <div className="flex items-center gap-3">
+            {/* Mobile menu button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onMenuClick}
+              className="md:hidden"
+              title="Open menu"
+            >
+              <Menu className="h-6 w-6" />
+            </Button>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               {t('app.welcome')}, {user?.full_name}
             </h2>
