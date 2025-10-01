@@ -148,17 +148,18 @@ class InvoiceController {
                 ]);
             }
 
-            // Create payment record if paid_amount > 0 (negative for purchase = expense)
-            if (isset($data['paid_amount']) && $data['paid_amount'] > 0) {
-                $this->paymentModel->create([
-                    'invoice_id' => $invoiceId,
-                    'amount' => -$data['paid_amount'], // Negative for purchase invoice (expense)
-                    'payment_method' => $data['payment_method'] ?? 'cash',
-                    'reference_number' => $data['reference_number'] ?? null,
-                    'notes' => 'Initial payment with purchase invoice',
-                    'created_by' => $user['id']
-                ]);
-            }
+            // Payment tracking is handled in the invoice paid_amount field
+            // Separate payments table is for additional payments only
+            // if (isset($data['paid_amount']) && $data['paid_amount'] > 0) {
+            //     $this->paymentModel->create([
+            //         'invoice_id' => $invoiceId,
+            //         'amount' => -$data['paid_amount'],
+            //         'payment_method' => $data['payment_method'] ?? 'cash',
+            //         'reference_number' => $data['reference_number'] ?? null,
+            //         'notes' => 'Initial payment with purchase invoice',
+            //         'created_by' => $user['id']
+            //     ]);
+            // }
 
             $db->commit();
 
@@ -268,23 +269,23 @@ class InvoiceController {
                 ]);
             }
 
-            // Create payment record if paid_amount > 0
-            if (isset($data['paid_amount']) && $data['paid_amount'] > 0) {
-                $this->paymentModel->create([
-                    'invoice_id' => $invoiceId,
-                    'amount' => $data['paid_amount'],
-                    'payment_method' => $data['payment_method'] ?? 'cash',
-                    'reference_number' => $data['reference_number'] ?? null,
-                    'notes' => 'Initial payment with invoice',
-                    'created_by' => $user['id']
-                ]);
-            }
+            // Payment tracking is handled in the invoice paid_amount field
+            // Separate payments table is for additional payments only
+            // if (isset($data['paid_amount']) && $data['paid_amount'] > 0) {
+            //     $this->paymentModel->create([
+            //         'invoice_id' => $invoiceId,
+            //         'amount' => $data['paid_amount'],
+            //         'payment_method' => $data['payment_method'] ?? 'cash',
+            //         'reference_number' => $data['reference_number'] ?? null,
+            //         'notes' => 'Initial payment with sales invoice',
+            //         'created_by' => $user['id']
+            //     ]);
+            // }
 
             $db->commit();
 
             $invoice = $this->salesInvoiceModel->getInvoiceWithItems($invoiceId);
             Response::success($invoice, 'Sales invoice created successfully', 201);
-
         } catch (\Exception $e) {
             $db->rollBack();
             Response::error($e->getMessage(), 500);

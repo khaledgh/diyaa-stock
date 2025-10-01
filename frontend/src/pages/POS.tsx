@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ShoppingCart, Plus, Minus, Trash2, X, DollarSign, Package } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, X, DollarSign, Package, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +16,8 @@ import {
 import { invoiceApi, productApi, vanApi, customerApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Combobox } from '@/components/ui/combobox';
+import { InvoicePrint } from '@/components/InvoicePrint';
+import { useReactToPrint } from 'react-to-print';
 
 interface CartItem {
   product_id: number;
@@ -28,6 +30,7 @@ interface CartItem {
 
 export default function POS() {
   const queryClient = useQueryClient();
+  const printRef = useRef<HTMLDivElement>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedVan, setSelectedVan] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
@@ -36,6 +39,7 @@ export default function POS() {
   const [paidAmount, setPaidAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [lastInvoice, setLastInvoice] = useState<any>(null);
 
   const { data: vans } = useQuery({
     queryKey: ['vans'],
@@ -75,14 +79,39 @@ export default function POS() {
     enabled: !!selectedVan,
   });
 
+  const handlePrint = useReactToPrint({
+    content: () => printRef.current,
+  });
+
   const createSaleMutation = useMutation({
     mutationFn: (data: any) => invoiceApi.createSales(data),
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['van-stock'] });
+      
+      // Save invoice data for printing
+      const total = calculateTotal();
+      const invoiceData = {
+        invoiceNumber: response.data.data?.invoice_number,
+        invoiceDate: new Date().toISOString(),
+        customerName: customers?.find((c: any) => c.id === Number(selectedCustomer))?.name || 'Walk-in Customer',
+        vanName: vans?.find((v: any) => v.id === Number(selectedVan))?.name,
+        items: cart,
+        subtotal: total,
+        paidAmount: Number(paidAmount) || 0,
+        remainingAmount: total - (Number(paidAmount) || 0),
+        paymentMethod,
+      };
+      setLastInvoice(invoiceData);
+      
       toast.success('Sale completed successfully!');
       handleClearCart();
       setIsCheckoutOpen(false);
+      
+      // Auto print after 500ms
+      setTimeout(() => {
+        handlePrint();
+      }, 500);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to complete sale');
@@ -536,6 +565,34 @@ export default function POS() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Print Component (Hidden) */}
+      {lastInvoice && (
+        <InvoicePrint
+          ref={printRef}
+          invoiceNumber={lastInvoice.invoiceNumber}
+          invoiceDate={lastInvoice.invoiceDate}
+          customerName={lastInvoice.customerName}
+          vanName={lastInvoice.vanName}
+          items={lastInvoice.items}
+          subtotal={lastInvoice.subtotal}
+          paidAmount={lastInvoice.paidAmount}
+          remainingAmount={lastInvoice.remainingAmount}
+          paymentMethod={lastInvoice.paymentMethod}
+        />
+      )}
+
+      {/* Manual Print Button (if needed) */}
+      {lastInvoice && (
+        <Button
+          onClick={handlePrint}
+          className="fixed bottom-6 right-6 shadow-lg"
+          size="lg"
+        >
+          <Printer className="mr-2 h-5 w-5" />
+          Print Last Receipt
+        </Button>
+      )}
     </div>
   );
 }
