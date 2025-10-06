@@ -63,6 +63,13 @@ export const categoryApi = {
   delete: (id: number) => api.delete(`/categories/${id}`),
 };
 
+export const productTypeApi = {
+  getAll: () => api.get('/product-types'),
+  create: (data: any) => api.post('/product-types', data),
+  update: (id: number, data: any) => api.put(`/product-types/${id}`, data),
+  delete: (id: number) => api.delete(`/product-types/${id}`),
+};
+
 export const locationApi = {
   getAll: () => api.get('/locations'),
   getById: (id: number) => api.get(`/locations/${id}`),

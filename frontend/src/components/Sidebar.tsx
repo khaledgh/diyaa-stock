@@ -21,6 +21,8 @@ import {
   PackageSearch,
   ChevronDown,
   ChevronRight,
+  Tag,
+  Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -29,11 +31,16 @@ import { usePermissions } from '@/hooks/usePermissions';
 const mainNavigation = [
   { name: 'dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'pos', href: '/pos', icon: ShoppingCart },
-  { name: 'products', href: '/products', icon: Package },
   { name: 'customers', href: '/customers', icon: Users },
   { name: 'vendors', href: '/vendors', icon: Building2 },
   { name: 'employees', href: '/employees', icon: UserCog },
   { name: 'users', href: '/users', icon: Shield },
+];
+
+const productsNavigation = [
+  { name: 'products', href: '/products', icon: Package },
+  { name: 'categories', href: '/categories', icon: Tag },
+  { name: 'product-types', href: '/product-types', icon: Layers },
 ];
 
 const inventoryNavigation = [
@@ -58,11 +65,13 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { t } = useTranslation();
   const { canView } = usePermissions();
+  const [isProductsOpen, setIsProductsOpen] = useState(true);
   const [isInventoryOpen, setIsInventoryOpen] = useState(true);
   const [isBusinessOpen, setIsBusinessOpen] = useState(true);
 
   // Filter navigation based on user permissions
   const filteredMainNav = mainNavigation.filter(item => canView(item.name));
+  const filteredProductsNav = productsNavigation.filter(item => canView(item.name));
   const filteredInventoryNav = inventoryNavigation.filter(item => canView(item.name));
   const filteredBusinessNav = businessNavigation.filter(item => canView(item.name));
 
@@ -118,6 +127,48 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   {t(`nav.${item.name}`)}
                 </NavLink>
               ))}
+
+              {/* Products Section */}
+              {filteredProductsNav.length > 0 && (
+                <div className="pt-4">
+                  <button
+                    onClick={() => setIsProductsOpen(!isProductsOpen)}
+                    className="w-full flex items-center justify-between px-2 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200"
+                  >
+                    <div className="flex items-center">
+                      <Package className="mr-2 h-4 w-4" />
+                      <span>Products</span>
+                    </div>
+                    {isProductsOpen ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </button>
+                  {isProductsOpen && (
+                    <div className="mt-1 space-y-1">
+                      {filteredProductsNav.map((item) => (
+                        <NavLink
+                          key={item.name}
+                          to={item.href}
+                          onClick={onClose}
+                          className={({ isActive }) =>
+                            cn(
+                              'group flex items-center px-2 py-2 pl-8 text-sm font-medium rounded-md transition-colors',
+                              isActive
+                                ? 'bg-primary text-white'
+                                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            )
+                          }
+                        >
+                          <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                          {t(`nav.${item.name}`)}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Inventory Management Section */}
               {filteredInventoryNav.length > 0 && (

@@ -8,6 +8,7 @@ use App\Utils\Response;
 use App\Controllers\AuthController;
 use App\Controllers\ProductController;
 use App\Controllers\CategoryController;
+use App\Controllers\ProductTypeController;
 use App\Controllers\CustomerController;
 use App\Controllers\VanController;
 use App\Controllers\StockController;
@@ -74,6 +75,23 @@ try {
     // Category routes
     elseif ($resource === 'categories') {
         $controller = new CategoryController();
+        
+        if ($method === 'GET') {
+            $controller->index();
+        } elseif ($method === 'POST') {
+            $controller->store();
+        } elseif ($method === 'PUT' && $id) {
+            $controller->update($id);
+        } elseif ($method === 'DELETE' && $id) {
+            $controller->delete($id);
+        } else {
+            Response::notFound('Route not found');
+        }
+    }
+
+    // Product Type routes
+    elseif ($resource === 'product-types') {
+        $controller = new ProductTypeController();
         
         if ($method === 'GET') {
             $controller->index();

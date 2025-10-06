@@ -18,6 +18,18 @@ class Permissions {
             'edit_products' => ['admin', 'manager'],
             'delete_products' => ['admin'],
             
+            // Categories
+            'view_categories' => ['admin', 'manager'],
+            'create_categories' => ['admin', 'manager'],
+            'edit_categories' => ['admin', 'manager'],
+            'delete_categories' => ['admin'],
+            
+            // Product Types
+            'view_product-types' => ['admin', 'manager'],
+            'create_product-types' => ['admin', 'manager'],
+            'edit_product-types' => ['admin', 'manager'],
+            'delete_product-types' => ['admin'],
+            
             // Customers
             'view_customers' => ['admin', 'manager', 'sales'],
             'create_customers' => ['admin', 'manager', 'sales'],
@@ -128,6 +140,8 @@ class Permissions {
             ['name' => 'dashboard', 'permission' => 'view_dashboard'],
             ['name' => 'pos', 'permission' => 'access_pos'],
             ['name' => 'products', 'permission' => 'view_products'],
+            ['name' => 'categories', 'permission' => 'view_categories'],
+            ['name' => 'product-types', 'permission' => 'view_product-types'],
             ['name' => 'inventory', 'permission' => 'view_inventory'],
             ['name' => 'customers', 'permission' => 'view_customers'],
             ['name' => 'vendors', 'permission' => 'view_vendors'],

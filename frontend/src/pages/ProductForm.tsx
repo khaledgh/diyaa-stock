@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { productApi, categoryApi } from '@/lib/api';
+import { productApi, categoryApi, productTypeApi } from '@/lib/api';
+import { Combobox } from '@/components/ui/combobox';
 
 const productSchema = z.object({
   sku: z.string().min(1, 'SKU is required').max(50, 'SKU must be less than 50 characters'),
@@ -19,6 +20,7 @@ const productSchema = z.object({
   name_en: z.string().min(1, 'Product name is required').max(200, 'Name must be less than 200 characters'),
   name_ar: z.string().max(200, 'Name must be less than 200 characters').optional(),
   category_id: z.string().optional(),
+  type_id: z.string().optional(),
   unit_price: z.string().refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, {
     message: 'Unit price must be greater than 0',
   }),
@@ -46,6 +48,8 @@ export default function ProductForm() {
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
+    setValue,
+    watch,
   } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
@@ -54,6 +58,7 @@ export default function ProductForm() {
       name_en: '',
       name_ar: '',
       category_id: '',
+      type_id: '',
       unit_price: '',
       cost_price: '',
       unit: 'piece',
@@ -61,6 +66,9 @@ export default function ProductForm() {
       is_active: 1,
     },
   });
+
+  const categoryId = watch('category_id');
+  const typeId = watch('type_id');
 
   const { data: product, isLoading: loadingProduct } = useQuery({
     queryKey: ['product', id],
@@ -79,6 +87,14 @@ export default function ProductForm() {
     },
   });
 
+  const { data: productTypes } = useQuery({
+    queryKey: ['product-types'],
+    queryFn: async () => {
+      const response = await productTypeApi.getAll();
+      return response.data.data || [];
+    },
+  });
+
   useEffect(() => {
     if (product) {
       reset({
@@ -87,6 +103,7 @@ export default function ProductForm() {
         name_en: product.name_en,
         name_ar: product.name_ar || '',
         category_id: product.category_id?.toString() || '',
+        type_id: product.type_id?.toString() || '',
         unit_price: product.unit_price?.toString() || '',
         cost_price: product.cost_price?.toString() || '',
         unit: product.unit || 'piece',
@@ -217,22 +234,48 @@ export default function ProductForm() {
 
               <div className="space-y-2">
                 <Label htmlFor="category_id">{t('products.category')}</Label>
-                <select
-                  id="category_id"
-                  {...register('category_id')}
-                  className={`flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.category_id ? 'border-red-500' : ''}`}
-                >
-                  <option value="">Select category</option>
-                  {categories?.map((cat: any) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name_en}
-                    </option>
-                  ))}
-                </select>
+                <Combobox
+                  options={[
+                    { value: '', label: 'Select category...' },
+                    ...(categories?.map((cat: any) => ({
+                      value: cat.id.toString(),
+                      label: cat.name_en,
+                    })) || [])
+                  ]}
+                  value={categoryId}
+                  onChange={(value) => setValue('category_id', value)}
+                  placeholder="Select category"
+                  searchPlaceholder="Search categories..."
+                  emptyText="No categories found"
+                />
                 {errors.category_id && (
                   <p className="text-sm text-red-600 flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" />
                     {errors.category_id.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="type_id">{t('products.type')}</Label>
+                <Combobox
+                  options={[
+                    { value: '', label: 'Select type...' },
+                    ...(productTypes?.map((type: any) => ({
+                      value: type.id.toString(),
+                      label: type.name_en,
+                    })) || [])
+                  ]}
+                  value={typeId}
+                  onChange={(value) => setValue('type_id', value)}
+                  placeholder="Select product type"
+                  searchPlaceholder="Search types..."
+                  emptyText="No types found"
+                />
+                {errors.type_id && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {errors.type_id.message}
                   </p>
                 )}
               </div>

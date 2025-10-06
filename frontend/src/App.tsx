@@ -22,6 +22,8 @@ import Reports from './pages/Reports';
 import Inventory from './pages/Inventory';
 import Vendors from './pages/Vendors';
 import Locations from './pages/Locations';
+import Categories from './pages/Categories';
+import ProductTypes from './pages/ProductTypes';
 
 
 // Layout
@@ -71,6 +73,8 @@ function App() {
             <Route path="products" element={<Products />} />
             <Route path="products/new" element={<ProductForm />} />
             <Route path="products/edit/:id" element={<ProductForm />} />
+            <Route path="categories" element={<Categories />} />
+            <Route path="product-types" element={<ProductTypes />} />
             <Route path="customers" element={<Customers />} />
             <Route path="employees" element={<Employees />} />
             <Route path="users" element={<Users />} />
