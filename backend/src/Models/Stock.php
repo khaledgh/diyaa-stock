@@ -73,4 +73,36 @@ class Stock extends BaseModel {
             ]);
         }
     }
+
+    public function getAllStockByLocation() {
+        $sql = "SELECT 
+                    p.id as product_id,
+                    p.sku,
+                    p.name_en,
+                    p.name_ar,
+                    p.unit,
+                    c.name_en as category_name_en,
+                    c.name_ar as category_name_ar,
+                    COALESCE(warehouse.quantity, 0) as warehouse_quantity,
+                    GROUP_CONCAT(
+                        CONCAT(v.name, ':', COALESCE(van_stock.quantity, 0))
+                        ORDER BY v.name
+                        SEPARATOR '|'
+                    ) as van_quantities,
+                    COALESCE(warehouse.quantity, 0) + COALESCE(SUM(van_stock.quantity), 0) as total_quantity
+                FROM products p
+                LEFT JOIN categories c ON p.category_id = c.id
+                LEFT JOIN stock warehouse ON p.id = warehouse.product_id 
+                    AND warehouse.location_type = 'warehouse' 
+                    AND warehouse.location_id = 0
+                LEFT JOIN stock van_stock ON p.id = van_stock.product_id 
+                    AND van_stock.location_type = 'van'
+                LEFT JOIN vans v ON van_stock.location_id = v.id AND v.is_active = 1
+                WHERE p.is_active = 1
+                GROUP BY p.id, p.sku, p.name_en, p.name_ar, p.unit, 
+                         c.name_en, c.name_ar, warehouse.quantity
+                ORDER BY p.name_en";
+        
+        return $this->query($sql);
+    }
 }

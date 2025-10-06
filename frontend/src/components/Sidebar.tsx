@@ -15,6 +15,9 @@ import {
   Settings,
   Shield,
   X,
+  Building2,
+  MapPin,
+  PackageSearch,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -24,10 +27,13 @@ const navigation = [
   { name: 'dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'pos', href: '/pos', icon: ShoppingCart },
   { name: 'products', href: '/products', icon: Package },
+  { name: 'inventory', href: '/inventory', icon: PackageSearch },
   { name: 'customers', href: '/customers', icon: Users },
+  { name: 'vendors', href: '/vendors', icon: Building2 },
   { name: 'employees', href: '/employees', icon: UserCog },
   { name: 'users', href: '/users', icon: Shield },
   { name: 'vans', href: '/vans', icon: Truck },
+  { name: 'locations', href: '/locations', icon: MapPin },
   { name: 'stock', href: '/stock', icon: Warehouse },
   { name: 'transfers', href: '/transfers', icon: ArrowRightLeft },
   { name: 'invoices', href: '/invoices', icon: FileText },

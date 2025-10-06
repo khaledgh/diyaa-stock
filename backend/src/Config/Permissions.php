@@ -24,6 +24,12 @@ class Permissions {
             'edit_customers' => ['admin', 'manager', 'sales'],
             'delete_customers' => ['admin', 'manager'],
             
+            // Vendors
+            'view_vendors' => ['admin', 'manager'],
+            'create_vendors' => ['admin', 'manager'],
+            'edit_vendors' => ['admin', 'manager'],
+            'delete_vendors' => ['admin'],
+            
             // Employees
             'view_employees' => ['admin', 'manager'],
             'create_employees' => ['admin', 'manager'],
@@ -45,6 +51,15 @@ class Permissions {
             // Stock
             'view_stock' => ['admin', 'manager', 'sales'],
             'manage_stock' => ['admin', 'manager'],
+            
+            // Inventory
+            'view_inventory' => ['admin', 'manager'],
+            
+            // Locations
+            'view_locations' => ['admin', 'manager'],
+            'create_locations' => ['admin', 'manager'],
+            'edit_locations' => ['admin', 'manager'],
+            'delete_locations' => ['admin'],
             
             // Transfers
             'view_transfers' => ['admin', 'manager', 'sales'],
@@ -113,10 +128,13 @@ class Permissions {
             ['name' => 'dashboard', 'permission' => 'view_dashboard'],
             ['name' => 'pos', 'permission' => 'access_pos'],
             ['name' => 'products', 'permission' => 'view_products'],
+            ['name' => 'inventory', 'permission' => 'view_inventory'],
             ['name' => 'customers', 'permission' => 'view_customers'],
+            ['name' => 'vendors', 'permission' => 'view_vendors'],
             ['name' => 'employees', 'permission' => 'view_employees'],
             ['name' => 'users', 'permission' => 'view_users'],
             ['name' => 'vans', 'permission' => 'view_vans'],
+            ['name' => 'locations', 'permission' => 'view_locations'],
             ['name' => 'stock', 'permission' => 'view_stock'],
             ['name' => 'transfers', 'permission' => 'view_transfers'],
             ['name' => 'invoices', 'permission' => 'view_invoices'],

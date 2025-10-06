@@ -7,17 +7,18 @@ class PurchaseInvoice extends BaseModel {
 
     public function getInvoicesWithDetails($filters = []) {
         $sql = "SELECT i.*, 
-                       c.name as supplier_name,
+                       v.name as vendor_name,
+                       v.company_name as vendor_company,
                        u.full_name as created_by_name
                 FROM purchase_invoices i
-                LEFT JOIN customers c ON i.supplier_id = c.id
+                LEFT JOIN vendors v ON i.vendor_id = v.id
                 LEFT JOIN users u ON i.created_by = u.id
                 WHERE 1=1";
 
         $params = [];
 
         if (!empty($filters['search'])) {
-            $sql .= " AND (i.invoice_number LIKE :search OR c.name LIKE :search)";
+            $sql .= " AND (i.invoice_number LIKE :search OR v.name LIKE :search OR v.company_name LIKE :search)";
             $params['search'] = '%' . $filters['search'] . '%';
         }
 
@@ -26,9 +27,9 @@ class PurchaseInvoice extends BaseModel {
             $params['payment_status'] = $filters['payment_status'];
         }
 
-        if (!empty($filters['supplier_id'])) {
-            $sql .= " AND i.supplier_id = :supplier_id";
-            $params['supplier_id'] = $filters['supplier_id'];
+        if (!empty($filters['vendor_id'])) {
+            $sql .= " AND i.vendor_id = :vendor_id";
+            $params['vendor_id'] = $filters['vendor_id'];
         }
 
         if (!empty($filters['from_date'])) {
@@ -55,13 +56,13 @@ class PurchaseInvoice extends BaseModel {
     public function getCount($filters = []) {
         $sql = "SELECT COUNT(*) as total
                 FROM purchase_invoices i
-                LEFT JOIN customers c ON i.supplier_id = c.id
+                LEFT JOIN vendors v ON i.vendor_id = v.id
                 WHERE 1=1";
 
         $params = [];
 
         if (!empty($filters['search'])) {
-            $sql .= " AND (i.invoice_number LIKE :search OR c.name LIKE :search)";
+            $sql .= " AND (i.invoice_number LIKE :search OR v.name LIKE :search OR v.company_name LIKE :search)";
             $params['search'] = '%' . $filters['search'] . '%';
         }
 
@@ -70,9 +71,9 @@ class PurchaseInvoice extends BaseModel {
             $params['payment_status'] = $filters['payment_status'];
         }
 
-        if (!empty($filters['supplier_id'])) {
-            $sql .= " AND i.supplier_id = :supplier_id";
-            $params['supplier_id'] = $filters['supplier_id'];
+        if (!empty($filters['vendor_id'])) {
+            $sql .= " AND i.vendor_id = :vendor_id";
+            $params['vendor_id'] = $filters['vendor_id'];
         }
 
         if (!empty($filters['from_date'])) {
@@ -91,10 +92,11 @@ class PurchaseInvoice extends BaseModel {
 
     public function getInvoiceWithItems($id) {
         $sql = "SELECT i.*, 
-                       c.name as supplier_name,
+                       v.name as vendor_name,
+                       v.company_name as vendor_company,
                        u.full_name as created_by_name
                 FROM purchase_invoices i
-                LEFT JOIN customers c ON i.supplier_id = c.id
+                LEFT JOIN vendors v ON i.vendor_id = v.id
                 LEFT JOIN users u ON i.created_by = u.id
                 WHERE i.id = ?";
         

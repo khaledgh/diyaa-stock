@@ -18,6 +18,7 @@ use App\Controllers\ReportController;
 use App\Controllers\LocationController;
 use App\Controllers\EmployeeController;
 use App\Controllers\UserController;
+use App\Controllers\VendorController;
 
 // Handle CORS
 Cors::handle();
@@ -172,8 +173,14 @@ try {
         
         if ($method === 'GET' && !$id) {
             $controller->warehouseStock();
+        } elseif ($method === 'GET' && $id === 'all') {
+            $controller->allStock();
         } elseif ($method === 'GET' && $id === 'movements') {
             $controller->movements();
+        } elseif ($method === 'POST' && $id === 'adjust') {
+            $controller->adjustStock();
+        } elseif ($method === 'POST' && $id === 'add') {
+            $controller->addStock();
         } else {
             Response::notFound('Route not found');
         }
@@ -248,6 +255,25 @@ try {
     // User routes
     elseif ($resource === 'users') {
         $controller = new UserController();
+        
+        if ($method === 'GET' && !$id) {
+            $controller->index();
+        } elseif ($method === 'GET' && $id) {
+            $controller->show($id);
+        } elseif ($method === 'POST') {
+            $controller->store();
+        } elseif ($method === 'PUT' && $id) {
+            $controller->update($id);
+        } elseif ($method === 'DELETE' && $id) {
+            $controller->delete($id);
+        } else {
+            Response::notFound('Route not found');
+        }
+    }
+
+    // Vendor routes
+    elseif ($resource === 'vendors') {
+        $controller = new VendorController();
         
         if ($method === 'GET' && !$id) {
             $controller->index();

@@ -20,6 +20,9 @@ import Transfers from './pages/Transfers';
 import Invoices from './pages/Invoices';
 import Payments from './pages/Payments';
 import Reports from './pages/Reports';
+import Inventory from './pages/Inventory';
+import Vendors from './pages/Vendors';
+import Locations from './pages/Locations';
 
 
 // Layout
@@ -72,7 +75,10 @@ function App() {
             <Route path="customers" element={<Customers />} />
             <Route path="employees" element={<Employees />} />
             <Route path="users" element={<Users />} />
+            <Route path="inventory" element={<Inventory />} />
+            <Route path="vendors" element={<Vendors />} />
             <Route path="vans" element={<Vans />} />
+            <Route path="locations" element={<Locations />} />
             <Route path="stock" element={<Stock />} />
             <Route path="transfers" element={<Transfers />} />
             <Route path="invoices" element={<Invoices />} />

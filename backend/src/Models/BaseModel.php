@@ -124,4 +124,40 @@ abstract class BaseModel {
         $stmt = $this->db->prepare($sql);
         return $stmt->execute($params);
     }
+
+    // Transaction support for optimized batch operations
+    public function beginTransaction() {
+        return $this->db->beginTransaction();
+    }
+
+    public function commit() {
+        return $this->db->commit();
+    }
+
+    public function rollback() {
+        return $this->db->rollBack();
+    }
+
+    // Optimized batch insert
+    public function batchInsert($data) {
+        if (empty($data)) {
+            return false;
+        }
+
+        $fields = array_keys($data[0]);
+        $placeholders = '(' . implode(', ', array_fill(0, count($fields), '?')) . ')';
+        $allPlaceholders = implode(', ', array_fill(0, count($data), $placeholders));
+
+        $sql = "INSERT INTO {$this->table} (" . implode(', ', $fields) . ") VALUES $allPlaceholders";
+
+        $values = [];
+        foreach ($data as $row) {
+            foreach ($fields as $field) {
+                $values[] = $row[$field];
+            }
+        }
+
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($values);
+    }
 }

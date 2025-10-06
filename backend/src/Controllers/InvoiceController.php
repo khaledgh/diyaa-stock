@@ -32,7 +32,7 @@ class InvoiceController {
             'search' => $_GET['search'] ?? null,
             'payment_status' => $_GET['payment_status'] ?? null,
             'customer_id' => $_GET['customer_id'] ?? null,
-            'supplier_id' => $_GET['supplier_id'] ?? null,
+            'vendor_id' => $_GET['vendor_id'] ?? null,
             'van_id' => $_GET['van_id'] ?? null,
             'from_date' => $_GET['from_date'] ?? null,
             'to_date' => $_GET['to_date'] ?? null,
@@ -120,7 +120,7 @@ class InvoiceController {
             // Create purchase invoice
             $invoiceData = [
                 'invoice_number' => $this->purchaseInvoiceModel->generateInvoiceNumber(),
-                'supplier_id' => $data['customer_id'] ?? null, // Using customer_id as supplier_id for now
+                'vendor_id' => $data['vendor_id'] ?? null,
                 'subtotal' => $subtotal,
                 'tax_amount' => $taxAmount,
                 'discount_amount' => $discountAmount,

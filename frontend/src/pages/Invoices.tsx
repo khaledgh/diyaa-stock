@@ -16,7 +16,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { invoiceApi, productApi, vanApi, customerApi, paymentApi, stockApi } from '@/lib/api';
+import { invoiceApi, productApi, vanApi, customerApi, vendorApi, paymentApi, stockApi } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { Combobox } from '@/components/ui/combobox';
 
@@ -43,6 +43,7 @@ export default function Invoices() {
   // Form states
   const [selectedVan, setSelectedVan] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
+  const [selectedVendor, setSelectedVendor] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
@@ -104,6 +105,16 @@ export default function Invoices() {
     queryKey: ['customers'],
     queryFn: async () => {
       const response = await customerApi.getAll();
+      // Handle paginated response
+      const apiData = response.data.data || response.data;
+      return Array.isArray(apiData) ? apiData : (apiData.data || []);
+    },
+  });
+
+  const { data: vendors } = useQuery({
+    queryKey: ['vendors'],
+    queryFn: async () => {
+      const response = await vendorApi.getAll();
       // Handle paginated response
       const apiData = response.data.data || response.data;
       return Array.isArray(apiData) ? apiData : (apiData.data || []);
@@ -212,6 +223,7 @@ export default function Invoices() {
     setInvoiceItems([]);
     setSelectedVan('');
     setSelectedCustomer('');
+    setSelectedVendor('');
     setSelectedProduct('');
     setQuantity('');
     setUnitPrice('');
@@ -248,10 +260,13 @@ export default function Invoices() {
 
     if (invoiceType === 'sales') {
       invoiceData.van_id = Number(selectedVan);
-    }
-
-    if (selectedCustomer) {
-      invoiceData.customer_id = Number(selectedCustomer);
+      if (selectedCustomer) {
+        invoiceData.customer_id = Number(selectedCustomer);
+      }
+    } else if (invoiceType === 'purchase') {
+      if (selectedVendor) {
+        invoiceData.vendor_id = Number(selectedVendor);
+      }
     }
 
     createInvoiceMutation.mutate(invoiceData);
@@ -357,7 +372,8 @@ export default function Invoices() {
         <div class="info">
           <div class="info-section">
             <strong>Date:</strong> ${formatDateTime(selectedInvoice.created_at)}<br>
-            ${selectedInvoice.customer_name ? `<strong>Customer:</strong> ${selectedInvoice.customer_name}<br>` : ''}
+            ${selectedInvoice.invoice_type === 'purchase' && selectedInvoice.vendor_name ? `<strong>Vendor:</strong> ${selectedInvoice.vendor_name}${selectedInvoice.vendor_company ? ` (${selectedInvoice.vendor_company})` : ''}<br>` : ''}
+            ${selectedInvoice.invoice_type === 'sales' && selectedInvoice.customer_name ? `<strong>Customer:</strong> ${selectedInvoice.customer_name}<br>` : ''}
             ${selectedInvoice.van_name ? `<strong>Van:</strong> ${selectedInvoice.van_name}<br>` : ''}
           </div>
           <div class="info-section" style="text-align: right;">
@@ -505,7 +521,13 @@ export default function Invoices() {
           <span>Date:</span>
           <span>${new Date(selectedInvoice.created_at).toLocaleString()}</span>
         </div>
-        ${selectedInvoice.customer_name ? `
+        ${selectedInvoice.invoice_type === 'purchase' && selectedInvoice.vendor_name ? `
+          <div class="row">
+            <span>Vendor:</span>
+            <span>${selectedInvoice.vendor_name}${selectedInvoice.vendor_company ? ` (${selectedInvoice.vendor_company})` : ''}</span>
+          </div>
+        ` : ''}
+        ${selectedInvoice.invoice_type === 'sales' && selectedInvoice.customer_name ? `
           <div class="row">
             <span>Customer:</span>
             <span>${selectedInvoice.customer_name}</span>
@@ -595,6 +617,11 @@ export default function Invoices() {
   const customerOptions = customers?.map((customer: any) => ({
     value: customer.id.toString(),
     label: customer.name,
+  })) || [];
+
+  const vendorOptions = vendors?.map((vendor: any) => ({
+    value: vendor.id.toString(),
+    label: vendor.company_name || vendor.name,
   })) || [];
 
   const productOptions = products?.map((product: any) => {
@@ -699,7 +726,7 @@ export default function Invoices() {
                   <TableRow>
                     <TableHead>{t('invoices.invoiceNumber') || 'Invoice #'}</TableHead>
                     <TableHead className="hidden md:table-cell">{t('common.date') || 'Date'}</TableHead>
-                    <TableHead className="hidden lg:table-cell">{t('invoices.customer') || 'Customer'}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{invoiceType === 'purchase' ? (t('invoices.vendor') || 'Vendor') : (t('invoices.customer') || 'Customer')}</TableHead>
                     {invoiceType === 'sales' && <TableHead className="hidden xl:table-cell">{t('invoices.van') || 'Van'}</TableHead>}
                     <TableHead className="text-right">{t('common.total') || 'Total'}</TableHead>
                     <TableHead className="hidden sm:table-cell">{t('invoices.paid') || 'Paid'}</TableHead>
@@ -717,7 +744,7 @@ export default function Invoices() {
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">{formatDateTime(invoice.created_at)}</TableCell>
-                      <TableCell className="hidden lg:table-cell">{invoice.customer_name || '-'}</TableCell>
+                      <TableCell className="hidden lg:table-cell">{invoiceType === 'purchase' ? (invoice.vendor_name || invoice.vendor_company || '-') : (invoice.customer_name || '-')}</TableCell>
                       {invoiceType === 'sales' && <TableCell className="hidden xl:table-cell">{invoice.van_name || '-'}</TableCell>}
                       <TableCell className="text-right font-medium">{formatCurrency(invoice.total_amount)}</TableCell>
                       <TableCell className="hidden sm:table-cell text-right">{formatCurrency(invoice.paid_amount)}</TableCell>
@@ -815,15 +842,15 @@ export default function Invoices() {
 
             {invoiceType === 'purchase' && (
               <div className="bg-amber-50 dark:bg-amber-950 p-3 rounded-md">
-                <Label className="text-amber-700 dark:text-amber-300">Supplier/Vendor</Label>
+                <Label className="text-amber-700 dark:text-amber-300">Vendor/Supplier</Label>
                 <p className="text-xs text-muted-foreground mb-2">Who are you buying from? (Optional)</p>
                 <Combobox
-                  options={[{ value: '', label: 'Select supplier...' }, ...customerOptions]}
-                  value={selectedCustomer}
-                  onChange={setSelectedCustomer}
-                  placeholder="Select supplier"
-                  searchPlaceholder="Search..."
-                  emptyText="No suppliers found"
+                  options={[{ value: '', label: 'Select vendor...' }, ...vendorOptions]}
+                  value={selectedVendor}
+                  onChange={setSelectedVendor}
+                  placeholder="Select vendor"
+                  searchPlaceholder="Search vendors..."
+                  emptyText="No vendors found"
                 />
               </div>
             )}
@@ -1066,10 +1093,17 @@ export default function Invoices() {
                   <Label className="text-muted-foreground">Date</Label>
                   <p className="font-medium">{formatDateTime(selectedInvoice.created_at)}</p>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Customer</Label>
-                  <p className="font-medium">{selectedInvoice.customer_name || '-'}</p>
-                </div>
+                {selectedInvoice.invoice_type === 'purchase' ? (
+                  <div>
+                    <Label className="text-muted-foreground">Vendor</Label>
+                    <p className="font-medium">{selectedInvoice.vendor_name || selectedInvoice.vendor_company || '-'}</p>
+                  </div>
+                ) : (
+                  <div>
+                    <Label className="text-muted-foreground">Customer</Label>
+                    <p className="font-medium">{selectedInvoice.customer_name || '-'}</p>
+                  </div>
+                )}
                 {selectedInvoice.van_name && (
                   <div>
                     <Label className="text-muted-foreground">Van</Label>

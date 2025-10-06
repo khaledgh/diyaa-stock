@@ -10,7 +10,7 @@ USE stock_management;
 CREATE TABLE purchase_invoices (
     id INT AUTO_INCREMENT PRIMARY KEY,
     invoice_number VARCHAR(50) NOT NULL UNIQUE,
-    supplier_id INT,  -- Can reference customers table or create separate suppliers table
+    vendor_id INT,  -- References vendors table
     subtotal DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     tax_amount DECIMAL(10, 2) DEFAULT 0.00,
     discount_amount DECIMAL(10, 2) DEFAULT 0.00,
@@ -21,10 +21,10 @@ CREATE TABLE purchase_invoices (
     created_by INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (supplier_id) REFERENCES customers(id) ON DELETE SET NULL,
+    FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE SET NULL,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_invoice_number (invoice_number),
-    INDEX idx_supplier (supplier_id),
+    INDEX idx_vendor (vendor_id),
     INDEX idx_payment_status (payment_status),
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -89,7 +89,7 @@ CREATE TABLE sales_invoice_items (
 -- =============================================
 
 -- Migrate purchase invoices
-INSERT INTO purchase_invoices (id, invoice_number, supplier_id, subtotal, tax_amount, discount_amount, total_amount, paid_amount, payment_status, notes, created_by, created_at, updated_at)
+INSERT INTO purchase_invoices (id, invoice_number, vendor_id, subtotal, tax_amount, discount_amount, total_amount, paid_amount, payment_status, notes, created_by, created_at, updated_at)
 SELECT id, invoice_number, customer_id, subtotal, tax_amount, discount_amount, total_amount, paid_amount, payment_status, notes, created_by, created_at, updated_at
 FROM invoices
 WHERE invoice_type = 'purchase';

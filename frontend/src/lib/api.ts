@@ -98,7 +98,10 @@ export const vanApi = {
 
 export const stockApi = {
   getWarehouse: () => api.get('/stock'),
+  getAllStock: () => api.get('/stock/all'),
   getMovements: (params?: any) => api.get('/stock/movements', { params }),
+  adjustStock: (data: any) => api.post('/stock/adjust', data),
+  addStock: (data: any) => api.post('/stock/add', data),
 };
 
 export const transferApi = {
@@ -134,4 +137,12 @@ export const userApi = {
   create: (data: any) => api.post('/users', data),
   update: (id: number, data: any) => api.put(`/users/${id}`, data),
   delete: (id: number) => api.delete(`/users/${id}`),
+};
+
+export const vendorApi = {
+  getAll: () => api.get('/vendors'),
+  getById: (id: number) => api.get(`/vendors/${id}`),
+  create: (data: any) => api.post('/vendors', data),
+  update: (id: number, data: any) => api.put(`/vendors/${id}`, data),
+  delete: (id: number) => api.delete(`/vendors/${id}`),
 };
