@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { invoiceApi, productApi, vanApi, customerApi, stockApi } from '@/lib/api';
+import { invoiceApi, productApi, vanApi, customerApi, stockApi, vendorApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 interface InvoiceItem {
@@ -38,6 +38,8 @@ export default function InvoiceForm() {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [purchaseLocationType, setPurchaseLocationType] = useState('warehouse');
+  const [purchaseLocationVan, setPurchaseLocationVan] = useState('');
 
   const { data: products } = useQuery({
     queryKey: ['products'],
@@ -61,6 +63,16 @@ export default function InvoiceForm() {
     queryKey: ['customers'],
     queryFn: async () => {
       const response = await customerApi.getAll();
+      // Handle paginated response
+      const apiData = response.data.data || response.data;
+      return Array.isArray(apiData) ? apiData : (apiData.data || []);
+    },
+  });
+
+  const { data: vendors } = useQuery({
+    queryKey: ['vendors'],
+    queryFn: async () => {
+      const response = await vendorApi.getAll();
       // Handle paginated response
       const apiData = response.data.data || response.data;
       return Array.isArray(apiData) ? apiData : (apiData.data || []);
@@ -167,6 +179,10 @@ export default function InvoiceForm() {
       newErrors.van = 'Van is required for sales invoices';
     }
 
+    if (invoiceType === 'purchase' && purchaseLocationType === 'van' && !purchaseLocationVan) {
+      newErrors.purchaseLocation = 'Van is required when location type is van';
+    }
+
     if (invoiceItems.length === 0) {
       newErrors.items = 'Please add at least one item to the invoice';
     }
@@ -206,10 +222,15 @@ export default function InvoiceForm() {
 
     if (invoiceType === 'sales') {
       invoiceData.van_id = Number(selectedVan);
-    }
-
-    if (selectedCustomer) {
-      invoiceData.customer_id = Number(selectedCustomer);
+      if (selectedCustomer) {
+        invoiceData.customer_id = Number(selectedCustomer);
+      }
+    } else if (invoiceType === 'purchase') {
+      invoiceData.location_type = purchaseLocationType;
+      invoiceData.location_id = purchaseLocationType === 'van' ? Number(purchaseLocationVan) : 0;
+      if (selectedCustomer) {
+        invoiceData.vendor_id = Number(selectedCustomer);
+      }
     }
 
     createInvoiceMutation.mutate(invoiceData);
@@ -234,7 +255,7 @@ export default function InvoiceForm() {
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             {invoiceType === 'purchase' 
-              ? 'Create a new purchase invoice for incoming stock' 
+              ? 'Create a new purchase invoice - adds stock to warehouse or van' 
               : 'Create a new sales invoice for customer orders'}
           </p>
         </div>
@@ -250,49 +271,116 @@ export default function InvoiceForm() {
                 <CardTitle>Invoice Details</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
                   {invoiceType === 'sales' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="van">Van *</Label>
-                      <select
-                        id="van"
-                        value={selectedVan}
-                        onChange={(e) => {setSelectedVan(e.target.value); setErrors({...errors, van: ''})}}
-                        className={`flex h-11 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.van ? 'border-red-500' : 'border-input'}`}
-                        required
-                      >
-                        <option value="">Select van</option>
-                        {vans?.map((van: any) => (
-                          <option key={van.id} value={van.id}>
-                            {van.name}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.van && (
-                        <p className="text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.van}
-                        </p>
-                      )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="van">Van *</Label>
+                        <select
+                          id="van"
+                          value={selectedVan}
+                          onChange={(e) => {setSelectedVan(e.target.value); setErrors({...errors, van: ''})}}
+                          className={`flex h-11 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.van ? 'border-red-500' : 'border-input'}`}
+                          required
+                        >
+                          <option value="">Select van</option>
+                          {vans?.map((van: any) => (
+                            <option key={van.id} value={van.id}>
+                              {van.name}
+                            </option>
+                          ))}
+                        </select>
+                        {errors.van && (
+                          <p className="text-sm text-red-600 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {errors.van}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="customer">Customer</Label>
+                        <select
+                          id="customer"
+                          value={selectedCustomer}
+                          onChange={(e) => setSelectedCustomer(e.target.value)}
+                          className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <option value="">Select customer (optional)</option>
+                          {customers?.map((customer: any) => (
+                            <option key={customer.id} value={customer.id}>
+                              {customer.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="customer">Customer</Label>
-                    <select
-                      id="customer"
-                      value={selectedCustomer}
-                      onChange={(e) => setSelectedCustomer(e.target.value)}
-                      className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <option value="">Select customer (optional)</option>
-                      {customers?.map((customer: any) => (
-                        <option key={customer.id} value={customer.id}>
-                          {customer.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {invoiceType === 'purchase' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="vendor">Vendor</Label>
+                        <select
+                          id="vendor"
+                          value={selectedCustomer}
+                          onChange={(e) => setSelectedCustomer(e.target.value)}
+                          className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <option value="">Select vendor (optional)</option>
+                          {vendors?.map((vendor: any) => (
+                            <option key={vendor.id} value={vendor.id}>
+                              {vendor.company_name || vendor.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="locationType">Destination Location *</Label>
+                        <select
+                          id="locationType"
+                          value={purchaseLocationType}
+                          onChange={(e) => {
+                            setPurchaseLocationType(e.target.value);
+                            if (e.target.value === 'warehouse') {
+                              setPurchaseLocationVan('');
+                              setErrors({...errors, purchaseLocation: ''});
+                            }
+                          }}
+                          className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <option value="warehouse">Warehouse</option>
+                          <option value="van">Van</option>
+                        </select>
+                      </div>
+
+                      {purchaseLocationType === 'van' && (
+                        <div className="space-y-2 md:col-span-2">
+                          <Label htmlFor="purchaseVan">Select Van *</Label>
+                          <select
+                            id="purchaseVan"
+                            value={purchaseLocationVan}
+                            onChange={(e) => {setPurchaseLocationVan(e.target.value); setErrors({...errors, purchaseLocation: ''})}}
+                            className={`flex h-11 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.purchaseLocation ? 'border-red-500' : 'border-input'}`}
+                          >
+                            <option value="">Select van</option>
+                            {vans?.map((van: any) => (
+                              <option key={van.id} value={van.id}>
+                                {van.name}
+                              </option>
+                            ))}
+                          </select>
+                          {errors.purchaseLocation && (
+                            <p className="text-sm text-red-600 flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              {errors.purchaseLocation}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

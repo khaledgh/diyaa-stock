@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { locationApi } from '@/lib/api';
+import { locationApi, vanApi } from '@/lib/api';
 import { Combobox } from '@/components/ui/combobox';
 
 const locationSchema = z.object({
@@ -35,6 +35,7 @@ const locationSchema = z.object({
   type: z.enum(['warehouse', 'branch', 'van'], {
     required_error: 'Type is required',
   }),
+  van_id: z.number().optional(),
 });
 
 type LocationFormData = z.infer<typeof locationSchema>;
@@ -45,6 +46,8 @@ interface Location {
   address?: string;
   phone?: string;
   type: string;
+  van_id?: number;
+  van_name?: string;
 }
 
 export default function Locations() {
@@ -74,6 +77,19 @@ export default function Locations() {
         return response.data.data || [];
       } catch (error) {
         console.error('Failed to fetch locations:', error);
+        return [];
+      }
+    },
+  });
+
+  const { data: vans } = useQuery({
+    queryKey: ['vans'],
+    queryFn: async () => {
+      try {
+        const response = await vanApi.getAll();
+        return response.data.data || [];
+      } catch (error) {
+        console.error('Failed to fetch vans:', error);
         return [];
       }
     },
@@ -122,6 +138,9 @@ export default function Locations() {
       setValue('address', location.address || '');
       setValue('phone', location.phone || '');
       setValue('type', location.type as 'warehouse' | 'branch' | 'van');
+      if (location.van_id) {
+        setValue('van_id', location.van_id);
+      }
     } else {
       setEditingLocation(null);
       reset();
@@ -193,6 +212,7 @@ export default function Locations() {
                     <TableRow>
                       <TableHead>{t('locations.name') || 'Name'}</TableHead>
                       <TableHead className="hidden md:table-cell">{t('locations.type') || 'Type'}</TableHead>
+                      <TableHead className="hidden xl:table-cell">Van</TableHead>
                       <TableHead className="hidden lg:table-cell">{t('locations.address') || 'Address'}</TableHead>
                       <TableHead className="hidden sm:table-cell">{t('locations.phone') || 'Phone'}</TableHead>
                       <TableHead className="text-right">{t('common.actions') || 'Actions'}</TableHead>
@@ -213,6 +233,13 @@ export default function Locations() {
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                             {getTypeLabel(location.type)}
                           </span>
+                        </TableCell>
+                        <TableCell className="hidden xl:table-cell">
+                          {location.type === 'van' && location.van_name ? (
+                            <span className="text-sm font-medium">{location.van_name}</span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">{location.address || '-'}</TableCell>
                         <TableCell className="hidden sm:table-cell">{location.phone || '-'}</TableCell>
@@ -308,6 +335,32 @@ export default function Locations() {
                 <p className="text-sm text-red-500">{errors.phone.message}</p>
               )}
             </div>
+
+            {locationType === 'van' && (
+              <div className="space-y-2">
+                <Label htmlFor="van_id">
+                  {t('locations.selectVan') || 'Select Van'} <span className="text-red-500">*</span>
+                </Label>
+                <select
+                  id="van_id"
+                  {...register('van_id', { 
+                    valueAsNumber: true,
+                    validate: (value) => locationType !== 'van' || !!value || 'Van is required when type is van'
+                  })}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="">Select a van...</option>
+                  {vans?.map((van: any) => (
+                    <option key={van.id} value={van.id}>
+                      {van.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.van_id && (
+                  <p className="text-sm text-red-500">{errors.van_id.message}</p>
+                )}
+              </div>
+            )}
 
             <DialogFooter className="gap-2 sm:gap-0">
               <Button

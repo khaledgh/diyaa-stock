@@ -15,7 +15,6 @@ import Employees from './pages/Employees';
 import InvoiceForm from './pages/InvoiceForm';
 
 import Vans from './pages/Vans';
-import Stock from './pages/Stock';
 import Transfers from './pages/Transfers';
 import Invoices from './pages/Invoices';
 import Payments from './pages/Payments';
@@ -79,7 +78,6 @@ function App() {
             <Route path="vendors" element={<Vendors />} />
             <Route path="vans" element={<Vans />} />
             <Route path="locations" element={<Locations />} />
-            <Route path="stock" element={<Stock />} />
             <Route path="transfers" element={<Transfers />} />
             <Route path="invoices" element={<Invoices />} />
             <Route path="invoices/new" element={<InvoiceForm />} />

@@ -101,6 +101,14 @@ class InvoiceController {
             Response::error('Invoice must have at least one item', 422);
         }
 
+        // Validate location type and ID
+        $locationType = $data['location_type'] ?? 'warehouse';
+        $locationId = $data['location_id'] ?? 0;
+        
+        if ($locationType === 'van' && empty($locationId)) {
+            Response::error('Van ID is required when location type is van', 422);
+        }
+
         try {
             $db = $this->purchaseInvoiceModel->getDb();
             $db->beginTransaction();
@@ -152,16 +160,16 @@ class InvoiceController {
                        $itemTotal
                    ]);
 
-                // Add to warehouse stock (purchase invoice adds to warehouse)
-                $this->stockModel->updateStock($item['product_id'], 'warehouse', 0, $item['quantity']);
+                // Add to specified location (warehouse or van)
+                $this->stockModel->updateStock($item['product_id'], $locationType, $locationId, $item['quantity']);
 
                 // Record stock movement
                 $this->movementModel->create([
                     'product_id' => $item['product_id'],
                     'from_location_type' => 'supplier',
                     'from_location_id' => 0,
-                    'to_location_type' => 'warehouse',
-                    'to_location_id' => 0,
+                    'to_location_type' => $locationType,
+                    'to_location_id' => $locationId,
                     'quantity' => $item['quantity'],
                     'movement_type' => 'purchase',
                     'reference_type' => 'invoice',

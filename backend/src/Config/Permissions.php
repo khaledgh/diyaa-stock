@@ -53,7 +53,7 @@ class Permissions {
             'manage_stock' => ['admin', 'manager'],
             
             // Inventory
-            'view_inventory' => ['admin', 'manager'],
+            'view_inventory' => ['admin', 'manager', 'sales'],
             
             // Locations
             'view_locations' => ['admin', 'manager'],
@@ -135,7 +135,6 @@ class Permissions {
             ['name' => 'users', 'permission' => 'view_users'],
             ['name' => 'vans', 'permission' => 'view_vans'],
             ['name' => 'locations', 'permission' => 'view_locations'],
-            ['name' => 'stock', 'permission' => 'view_stock'],
             ['name' => 'transfers', 'permission' => 'view_transfers'],
             ['name' => 'invoices', 'permission' => 'view_invoices'],
             ['name' => 'payments', 'permission' => 'view_payments'],

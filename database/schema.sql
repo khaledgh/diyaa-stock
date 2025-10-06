@@ -214,12 +214,15 @@ CREATE TABLE locations (
     address TEXT,
     phone VARCHAR(50),
     type ENUM('warehouse', 'branch', 'van') NOT NULL,
+    van_id INT NULL,
     is_active TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_name (name(191)),
     INDEX idx_type (type),
-    INDEX idx_active (is_active)
+    INDEX idx_active (is_active),
+    INDEX idx_van_id (van_id),
+    CONSTRAINT fk_locations_van FOREIGN KEY (van_id) REFERENCES vans(id) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================

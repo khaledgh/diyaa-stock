@@ -58,6 +58,8 @@ export default function Invoices() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
+  const [purchaseLocationType, setPurchaseLocationType] = useState('warehouse');
+  const [purchaseLocationVan, setPurchaseLocationVan] = useState('');
 
   const { data: invoicesData, isLoading } = useQuery({
     queryKey: ['invoices', invoiceType, searchQuery, currentPage, pageSize],
@@ -232,6 +234,8 @@ export default function Invoices() {
     setPaymentMethod('cash');
     setReferenceNumber('');
     setNotes('');
+    setPurchaseLocationType('warehouse');
+    setPurchaseLocationVan('');
   };
 
   const handleCreateInvoice = () => {
@@ -242,6 +246,11 @@ export default function Invoices() {
 
     if (invoiceType === 'sales' && !selectedVan) {
       toast.error('Please select a van');
+      return;
+    }
+
+    if (invoiceType === 'purchase' && purchaseLocationType === 'van' && !purchaseLocationVan) {
+      toast.error('Please select a van for the destination');
       return;
     }
 
@@ -267,6 +276,9 @@ export default function Invoices() {
       if (selectedVendor) {
         invoiceData.vendor_id = Number(selectedVendor);
       }
+      // Add location information for purchase invoices
+      invoiceData.location_type = purchaseLocationType;
+      invoiceData.location_id = purchaseLocationType === 'van' ? Number(purchaseLocationVan) : 0;
     }
 
     createInvoiceMutation.mutate(invoiceData);
@@ -646,7 +658,7 @@ export default function Invoices() {
           <h1 className="text-2xl md:text-3xl font-bold">{t('invoices.title') || 'Invoices'}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {invoiceType === 'purchase' 
-              ? 'Purchase invoices reduce warehouse stock and record expenses' 
+              ? 'Purchase invoices add stock to warehouse or van and record expenses' 
               : 'Sales invoices reduce van stock and record income'}
           </p>
         </div>
@@ -841,18 +853,50 @@ export default function Invoices() {
             )}
 
             {invoiceType === 'purchase' && (
-              <div className="bg-amber-50 dark:bg-amber-950 p-3 rounded-md">
-                <Label className="text-amber-700 dark:text-amber-300">Vendor/Supplier</Label>
-                <p className="text-xs text-muted-foreground mb-2">Who are you buying from? (Optional)</p>
-                <Combobox
-                  options={[{ value: '', label: 'Select vendor...' }, ...vendorOptions]}
-                  value={selectedVendor}
-                  onChange={setSelectedVendor}
-                  placeholder="Select vendor"
-                  searchPlaceholder="Search vendors..."
-                  emptyText="No vendors found"
-                />
-              </div>
+              <>
+                <div className="bg-amber-50 dark:bg-amber-950 p-3 rounded-md">
+                  <Label className="text-amber-700 dark:text-amber-300">Vendor/Supplier</Label>
+                  <p className="text-xs text-muted-foreground mb-2">Who are you buying from? (Optional)</p>
+                  <Combobox
+                    options={[{ value: '', label: 'Select vendor...' }, ...vendorOptions]}
+                    value={selectedVendor}
+                    onChange={setSelectedVendor}
+                    placeholder="Select vendor"
+                    searchPlaceholder="Search vendors..."
+                    emptyText="No vendors found"
+                  />
+                </div>
+
+                <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md">
+                  <Label className="text-blue-700 dark:text-blue-300">Destination Location <span className="text-red-500">*</span></Label>
+                  <p className="text-xs text-muted-foreground mb-2">Where should the purchased products be added?</p>
+                  <div className="space-y-3">
+                    <select
+                      value={purchaseLocationType}
+                      onChange={(e) => {
+                        setPurchaseLocationType(e.target.value);
+                        if (e.target.value === 'warehouse') {
+                          setPurchaseLocationVan('');
+                        }
+                      }}
+                      className="w-full border rounded-md p-2"
+                    >
+                      <option value="warehouse">Warehouse</option>
+                      <option value="van">Van</option>
+                    </select>
+                    {purchaseLocationType === 'van' && (
+                      <Combobox
+                        options={[{ value: '', label: 'Select a van...' }, ...vanOptions]}
+                        value={purchaseLocationVan}
+                        onChange={setPurchaseLocationVan}
+                        placeholder="Select van"
+                        searchPlaceholder="Search..."
+                        emptyText="No vans found"
+                      />
+                    )}
+                  </div>
+                </div>
+              </>
             )}
 
             {invoiceType === 'sales' && (
