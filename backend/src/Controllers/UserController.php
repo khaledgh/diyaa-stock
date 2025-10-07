@@ -92,11 +92,11 @@ class UserController {
                 'email' => $data['email'],
                 'password' => password_hash($data['password'], PASSWORD_DEFAULT),
                 'role' => $data['role'] ?? 'user',
-                'phone' => $data['phone'] ?? null,
-                'position' => $data['position'] ?? null,
-                'hire_date' => $data['hire_date'] ?? null,
-                'salary' => $data['salary'] ?? null,
-                'address' => $data['address'] ?? null,
+                'phone' => !empty($data['phone']) ? $data['phone'] : null,
+                'position' => !empty($data['position']) ? $data['position'] : null,
+                'hire_date' => !empty($data['hire_date']) ? $data['hire_date'] : null,
+                'salary' => !empty($data['salary']) ? $data['salary'] : null,
+                'address' => !empty($data['address']) ? $data['address'] : null,
                 'is_active' => $data['is_active'] ?? 1
             ];
 
@@ -157,11 +157,11 @@ class UserController {
             if (isset($data['full_name'])) $userData['full_name'] = $data['full_name'];
             if (isset($data['email'])) $userData['email'] = $data['email'];
             if (isset($data['role'])) $userData['role'] = $data['role'];
-            if (isset($data['phone'])) $userData['phone'] = $data['phone'];
-            if (isset($data['position'])) $userData['position'] = $data['position'];
-            if (isset($data['hire_date'])) $userData['hire_date'] = $data['hire_date'];
-            if (isset($data['salary'])) $userData['salary'] = $data['salary'];
-            if (isset($data['address'])) $userData['address'] = $data['address'];
+            if (isset($data['phone'])) $userData['phone'] = !empty($data['phone']) ? $data['phone'] : null;
+            if (isset($data['position'])) $userData['position'] = !empty($data['position']) ? $data['position'] : null;
+            if (isset($data['hire_date'])) $userData['hire_date'] = !empty($data['hire_date']) ? $data['hire_date'] : null;
+            if (isset($data['salary'])) $userData['salary'] = !empty($data['salary']) ? $data['salary'] : null;
+            if (isset($data['address'])) $userData['address'] = !empty($data['address']) ? $data['address'] : null;
             if (isset($data['is_active'])) $userData['is_active'] = $data['is_active'];
             
             if (isset($data['password']) && !empty($data['password'])) {

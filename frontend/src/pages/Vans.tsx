@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { vanApi, employeeApi } from '@/lib/api';
+import { vanApi, userApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Combobox } from '@/components/ui/combobox';
 
@@ -86,13 +86,13 @@ export default function Vans() {
   });
 
   const { data: employees } = useQuery({
-    queryKey: ['employees'],
+    queryKey: ['users'],
     queryFn: async () => {
       try {
-        const response = await employeeApi.getAll();
+        const response = await userApi.getAll();
         return response.data.data || [];
       } catch (error) {
-        console.error('Failed to fetch employees:', error);
+        console.error('Failed to fetch users:', error);
         return [];
       }
     },
