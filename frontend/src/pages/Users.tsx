@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Edit, Trash2, Search, Shield, UserPlus } from 'lucide-react';
+import { Edit, Trash2, Search, Shield, UserPlus, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -22,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { userApi } from '@/lib/api';
+import { userApi, vanApi } from '@/lib/api';
 
 export default function Users() {
   const { t } = useTranslation();
@@ -35,7 +36,21 @@ export default function Users() {
     email: '',
     password: '',
     role: 'user',
+    phone: '',
+    position: '',
+    hire_date: '',
+    salary: '',
+    address: '',
+    van_id: '',
     is_active: 1,
+  });
+
+  const { data: vans } = useQuery({
+    queryKey: ['vans'],
+    queryFn: async () => {
+      const response = await vanApi.getAll();
+      return response.data.data || [];
+    },
   });
 
   const { data: users, isLoading } = useQuery({
@@ -94,6 +109,12 @@ export default function Users() {
         email: user.email,
         password: '',
         role: user.role || 'user',
+        phone: user.phone || '',
+        position: user.position || '',
+        hire_date: user.hire_date || '',
+        salary: user.salary || '',
+        address: user.address || '',
+        van_id: user.van_id || '',
         is_active: user.is_active,
       });
     } else {
@@ -103,6 +124,12 @@ export default function Users() {
         email: '',
         password: '',
         role: 'user',
+        phone: '',
+        position: '',
+        hire_date: '',
+        salary: '',
+        address: '',
+        van_id: '',
         is_active: 1,
       });
     }
@@ -156,6 +183,8 @@ export default function Users() {
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
       case 'sales':
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'employee':
+        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
     }
@@ -200,6 +229,9 @@ export default function Users() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Position</TableHead>
+                  <TableHead>Van</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
@@ -208,7 +240,7 @@ export default function Users() {
               <TableBody>
                 {users?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -217,6 +249,15 @@ export default function Users() {
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.full_name}</TableCell>
                       <TableCell>{user.email}</TableCell>
+                      <TableCell>{user.phone || '-'}</TableCell>
+                      <TableCell>{user.position || '-'}</TableCell>
+                      <TableCell>
+                        {user.van_name ? (
+                          <span className="text-sm text-blue-600">{user.van_name}</span>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)}`}>
                           {user.role}
@@ -264,7 +305,7 @@ export default function Users() {
 
       {/* User Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" />
@@ -272,7 +313,14 @@ export default function Users() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
-            <div className="space-y-4 py-4">
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                <TabsTrigger value="employee">Employee Info</TabsTrigger>
+                <TabsTrigger value="assignment">Van Assignment</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="basic" className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="full_name">Full Name *</Label>
                 <Input
@@ -319,6 +367,7 @@ export default function Users() {
                   className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option value="user">User - Basic access</option>
+                  <option value="employee">Employee - Staff member</option>
                   <option value="sales">Sales - Can create invoices and manage customers</option>
                   <option value="manager">Manager - Full access except user management</option>
                   <option value="admin">Admin - Full system access</option>
@@ -327,6 +376,7 @@ export default function Users() {
                   {formData.role === 'admin' && '✓ Full access to all features including user management'}
                   {formData.role === 'manager' && '✓ Can manage products, stock, invoices, and view reports'}
                   {formData.role === 'sales' && '✓ Can create invoices, manage customers, and access POS'}
+                  {formData.role === 'employee' && '✓ Employee with van assignment for POS access'}
                   {formData.role === 'user' && '✓ View-only access to products and basic features'}
                 </p>
               </div>
@@ -343,13 +393,113 @@ export default function Users() {
                   <option value={0}>Inactive</option>
                 </select>
               </div>
-            </div>
-            <DialogFooter>
+              </TabsContent>
+
+              <TabsContent value="employee" className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="h-11"
+                      placeholder="e.g. +1234567890"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="position">Position/Title</Label>
+                    <Input
+                      id="position"
+                      value={formData.position}
+                      onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                      className="h-11"
+                      placeholder="e.g. Sales Representative"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="hire_date">Hire Date</Label>
+                    <Input
+                      id="hire_date"
+                      type="date"
+                      value={formData.hire_date}
+                      onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })}
+                      className="h-11"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="salary">Salary</Label>
+                    <Input
+                      id="salary"
+                      type="number"
+                      step="0.01"
+                      value={formData.salary}
+                      onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
+                      className="h-11"
+                      placeholder="e.g. 50000"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address">Address</Label>
+                  <textarea
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    placeholder="Full address"
+                  />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="assignment" className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="van_id">Assign to Van</Label>
+                  <select
+                    id="van_id"
+                    value={formData.van_id}
+                    onChange={(e) => setFormData({ ...formData, van_id: e.target.value })}
+                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="">No van assigned</option>
+                    {vans?.map((van: any) => (
+                      <option key={van.id} value={van.id}>
+                        {van.name} {van.plate_number ? `(${van.plate_number})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Assign this user as the sales representative for a van. They will be able to sell from this van's stock in the POS app.
+                  </p>
+                </div>
+
+                {formData.van_id && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-start gap-2">
+                      <Briefcase className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-blue-900 dark:text-blue-100">Van Assignment</p>
+                        <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                          This user will have access to the POS app and can sell products from the assigned van's inventory.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+
+            <DialogFooter className="mt-6">
               <Button type="button" variant="outline" onClick={handleCloseDialog}>
                 Cancel
               </Button>
               <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                {editingUser ? 'Update' : 'Create'}
+                {editingUser ? 'Update User' : 'Create User'}
               </Button>
             </DialogFooter>
           </form>

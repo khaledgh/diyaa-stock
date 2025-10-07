@@ -78,13 +78,8 @@ export const locationApi = {
   delete: (id: number) => api.delete(`/locations/${id}`),
 };
 
-export const employeeApi = {
-  getAll: () => api.get('/employees'),
-  getById: (id: number) => api.get(`/employees/${id}`),
-  create: (data: any) => api.post('/employees', data),
-  update: (id: number, data: any) => api.put(`/employees/${id}`, data),
-  delete: (id: number) => api.delete(`/employees/${id}`),
-};
+// Employee API removed - now merged with userApi
+// All employee data is now managed through the users endpoint
 
 export const customerApi = {
   getAll: (params?: any) => api.get('/customers', { params }),
