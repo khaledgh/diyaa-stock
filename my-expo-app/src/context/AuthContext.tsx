@@ -42,6 +42,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await apiService.login(email, password);
       
       if (response.success && response.data) {
+        // Debug: Log the user data to see what's being returned
+        console.log('Login response user data:', JSON.stringify(response.data.user, null, 2));
+        
         await SecureStore.setItemAsync('authToken', response.data.token);
         await SecureStore.setItemAsync('userData', JSON.stringify(response.data.user));
         setUser(response.data.user);
@@ -49,6 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error(response.message || 'Login failed');
       }
     } catch (error: any) {
+      console.error('Login error:', error);
       throw new Error(error.response?.data?.message || error.message || 'Login failed');
     }
   };
