@@ -8,4 +8,26 @@ class Location extends BaseModel {
     public function __construct() {
         parent::__construct();
     }
+
+    public function getLocationsWithUsers() {
+        $sql = "SELECT l.*, u.id as user_id, u.full_name as user_name, u.email as user_email, u.phone as user_phone
+                FROM {$this->table} l
+                LEFT JOIN users u ON l.employee_id = u.id
+                ORDER BY l.name ASC";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    public function getLocationWithUser($id) {
+        $sql = "SELECT l.*, u.id as user_id, u.full_name as user_name, u.email as user_email, u.phone as user_phone
+                FROM {$this->table} l
+                LEFT JOIN users u ON l.employee_id = u.id
+                WHERE l.id = ?";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$id]);
+        return $stmt->fetch();
+    }
 }

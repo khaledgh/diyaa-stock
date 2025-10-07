@@ -15,7 +15,7 @@ class LocationController {
 
     public function index() {
         try {
-            $locations = $this->location->findAll([], 'name ASC');
+            $locations = $this->location->getLocationsWithUsers();
             Response::success($locations);
         } catch (\Exception $e) {
             Response::error($e->getMessage());
@@ -24,7 +24,7 @@ class LocationController {
 
     public function show($id) {
         try {
-            $location = $this->location->findById($id);
+            $location = $this->location->getLocationWithUser($id);
             if (!$location) {
                 Response::notFound('Location not found');
                 return;
