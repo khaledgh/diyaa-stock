@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { transferApi, vanApi, productApi, stockApi } from '@/lib/api';
+import { transferApi, locationApi, productApi, stockApi } from '@/lib/api';
 import { formatDateTime } from '@/lib/utils';
 import { Combobox } from '@/components/ui/combobox';
 
@@ -35,7 +35,8 @@ const transferItemSchema = z.object({
 });
 
 const transferSchema = z.object({
-  to_location_id: z.number().min(1, 'Please select a van'),
+  from_location_id: z.number().min(1, 'Please select source location'),
+  to_location_id: z.number().min(1, 'Please select destination location'),
   items: z.array(transferItemSchema).min(1, 'Please add at least one item'),
 });
 
@@ -66,6 +67,8 @@ export default function Transfers() {
   const [transferItems, setTransferItems] = useState<TransferItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const {
     handleSubmit,
@@ -76,12 +79,23 @@ export default function Transfers() {
   } = useForm<TransferFormData>({
     resolver: zodResolver(transferSchema),
     defaultValues: {
+      from_location_id: 0,
       to_location_id: 0,
       items: [],
     },
   });
 
-  const selectedVan = watch('to_location_id');
+  const selectedFromLocation = watch('from_location_id');
+  const selectedToLocation = watch('to_location_id');
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(productSearch);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [productSearch]);
 
   // Update form items when transferItems changes
   useEffect(() => {
@@ -101,24 +115,24 @@ export default function Transfers() {
     },
   });
 
-  const { data: vans } = useQuery({
-    queryKey: ['vans'],
+  const { data: locations } = useQuery({
+    queryKey: ['locations'],
     queryFn: async () => {
       try {
-        const response = await vanApi.getAll();
+        const response = await locationApi.getAll();
         return response.data.data || [];
       } catch (error) {
-        console.error('Failed to fetch vans:', error);
+        console.error('Failed to fetch locations:', error);
         return [];
       }
     },
   });
 
   const { data: products } = useQuery({
-    queryKey: ['products'],
+    queryKey: ['products', debouncedSearch],
     queryFn: async () => {
       try {
-        const response = await productApi.getAll();
+        const response = await productApi.getAll({ search: debouncedSearch });
         // Handle paginated response
         const apiData = response.data.data || response.data;
         return Array.isArray(apiData) ? apiData : (apiData.data || []);
@@ -129,17 +143,19 @@ export default function Transfers() {
     },
   });
 
-  const { data: warehouseStock } = useQuery({
-    queryKey: ['warehouse-stock'],
+  const { data: sourceLocationStock } = useQuery({
+    queryKey: ['location-stock', selectedFromLocation],
     queryFn: async () => {
+      if (!selectedFromLocation) return [];
       try {
-        const response = await stockApi.getWarehouse();
+        const response = await stockApi.getByLocation(selectedFromLocation);
         return response.data.data || [];
       } catch (error) {
-        console.error('Failed to fetch warehouse stock:', error);
+        console.error('Failed to fetch location stock:', error);
         return [];
       }
     },
+    enabled: !!selectedFromLocation,
   });
 
   const createMutation = useMutation({
@@ -171,11 +187,16 @@ export default function Transfers() {
       return;
     }
 
+    if (!selectedFromLocation) {
+      toast.error('Please select source location first');
+      return;
+    }
+
     const product = products?.find((p: any) => p.id === Number(selectedProduct));
-    const stock = warehouseStock?.find((s: any) => s.product_id === Number(selectedProduct));
+    const stock = sourceLocationStock?.find((s: any) => s.product_id === Number(selectedProduct));
 
     if (!stock || stock.quantity < Number(quantity)) {
-      toast.error(t('transfers.insufficientStock') || 'Insufficient warehouse stock');
+      toast.error(t('transfers.insufficientStock') || 'Insufficient stock in source location');
       return;
     }
 
@@ -198,32 +219,35 @@ export default function Transfers() {
     setIsDialogOpen(false);
     reset();
     setTransferItems([]);
+    setSelectedProduct('');
+    setQuantity('');
   };
 
   const onSubmit = (data: TransferFormData) => {
-    // Add the current transfer items to the form data
-    const formDataWithItems = {
-      ...data,
-      to_location_type: 'van',
-      items: transferItems,
-    };
-
     // Validate that we have items
     if (transferItems.length === 0) {
       toast.error(t('transfers.addAtLeastOneItem') || 'Please add at least one item to the transfer');
       return;
     }
 
+    // Add the current transfer items to the form data
+    const formDataWithItems = {
+      ...data,
+      from_location_type: 'location',
+      to_location_type: 'location',
+      items: transferItems,
+    };
+
     createMutation.mutate(formDataWithItems);
   };
 
-  const vanOptions = vans?.filter((van: any) => van.is_active).map((van: any) => ({
-    value: van.id.toString(),
-    label: van.name,
+  const locationOptions = locations?.filter((loc: any) => loc.is_active).map((loc: any) => ({
+    value: loc.id.toString(),
+    label: `${loc.name} (${loc.type})`,
   })) || [];
 
   const productOptions = products?.map((product: any) => {
-    const stock = warehouseStock?.find((s: any) => s.product_id === product.id);
+    const stock = sourceLocationStock?.find((s: any) => s.product_id === product.id);
     return {
       value: product.id.toString(),
       label: `${product.name_en} (Stock: ${stock?.quantity || 0})`,
@@ -308,24 +332,49 @@ export default function Transfers() {
             <DialogTitle>{t('transfers.newTransfer') || 'New Stock Transfer'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label>
-                {t('transfers.selectVan') || 'Select Van'} <span className="text-red-500">*</span>
-              </Label>
-              <Combobox
-                options={[
-                  { value: '', label: t('transfers.selectVanPlaceholder') || 'Select a van...' },
-                  ...vanOptions,
-                ]}
-                value={selectedVan?.toString() || ''}
-                onChange={(value) => setValue('to_location_id', value ? parseInt(value) : 0)}
-                placeholder={t('transfers.selectVan') || 'Select van'}
-                searchPlaceholder={t('common.search') || 'Search...'}
-                emptyText={t('common.noResults') || 'No vans found'}
-              />
-              {errors.to_location_id && (
-                <p className="text-sm text-red-500">{errors.to_location_id.message}</p>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>
+                  {t('transfers.fromLocation') || 'From Location'} <span className="text-red-500">*</span>
+                </Label>
+                <Combobox
+                  options={[
+                    { value: '', label: 'Select source location...' },
+                    ...locationOptions,
+                  ]}
+                  value={selectedFromLocation?.toString() || ''}
+                  onChange={(value) => {
+                    setValue('from_location_id', value ? parseInt(value) : 0);
+                    setTransferItems([]); // Clear items when changing source location
+                  }}
+                  placeholder="Select source location"
+                  searchPlaceholder={t('common.search') || 'Search...'}
+                  emptyText={t('common.noResults') || 'No locations found'}
+                />
+                {errors.from_location_id && (
+                  <p className="text-sm text-red-500">{errors.from_location_id.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  {t('transfers.toLocation') || 'To Location'} <span className="text-red-500">*</span>
+                </Label>
+                <Combobox
+                  options={[
+                    { value: '', label: 'Select destination location...' },
+                    ...locationOptions.filter((opt: any) => opt.value !== selectedFromLocation?.toString()),
+                  ]}
+                  value={selectedToLocation?.toString() || ''}
+                  onChange={(value) => setValue('to_location_id', value ? parseInt(value) : 0)}
+                  placeholder="Select destination location"
+                  searchPlaceholder={t('common.search') || 'Search...'}
+                  emptyText={t('common.noResults') || 'No locations found'}
+                />
+                {errors.to_location_id && (
+                  <p className="text-sm text-red-500">{errors.to_location_id.message}</p>
+                )}
+              </div>
             </div>
 
             <div className="border-t pt-4">
@@ -344,9 +393,11 @@ export default function Transfers() {
                     ]}
                     value={selectedProduct}
                     onChange={setSelectedProduct}
+                    onSearchChange={setProductSearch}
                     placeholder={t('transfers.selectProduct') || 'Select product'}
                     searchPlaceholder={t('common.search') || 'Search...'}
-                    emptyText={t('common.noResults') || 'No products found'}
+                    emptyText={selectedFromLocation ? (t('common.noResults') || 'No products found') : 'Please select source location first'}
+                    disabled={!selectedFromLocation}
                   />
                 </div>
                 <div>

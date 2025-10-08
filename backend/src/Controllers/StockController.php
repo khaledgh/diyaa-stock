@@ -26,6 +26,11 @@ class StockController {
         Response::success($stock);
     }
 
+    public function locationStock($locationId) {
+        $stock = $this->stockModel->getLocationStock($locationId);
+        Response::success($stock);
+    }
+
     public function allStock() {
         $stock = $this->stockModel->getAllStockByLocation();
         Response::success($stock);

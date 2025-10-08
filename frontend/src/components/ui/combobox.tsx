@@ -24,6 +24,7 @@ interface ComboboxProps {
   searchPlaceholder?: string
   className?: string
   disabled?: boolean
+  onSearchChange?: (search: string) => void
 }
 
 export function Combobox({
@@ -35,10 +36,19 @@ export function Combobox({
   searchPlaceholder = "Search...",
   className,
   disabled = false,
+  onSearchChange,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
+  const [search, setSearch] = React.useState("")
 
   const selectedOption = options.find((option) => option.value === value)
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    if (onSearchChange) {
+      onSearchChange(value)
+    }
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -56,7 +66,11 @@ export function Combobox({
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput 
+            placeholder={searchPlaceholder} 
+            value={search}
+            onValueChange={handleSearchChange}
+          />
           <CommandEmpty>{emptyText}</CommandEmpty>
           <CommandGroup className="max-h-64 overflow-auto">
             {options.map((option) => (

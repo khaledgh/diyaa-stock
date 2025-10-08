@@ -193,6 +193,8 @@ try {
             $controller->warehouseStock();
         } elseif ($method === 'GET' && $id === 'all') {
             $controller->allStock();
+        } elseif ($method === 'GET' && $id === 'location' && $action) {
+            $controller->locationStock($action);
         } elseif ($method === 'GET' && $id === 'movements') {
             $controller->movements();
         } elseif ($method === 'POST' && $id === 'adjust') {
