@@ -1,0 +1,294 @@
+import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { ArrowLeft, Printer, Package, ShoppingCart, MapPin, User, Calendar, DollarSign, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { invoiceApi, paymentApi } from '@/lib/api';
+import { formatCurrency, formatDateTime } from '@/lib/utils';
+
+export default function PurchaseInvoiceDetails() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [referenceNumber, setReferenceNumber] = useState('');
+
+  const { data: invoice, isLoading } = useQuery({
+    queryKey: ['purchase-invoice', id],
+    queryFn: async () => {
+      if (!id) throw new Error('Invoice ID is required');
+      const response = await invoiceApi.getById(Number(id), 'purchase');
+      return response.data.data;
+    },
+    enabled: !!id,
+  });
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading invoice...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!invoice) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-xl font-semibold">Invoice not found</p>
+          <Button onClick={() => navigate('/invoices')} className="mt-4">
+            Back to Invoices
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const isPurchase = true; // This is always a purchase invoice
+  const remaining = invoice.total_amount - invoice.paid_amount;
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between print:hidden">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/invoices')}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              {isPurchase ? (
+                <><Package className="h-8 w-8 text-blue-600" /> Purchase Invoice</>
+              ) : (
+                <><ShoppingCart className="h-8 w-8 text-green-600" /> Sales Invoice</>
+              )}
+            </h1>
+            <p className="text-muted-foreground mt-1">{invoice.invoice_number}</p>
+          </div>
+        </div>
+        <Button onClick={handlePrint} variant="outline">
+          <Printer className="mr-2 h-4 w-4" />
+          Print
+        </Button>
+      </div>
+
+      {/* Invoice Info Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Invoice Information</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Calendar className="h-4 w-4" />
+                <span className="text-sm">Date</span>
+              </div>
+              <p className="font-medium">{formatDateTime(invoice.created_at)}</p>
+            </div>
+
+            {invoice.location_name && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="h-4 w-4" />
+                  <span className="text-sm">Location</span>
+                </div>
+                <p className="font-medium">
+                  {invoice.location_name}
+                  <span className="text-xs text-muted-foreground ml-2">
+                    ({invoice.location_type})
+                  </span>
+                </p>
+              </div>
+            )}
+
+            {isPurchase && invoice.vendor_name && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <User className="h-4 w-4" />
+                  <span className="text-sm">Vendor</span>
+                </div>
+                <p className="font-medium">{invoice.vendor_name}</p>
+                {invoice.vendor_company && (
+                  <p className="text-sm text-muted-foreground">{invoice.vendor_company}</p>
+                )}
+              </div>
+            )}
+
+            {!isPurchase && invoice.customer_name && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <User className="h-4 w-4" />
+                  <span className="text-sm">Customer</span>
+                </div>
+                <p className="font-medium">{invoice.customer_name}</p>
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <DollarSign className="h-4 w-4" />
+                <span className="text-sm">Payment Status</span>
+              </div>
+              <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
+                invoice.payment_status === 'paid' 
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  : invoice.payment_status === 'partial'
+                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+              }`}>
+                {invoice.payment_status}
+              </span>
+            </div>
+
+            {invoice.created_by_name && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <User className="h-4 w-4" />
+                  <span className="text-sm">Created By</span>
+                </div>
+                <p className="font-medium">{invoice.created_by_name}</p>
+              </div>
+            )}
+          </div>
+
+          {invoice.notes && (
+            <div className="mt-6 pt-6 border-t">
+              <p className="text-sm text-muted-foreground mb-2">Notes</p>
+              <p className="text-sm">{invoice.notes}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Items Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Items</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="text-center">Quantity</TableHead>
+                  <TableHead className="text-right">Unit Price</TableHead>
+                  <TableHead className="text-center">Discount</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invoice.items?.map((item: any, index: number) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{item.product_name || item.name_en}</p>
+                        {item.sku && (
+                          <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">{item.quantity}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
+                    <TableCell className="text-center">{item.discount_percent || 0}%</TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(item.total)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Totals Card */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-3 max-w-md ml-auto">
+            <div className="flex justify-between text-lg">
+              <span className="text-muted-foreground">Subtotal:</span>
+              <span className="font-medium">{formatCurrency(invoice.subtotal)}</span>
+            </div>
+
+            {invoice.tax_amount > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Tax:</span>
+                <span>{formatCurrency(invoice.tax_amount)}</span>
+              </div>
+            )}
+
+            {invoice.discount_amount > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Discount:</span>
+                <span className="text-red-600">-{formatCurrency(invoice.discount_amount)}</span>
+              </div>
+            )}
+
+            <div className="flex justify-between text-xl font-bold border-t pt-3">
+              <span>Total:</span>
+              <span>{formatCurrency(invoice.total_amount)}</span>
+            </div>
+
+            <div className="flex justify-between text-lg border-t pt-3">
+              <span className="text-green-600">Paid:</span>
+              <span className="font-medium text-green-600">
+                {formatCurrency(invoice.paid_amount)}
+              </span>
+            </div>
+
+            {remaining > 0 && (
+              <div className="flex justify-between text-lg">
+                <span className="text-red-600 font-medium">Remaining:</span>
+                <span className="font-bold text-red-600">
+                  {formatCurrency(remaining)}
+                </span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Print Styles */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .print\\:block {
+            display: block !important;
+          }
+          .print\\:hidden {
+            display: none !important;
+          }
+          #invoice-content, #invoice-content * {
+            visibility: visible;
+          }
+          #invoice-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}

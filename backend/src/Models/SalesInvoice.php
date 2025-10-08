@@ -8,10 +8,13 @@ class SalesInvoice extends BaseModel {
     public function getInvoicesWithDetails($filters = []) {
         $sql = "SELECT i.*, 
                        c.name as customer_name,
+                       l.name as location_name,
+                       l.type as location_type,
                        v.name as van_name,
                        u.full_name as created_by_name
                 FROM sales_invoices i
                 LEFT JOIN customers c ON i.customer_id = c.id
+                LEFT JOIN locations l ON i.location_id = l.id
                 LEFT JOIN vans v ON i.van_id = v.id
                 LEFT JOIN users u ON i.created_by = u.id
                 WHERE 1=1";
@@ -105,10 +108,13 @@ class SalesInvoice extends BaseModel {
     public function getInvoiceWithItems($id) {
         $sql = "SELECT i.*, 
                        c.name as customer_name,
+                       l.name as location_name,
+                       l.type as location_type,
                        v.name as van_name,
                        u.full_name as created_by_name
                 FROM sales_invoices i
                 LEFT JOIN customers c ON i.customer_id = c.id
+                LEFT JOIN locations l ON i.location_id = l.id
                 LEFT JOIN vans v ON i.van_id = v.id
                 LEFT JOIN users u ON i.created_by = u.id
                 WHERE i.id = ?";

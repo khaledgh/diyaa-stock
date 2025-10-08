@@ -43,7 +43,12 @@ export default function InvoicesNew() {
   const pagination = invoicesData?.pagination || { total: 0, pages: 1, page: 1 };
 
   const handleViewDetails = (invoiceId: number) => {
-    navigate(`/invoices/${invoiceId}`);
+    // Navigate to appropriate detail page based on invoice type
+    if (invoiceType === 'purchase') {
+      navigate(`/invoices/purchase/${invoiceId}`);
+    } else {
+      navigate(`/invoices/sales/${invoiceId}`);
+    }
   };
 
   return (

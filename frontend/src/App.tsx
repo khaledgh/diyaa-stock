@@ -13,6 +13,8 @@ import ProductForm from './pages/ProductForm';
 import Customers from './pages/Customers';
 import Employees from './pages/Employees';
 import InvoiceForm from './pages/InvoiceFormNew';
+import PurchaseInvoiceDetails from './pages/PurchaseInvoiceDetails';
+import SalesInvoiceDetails from './pages/SalesInvoiceDetails';
 
 import Vans from './pages/Vans';
 import Transfers from './pages/Transfers';
@@ -85,6 +87,8 @@ function App() {
             <Route path="transfers" element={<Transfers />} />
             <Route path="invoices" element={<Invoices />} />
             <Route path="invoices/new" element={<InvoiceForm />} />
+            <Route path="invoices/purchase/:id" element={<PurchaseInvoiceDetails />} />
+            <Route path="invoices/sales/:id" element={<SalesInvoiceDetails />} />
             <Route path="payments" element={<Payments />} />
             <Route path="reports" element={<Reports />} />
             <Route path="pos" element={<POS />} />

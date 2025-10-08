@@ -9,9 +9,12 @@ class PurchaseInvoice extends BaseModel {
         $sql = "SELECT i.*, 
                        v.name as vendor_name,
                        v.company_name as vendor_company,
+                       l.name as location_name,
+                       l.type as location_type,
                        u.full_name as created_by_name
                 FROM purchase_invoices i
                 LEFT JOIN vendors v ON i.vendor_id = v.id
+                LEFT JOIN locations l ON i.location_id = l.id
                 LEFT JOIN users u ON i.created_by = u.id
                 WHERE 1=1";
 
@@ -94,9 +97,12 @@ class PurchaseInvoice extends BaseModel {
         $sql = "SELECT i.*, 
                        v.name as vendor_name,
                        v.company_name as vendor_company,
+                       l.name as location_name,
+                       l.type as location_type,
                        u.full_name as created_by_name
                 FROM purchase_invoices i
                 LEFT JOIN vendors v ON i.vendor_id = v.id
+                LEFT JOIN locations l ON i.location_id = l.id
                 LEFT JOIN users u ON i.created_by = u.id
                 WHERE i.id = ?";
         

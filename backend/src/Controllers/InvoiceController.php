@@ -91,7 +91,7 @@ class InvoiceController {
         $data = json_decode(file_get_contents('php://input'), true);
 
         $validator = new Validator($data);
-        $validator->required(['items']);
+        $validator->required(['location_id', 'items']);
 
         if ($validator->fails()) {
             Response::validationError($validator->errors());
@@ -101,13 +101,8 @@ class InvoiceController {
             Response::error('Invoice must have at least one item', 422);
         }
 
-        // Validate location type and ID
-        $locationType = $data['location_type'] ?? 'warehouse';
-        $locationId = $data['location_id'] ?? 0;
-        
-        if ($locationType === 'van' && empty($locationId)) {
-            Response::error('Van ID is required when location type is van', 422);
-        }
+        $locationType = 'location';
+        $locationId = $data['location_id'];
 
         try {
             $db = $this->purchaseInvoiceModel->getDb();
@@ -129,6 +124,7 @@ class InvoiceController {
             $invoiceData = [
                 'invoice_number' => $this->purchaseInvoiceModel->generateInvoiceNumber(),
                 'vendor_id' => $data['vendor_id'] ?? null,
+                'location_id' => $locationId,
                 'subtotal' => $subtotal,
                 'tax_amount' => $taxAmount,
                 'discount_amount' => $discountAmount,

@@ -116,7 +116,7 @@ export const transferApi = {
 export const invoiceApi = {
   getAll: (params?: any) => api.get('/invoices', { params }),
   getStats: () => api.get('/invoices/stats'),
-  getById: (id: number) => api.get(`/invoices/${id}`),
+  getById: (id: number, type?: string) => api.get(`/invoices/${id}`, { params: { invoice_type: type } }),
   createPurchase: (data: any) => api.post('/invoices/purchase', data),
   createSales: (data: any) => api.post('/invoices/sales', data),
 };
