@@ -212,12 +212,25 @@ class InvoiceController {
             Response::error('Invoice must have at least one item', 422);
         }
 
-        $locationType = 'location';
-        $locationId = $data['location_id'];
-
         try {
             $db = $this->salesInvoiceModel->getDb();
             $db->beginTransaction();
+
+            // Convert van_id to location_id if needed
+            // Check if the provided location_id is actually a van_id
+            $locationQuery = $db->prepare("SELECT id FROM locations WHERE van_id = ? AND type = 'van' AND is_active = 1 LIMIT 1");
+            $locationQuery->execute([$data['location_id']]);
+            $location = $locationQuery->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($location) {
+                // It's a van_id, use the actual location.id
+                $locationId = $location['id'];
+            } else {
+                // It's already a location_id or doesn't exist
+                $locationId = $data['location_id'];
+            }
+
+            $locationType = 'location';
 
             // Validate location stock
             foreach ($data['items'] as $item) {

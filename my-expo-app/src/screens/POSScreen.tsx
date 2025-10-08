@@ -372,6 +372,9 @@ export default function POSScreen() {
                 paid_amount: calculateTotal(),
               };
 
+              console.log('Creating invoice with data:', JSON.stringify(invoiceData, null, 2));
+              console.log('User location_id:', user.location_id, 'User van_id:', user.van_id);
+
               const response = await apiService.createSalesInvoice(invoiceData);
 
               if (response.success) {
@@ -432,9 +435,11 @@ export default function POSScreen() {
               } else {
                 Alert.alert('Error', response.message || 'Failed to create sale');
               }
-            } catch (error) {
+            } catch (error: any) {
               console.error('Checkout error:', error);
-              Alert.alert('Error', 'Failed to complete sale');
+              console.error('Error response:', error.response?.data);
+              const errorMessage = error.response?.data?.message || error.message || 'Failed to complete sale';
+              Alert.alert('Error', errorMessage);
             } finally {
               setIsLoading(false);
             }

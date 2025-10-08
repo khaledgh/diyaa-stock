@@ -44,19 +44,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.success && response.data) {
         const userData = response.data.user;
         
-        // Fetch location_id for the van if van_id exists
-        if (userData.van_id) {
-          try {
-            const locationResponse = await apiService.getVanLocation(userData.van_id);
-            if (locationResponse.success && locationResponse.data && locationResponse.data.length > 0) {
-              userData.location_id = locationResponse.data[0].id;
-            }
-          } catch (error) {
-            console.error('Failed to fetch van location:', error);
-            // Continue without location_id
-          }
-        }
-        
         console.log('Login response user data:', JSON.stringify(userData, null, 2));
         
         await SecureStore.setItemAsync('authToken', response.data.token);
