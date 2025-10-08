@@ -50,11 +50,12 @@ class Stock extends BaseModel {
     }
 
     public function getProductStock($productId, $locationType, $locationId) {
+        // For location-based system, we only use location_id
         $sql = "SELECT * FROM stock 
-                WHERE product_id = ? AND location_type = ? AND location_id = ?";
+                WHERE product_id = ? AND location_id = ?";
         
         $stmt = $this->db->prepare($sql);
-        $stmt->execute([$productId, $locationType, $locationId]);
+        $stmt->execute([$productId, $locationId]);
         return $stmt->fetch();
     }
 
@@ -63,35 +64,26 @@ class Stock extends BaseModel {
 
         if ($existing) {
             $sql = "UPDATE stock SET quantity = quantity + ? 
-                    WHERE product_id = ? AND location_type = ? AND location_id = ?";
+                    WHERE product_id = ? AND location_id = ?";
             $stmt = $this->db->prepare($sql);
-            return $stmt->execute([$quantity, $productId, $locationType, $locationId]);
+            return $stmt->execute([$quantity, $productId, $locationId]);
         } else {
-            return $this->create([
-                'product_id' => $productId,
-                'location_type' => $locationType,
-                'location_id' => $locationId,
-                'quantity' => $quantity
-            ]);
+            // Use INSERT ... ON DUPLICATE KEY UPDATE to avoid race conditions
+            $sql = "INSERT INTO stock (product_id, location_id, quantity) 
+                    VALUES (?, ?, ?)
+                    ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)";
+            $stmt = $this->db->prepare($sql);
+            return $stmt->execute([$productId, $locationId, $quantity]);
         }
     }
 
     public function setStock($productId, $locationType, $locationId, $quantity) {
-        $existing = $this->getProductStock($productId, $locationType, $locationId);
-
-        if ($existing) {
-            $sql = "UPDATE stock SET quantity = ? 
-                    WHERE product_id = ? AND location_type = ? AND location_id = ?";
-            $stmt = $this->db->prepare($sql);
-            return $stmt->execute([$quantity, $productId, $locationType, $locationId]);
-        } else {
-            return $this->create([
-                'product_id' => $productId,
-                'location_type' => $locationType,
-                'location_id' => $locationId,
-                'quantity' => $quantity
-            ]);
-        }
+        // Use INSERT ... ON DUPLICATE KEY UPDATE to avoid race conditions
+        $sql = "INSERT INTO stock (product_id, location_id, quantity) 
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE quantity = VALUES(quantity)";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([$productId, $locationId, $quantity]);
     }
 
     public function getAllStockByLocation() {
