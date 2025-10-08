@@ -46,8 +46,10 @@ class TransferController {
             $data = json_decode(file_get_contents('php://input'), true);
 
             $errors = Validator::validate($data, [
+                'from_location_id' => 'required|numeric',
                 'to_location_id' => 'required|numeric',
-                'to_location_type' => 'required|in:van',
+                'from_location_type' => 'in:warehouse,van,location',
+                'to_location_type' => 'in:warehouse,van,location',
                 'items' => 'required|array',
                 'items.*.product_id' => 'required|numeric',
                 'items.*.quantity' => 'required|numeric|min:1'
@@ -67,12 +69,15 @@ class TransferController {
                 $db = $this->transferModel->getDb();
                 $db->beginTransaction();
 
-                // Validate stock availability
+                // Validate stock availability from source location
+                $fromLocationType = $data['from_location_type'] ?? 'location';
+                $fromLocationId = $data['from_location_id'];
+                
                 foreach ($data['items'] as $item) {
                     $stock = $this->stockModel->getProductStock(
                         $item['product_id'],
-                        'warehouse',
-                        0
+                        $fromLocationType,
+                        $fromLocationId
                     );
 
                     if (!$stock || $stock['quantity'] < $item['quantity']) {
@@ -82,9 +87,9 @@ class TransferController {
 
                 // Create transfer
                 $transferData = [
-                    'from_location_type' => 'warehouse',
-                    'from_location_id' => 0,
-                    'to_location_type' => $data['to_location_type'],
+                    'from_location_type' => $data['from_location_type'] ?? 'location',
+                    'from_location_id' => $data['from_location_id'],
+                    'to_location_type' => $data['to_location_type'] ?? 'location',
                     'to_location_id' => $data['to_location_id'],
                     'status' => 'completed',
                     'notes' => $data['notes'] ?? null,
@@ -99,13 +104,18 @@ class TransferController {
                     $db->prepare("INSERT INTO transfer_items (transfer_id, product_id, quantity) VALUES (?, ?, ?)")
                        ->execute([$transferId, $item['product_id'], $item['quantity']]);
 
-                    // Reduce warehouse stock
-                    $this->stockModel->updateStock($item['product_id'], 'warehouse', 0, -$item['quantity']);
+                    // Reduce source location stock
+                    $this->stockModel->updateStock(
+                        $item['product_id'], 
+                        $fromLocationType, 
+                        $fromLocationId, 
+                        -$item['quantity']
+                    );
 
-                    // Increase destination stock
+                    // Increase destination location stock
                     $this->stockModel->updateStock(
                         $item['product_id'],
-                        $data['to_location_type'],
+                        $data['to_location_type'] ?? 'location',
                         $data['to_location_id'],
                         $item['quantity']
                     );
@@ -113,9 +123,9 @@ class TransferController {
                     // Record stock movement
                     $this->movementModel->create([
                         'product_id' => $item['product_id'],
-                        'from_location_type' => 'warehouse',
-                        'from_location_id' => 0,
-                        'to_location_type' => $data['to_location_type'],
+                        'from_location_type' => $fromLocationType,
+                        'from_location_id' => $fromLocationId,
+                        'to_location_type' => $data['to_location_type'] ?? 'location',
                         'to_location_id' => $data['to_location_id'],
                         'quantity' => $item['quantity'],
                         'movement_type' => 'transfer',
