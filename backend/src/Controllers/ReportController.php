@@ -165,20 +165,18 @@ class ReportController {
 
         Response::success($products);
     }
-
     public function dashboard() {
         // Total products
         $stmt = $this->db->query("SELECT COUNT(*) as count FROM products WHERE is_active = 1");
         $totalProducts = $stmt->fetch()['count'];
 
-        // Total warehouse stock value
+        // Total inventory value across all locations
         $stmt = $this->db->query("
             SELECT SUM(s.quantity * p.cost_price) as value
             FROM stock s
             JOIN products p ON s.product_id = p.id
-            WHERE s.location_type = 'warehouse' AND s.location_id = 0
         ");
-        $warehouseValue = $stmt->fetch()['value'] ?? 0;
+        $inventoryValue = $stmt->fetch()['value'] ?? 0;
 
         // Today's sales
         $stmt = $this->db->query("
@@ -204,20 +202,18 @@ class ReportController {
         ");
         $payables = $stmt->fetch()['total'] ?? 0;
 
-        // Low stock products
+        // Low stock products (across all locations)
         $stmt = $this->db->query("
-            SELECT COUNT(*) as count
+            SELECT COUNT(DISTINCT s.product_id) as count
             FROM stock s
             JOIN products p ON s.product_id = p.id
-            WHERE s.location_type = 'warehouse' 
-            AND s.location_id = 0
-            AND s.quantity <= p.min_stock_level
+            WHERE s.quantity <= COALESCE(p.min_stock_level, 10)
         ");
         $lowStockCount = $stmt->fetch()['count'];
 
-        // Active vans
-        $stmt = $this->db->query("SELECT COUNT(*) as count FROM vans WHERE is_active = 1");
-        $activeVans = $stmt->fetch()['count'];
+        // Active locations
+        $stmt = $this->db->query("SELECT COUNT(*) as count FROM locations WHERE is_active = 1");
+        $activeLocations = $stmt->fetch()['count'];
 
         // Recent sales chart (last 7 days)
         $stmt = $this->db->query("
@@ -231,13 +227,13 @@ class ReportController {
 
         Response::success([
             'total_products' => $totalProducts,
-            'warehouse_value' => round($warehouseValue, 2),
+            'inventory_value' => round($inventoryValue, 2),
             'today_sales_count' => $todaySales['count'],
             'today_sales_total' => round($todaySales['total'] ?? 0, 2),
             'pending_payments' => round($pendingPayments, 2),
             'payables' => round($payables, 2),
             'low_stock_count' => $lowStockCount,
-            'active_vans' => $activeVans,
+            'active_locations' => $activeLocations,
             'sales_chart' => $salesChart
         ]);
     }

@@ -20,7 +20,10 @@ import Vans from './pages/Vans';
 import Transfers from './pages/Transfers';
 import Invoices from './pages/InvoicesNew';
 import Payments from './pages/Payments';
+import Transactions from './pages/Transactions';
 import Reports from './pages/Reports';
+import ReportsNew from './pages/ReportsNew';
+import LowStock from './pages/LowStock';
 import Inventory from './pages/Inventory';
 import Vendors from './pages/Vendors';
 import Locations from './pages/Locations';
@@ -90,7 +93,10 @@ function App() {
             <Route path="invoices/purchase/:id" element={<PurchaseInvoiceDetails />} />
             <Route path="invoices/sales/:id" element={<SalesInvoiceDetails />} />
             <Route path="payments" element={<Payments />} />
-            <Route path="reports" element={<Reports />} />
+            <Route path="transactions" element={<Transactions />} />
+            <Route path="reports" element={<ReportsNew />} />
+            <Route path="reports-old" element={<Reports />} />
+            <Route path="low-stock" element={<LowStock />} />
             <Route path="pos" element={<POS />} />
             <Route path="settings" element={<Settings />} />
           </Route>

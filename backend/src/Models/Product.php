@@ -8,12 +8,10 @@ class Product extends BaseModel {
     public function getProductsWithDetails($filters = []) {
         $sql = "SELECT p.*, 
                        c.name_en as category_name_en, c.name_ar as category_name_ar,
-                       pt.name_en as type_name_en, pt.name_ar as type_name_ar,
-                       COALESCE(s.quantity, 0) as warehouse_stock
+                       pt.name_en as type_name_en, pt.name_ar as type_name_ar
                 FROM products p
                 LEFT JOIN categories c ON p.category_id = c.id
                 LEFT JOIN product_types pt ON p.type_id = pt.id
-                LEFT JOIN stock s ON p.id = s.product_id AND s.location_type = 'warehouse' AND s.location_id = 0
                 WHERE 1=1";
 
         $params = [];
@@ -53,7 +51,21 @@ class Product extends BaseModel {
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll();
+        $products = $stmt->fetchAll();
+        
+        // Add stock by location for each product
+        foreach ($products as &$product) {
+            $stockSql = "SELECT s.quantity, l.name as location_name, l.type as location_type
+                        FROM stock s
+                        JOIN locations l ON s.location_id = l.id
+                        WHERE s.product_id = ?
+                        ORDER BY l.name";
+            $stockStmt = $this->db->prepare($stockSql);
+            $stockStmt->execute([$product['id']]);
+            $product['stock_by_location'] = $stockStmt->fetchAll();
+        }
+        
+        return $products;
     }
 
     public function countProducts($filters = []) {

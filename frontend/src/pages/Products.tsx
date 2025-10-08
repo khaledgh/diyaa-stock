@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -134,7 +134,7 @@ export default function Products() {
                   <TableHead>{t('products.category')}</TableHead>
                   <TableHead>{t('products.type')}</TableHead>
                   <TableHead>{t('products.unitPrice')}</TableHead>
-                  <TableHead>{t('products.warehouseStock')}</TableHead>
+                  <TableHead>Stock by Location</TableHead>
                   <TableHead>{t('common.status')}</TableHead>
                   <TableHead>{t('common.actions')}</TableHead>
                 </TableRow>
@@ -154,7 +154,23 @@ export default function Products() {
                       <TableCell>{product.category_name_en || '-'}</TableCell>
                       <TableCell>{product.type_name_en || '-'}</TableCell>
                       <TableCell>{formatCurrency(product.unit_price)}</TableCell>
-                      <TableCell>{product.warehouse_stock || 0}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          {product.stock_by_location && product.stock_by_location.length > 0 ? (
+                            product.stock_by_location.map((stock: any, idx: number) => (
+                              <div key={idx} className="flex items-center gap-1 text-xs">
+                                <MapPin className="h-3 w-3 text-muted-foreground" />
+                                <span className="font-medium">{stock.location_name}:</span>
+                                <span className={stock.quantity < 10 ? 'text-red-600 font-semibold' : ''}>
+                                  {stock.quantity}
+                                </span>
+                              </div>
+                            ))
+                          ) : (
+                            <span className="text-muted-foreground text-xs">No stock</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <span
                           className={`px-2 py-1 rounded-full text-xs ${
