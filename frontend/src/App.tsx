@@ -12,11 +12,11 @@ import Products from './pages/Products';
 import ProductForm from './pages/ProductForm';
 import Customers from './pages/Customers';
 import Employees from './pages/Employees';
-import InvoiceForm from './pages/InvoiceForm';
+import InvoiceForm from './pages/InvoiceFormNew';
 
 import Vans from './pages/Vans';
 import Transfers from './pages/Transfers';
-import Invoices from './pages/Invoices';
+import Invoices from './pages/InvoicesNew';
 import Payments from './pages/Payments';
 import Reports from './pages/Reports';
 import Inventory from './pages/Inventory';

@@ -206,7 +206,7 @@ class InvoiceController {
         $data = json_decode(file_get_contents('php://input'), true);
 
         $validator = new Validator($data);
-        $validator->required(['van_id', 'items']);
+        $validator->required(['location_id', 'items']);
 
         if ($validator->fails()) {
             Response::validationError($validator->errors());
@@ -216,20 +216,23 @@ class InvoiceController {
             Response::error('Invoice must have at least one item', 422);
         }
 
+        $locationType = 'location';
+        $locationId = $data['location_id'];
+
         try {
             $db = $this->salesInvoiceModel->getDb();
             $db->beginTransaction();
 
-            // Validate van stock
+            // Validate location stock
             foreach ($data['items'] as $item) {
                 $stock = $this->stockModel->getProductStock(
                     $item['product_id'],
-                    'van',
-                    $data['van_id']
+                    $locationType,
+                    $locationId
                 );
 
                 if (!$stock || $stock['quantity'] < $item['quantity']) {
-                    throw new \Exception("Insufficient van stock for product ID {$item['product_id']}");
+                    throw new \Exception("Insufficient stock for product ID {$item['product_id']}");
                 }
             }
 
@@ -249,7 +252,7 @@ class InvoiceController {
             $invoiceData = [
                 'invoice_number' => $this->salesInvoiceModel->generateInvoiceNumber(),
                 'customer_id' => $data['customer_id'] ?? null,
-                'van_id' => $data['van_id'],
+                'location_id' => $locationId,
                 'subtotal' => $subtotal,
                 'tax_amount' => $taxAmount,
                 'discount_amount' => $discountAmount,
@@ -281,14 +284,14 @@ class InvoiceController {
                        $itemTotal
                    ]);
 
-                // Reduce van stock
-                $this->stockModel->updateStock($item['product_id'], 'van', $data['van_id'], -$item['quantity']);
+                // Reduce location stock
+                $this->stockModel->updateStock($item['product_id'], $locationType, $locationId, -$item['quantity']);
 
                 // Record stock movement
                 $this->movementModel->create([
                     'product_id' => $item['product_id'],
-                    'from_location_type' => 'van',
-                    'from_location_id' => $data['van_id'],
+                    'from_location_type' => $locationType,
+                    'from_location_id' => $locationId,
                     'to_location_type' => 'customer',
                     'to_location_id' => $data['customer_id'] ?? 0,
                     'quantity' => $item['quantity'],
