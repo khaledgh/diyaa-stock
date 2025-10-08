@@ -88,7 +88,7 @@ class StockController {
         $data = json_decode(file_get_contents('php://input'), true);
 
         $validator = new Validator($data);
-        $validator->required(['product_id', 'location_type', 'quantity'])
+        $validator->required(['product_id', 'location_id', 'quantity'])
                   ->numeric('quantity')
                   ->positive('quantity');
 
@@ -97,21 +97,20 @@ class StockController {
         }
 
         $productId = $data['product_id'];
-        $locationType = $data['location_type'];
-        $locationId = $data['location_id'] ?? 0;
+        $locationId = $data['location_id'];
         $quantity = (int)$data['quantity'];
         $notes = $data['notes'] ?? null;
 
         try {
-            // Add to existing stock
-            $this->stockModel->updateStock($productId, $locationType, $locationId, $quantity);
+            // Add to existing stock using location-based approach
+            $this->stockModel->updateStock($productId, 'location', $locationId, $quantity);
 
             // Record stock movement
             $this->movementModel->create([
                 'product_id' => $productId,
                 'from_location_type' => 'supplier',
                 'from_location_id' => 0,
-                'to_location_type' => $locationType,
+                'to_location_type' => 'location',
                 'to_location_id' => $locationId,
                 'quantity' => $quantity,
                 'movement_type' => 'adjustment',
