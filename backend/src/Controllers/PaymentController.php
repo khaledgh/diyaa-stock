@@ -3,17 +3,20 @@
 namespace App\Controllers;
 
 use App\Models\Payment;
-use App\Models\Invoice;
+use App\Models\PurchaseInvoice;
+use App\Models\SalesInvoice;
 use App\Utils\Response;
 use App\Utils\Validator;
 
 class PaymentController {
     private $paymentModel;
-    private $invoiceModel;
+    private $purchaseInvoiceModel;
+    private $salesInvoiceModel;
 
     public function __construct() {
         $this->paymentModel = new Payment();
-        $this->invoiceModel = new Invoice();
+        $this->purchaseInvoiceModel = new PurchaseInvoice();
+        $this->salesInvoiceModel = new SalesInvoice();
     }
 
     public function index() {
@@ -32,7 +35,7 @@ class PaymentController {
         $data = json_decode(file_get_contents('php://input'), true);
 
         $validator = new Validator($data);
-        $validator->required(['invoice_id', 'amount', 'payment_method'])
+        $validator->required(['invoice_id', 'invoice_type', 'amount', 'payment_method'])
                   ->numeric('amount')
                   ->positive('amount');
 
@@ -40,8 +43,15 @@ class PaymentController {
             Response::validationError($validator->errors());
         }
 
-        // Get invoice
-        $invoice = $this->invoiceModel->findById($data['invoice_id']);
+        $invoiceType = $data['invoice_type'];
+        
+        // Get invoice based on type
+        if ($invoiceType === 'purchase') {
+            $invoice = $this->purchaseInvoiceModel->findById($data['invoice_id']);
+        } else {
+            $invoice = $this->salesInvoiceModel->findById($data['invoice_id']);
+        }
+        
         if (!$invoice) {
             Response::notFound('Invoice not found');
         }
@@ -78,10 +88,18 @@ class PaymentController {
                 $paymentStatus = 'unpaid';
             }
 
-            $this->invoiceModel->update($data['invoice_id'], [
-                'paid_amount' => $newPaidAmount,
-                'payment_status' => $paymentStatus
-            ]);
+            // Update the appropriate invoice model
+            if ($invoiceType === 'purchase') {
+                $this->purchaseInvoiceModel->update($data['invoice_id'], [
+                    'paid_amount' => $newPaidAmount,
+                    'payment_status' => $paymentStatus
+                ]);
+            } else {
+                $this->salesInvoiceModel->update($data['invoice_id'], [
+                    'paid_amount' => $newPaidAmount,
+                    'payment_status' => $paymentStatus
+                ]);
+            }
 
             $db->commit();
 
