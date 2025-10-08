@@ -42,12 +42,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await apiService.login(email, password);
       
       if (response.success && response.data) {
-        // Debug: Log the user data to see what's being returned
-        console.log('Login response user data:', JSON.stringify(response.data.user, null, 2));
+        const userData = response.data.user;
+        
+        // Fetch location_id for the van if van_id exists
+        if (userData.van_id) {
+          try {
+            const locationResponse = await apiService.getVanLocation(userData.van_id);
+            if (locationResponse.success && locationResponse.data && locationResponse.data.length > 0) {
+              userData.location_id = locationResponse.data[0].id;
+            }
+          } catch (error) {
+            console.error('Failed to fetch van location:', error);
+            // Continue without location_id
+          }
+        }
+        
+        console.log('Login response user data:', JSON.stringify(userData, null, 2));
         
         await SecureStore.setItemAsync('authToken', response.data.token);
-        await SecureStore.setItemAsync('userData', JSON.stringify(response.data.user));
-        setUser(response.data.user);
+        await SecureStore.setItemAsync('userData', JSON.stringify(userData));
+        setUser(userData);
       } else {
         throw new Error(response.message || 'Login failed');
       }

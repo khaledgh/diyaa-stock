@@ -34,7 +34,15 @@ export default function ReportsNew() {
     queryKey: ['products-report'],
     queryFn: async () => {
       const response = await productApi.getAll();
-      return response.data.data || [];
+      // Handle nested data structure
+      const apiData = response.data.data || response.data;
+      if (apiData?.data && Array.isArray(apiData.data)) {
+        return apiData.data;
+      }
+      if (Array.isArray(apiData)) {
+        return apiData;
+      }
+      return [];
     },
   });
 
@@ -97,10 +105,17 @@ export default function ReportsNew() {
     .slice(0, 10);
 
   // Low stock products
-  const lowStockProducts = productsData?.filter((p: any) => {
-    const totalStock = (p.warehouse_stock || 0) + (p.van_stock || 0);
-    return totalStock < (p.min_stock || 10);
-  }) || [];
+  const lowStockProducts = Array.isArray(productsData) ? productsData.filter((p: any) => {
+    // Check stock by location
+    if (!p.stock_by_location || p.stock_by_location.length === 0) {
+      return true; // No stock at all
+    }
+    // Check if any location has low stock
+    const hasLowStock = p.stock_by_location.some((stock: any) => 
+      stock.quantity < (p.min_stock_level || 10)
+    );
+    return hasLowStock;
+  }) : [];
 
   const exportReport = (reportName: string, data: any[]) => {
     const csv = data.map(row => Object.values(row).join(',')).join('\n');
@@ -429,6 +444,7 @@ export default function ReportsNew() {
                     <TableRow>
                       <TableHead>Product</TableHead>
                       <TableHead>SKU</TableHead>
+                      <TableHead>Location</TableHead>
                       <TableHead className="text-right">Current Stock</TableHead>
                       <TableHead className="text-right">Min Stock</TableHead>
                       <TableHead>Status</TableHead>
@@ -437,26 +453,52 @@ export default function ReportsNew() {
                   <TableBody>
                     {lowStockProducts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                           All products are well stocked
                         </TableCell>
                       </TableRow>
                     ) : (
-                      lowStockProducts.map((product: any) => {
-                        const totalStock = (product.warehouse_stock || 0) + (product.van_stock || 0);
-                        return (
-                          <TableRow key={product.id}>
-                            <TableCell className="font-medium">{product.name_en}</TableCell>
-                            <TableCell>{product.sku}</TableCell>
-                            <TableCell className="text-right">{totalStock}</TableCell>
-                            <TableCell className="text-right">{product.min_stock || 10}</TableCell>
-                            <TableCell>
-                              <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                Low Stock
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        );
+                      lowStockProducts.flatMap((product: any) => {
+                        const minStock = product.min_stock_level || 10;
+                        
+                        if (!product.stock_by_location || product.stock_by_location.length === 0) {
+                          return (
+                            <TableRow key={product.id}>
+                              <TableCell className="font-medium">{product.name_en}</TableCell>
+                              <TableCell>{product.sku}</TableCell>
+                              <TableCell className="text-red-600">No Stock</TableCell>
+                              <TableCell className="text-right text-red-600 font-bold">0</TableCell>
+                              <TableCell className="text-right">{minStock}</TableCell>
+                              <TableCell>
+                                <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                  Critical
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                        
+                        return product.stock_by_location
+                          .filter((stock: any) => stock.quantity < minStock)
+                          .map((stock: any, idx: number) => (
+                            <TableRow key={`${product.id}-${stock.location_name}-${idx}`}>
+                              <TableCell className="font-medium">{product.name_en}</TableCell>
+                              <TableCell>{product.sku}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3 text-muted-foreground" />
+                                  {stock.location_name}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right text-orange-600 font-semibold">{stock.quantity}</TableCell>
+                              <TableCell className="text-right">{minStock}</TableCell>
+                              <TableCell>
+                                <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                  Low Stock
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          ));
                       })
                     )}
                   </TableBody>

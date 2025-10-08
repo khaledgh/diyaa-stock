@@ -56,13 +56,18 @@ class ApiService {
     return response.data;
   }
 
+  async getVanLocation(vanId: number) {
+    const response = await this.api.get(`/locations?van_id=${vanId}&type=van`);
+    return response.data;
+  }
+
   async getCustomers() {
     const response = await this.api.get('/customers');
     return response.data;
   }
 
   async createSalesInvoice(data: {
-    van_id: number;
+    location_id: number; // Van ID is sent as location_id to backend
     customer_id?: number;
     items: Array<{
       product_id: number;

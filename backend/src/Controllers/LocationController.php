@@ -15,7 +15,16 @@ class LocationController {
 
     public function index() {
         try {
-            $locations = $this->location->getLocationsWithUsers();
+            $vanId = $_GET['van_id'] ?? null;
+            $type = $_GET['type'] ?? null;
+            
+            if ($vanId || $type) {
+                // Filter locations by van_id and/or type
+                $locations = $this->location->getFilteredLocations($vanId, $type);
+            } else {
+                $locations = $this->location->getLocationsWithUsers();
+            }
+            
             Response::success($locations);
         } catch (\Exception $e) {
             Response::error($e->getMessage());

@@ -361,13 +361,13 @@ export default function POSScreen() {
             try {
               setIsLoading(true);
               const invoiceData = {
-                van_id: user.van_id!,
+                location_id: user.location_id || user.van_id!, // Use location_id if available, fallback to van_id
                 customer_id: selectedCustomer?.id,
                 items: cart.map((item) => ({
                   product_id: item.product.id,
                   quantity: item.quantity,
                   unit_price: item.unit_price,
-                  discount_percent: item.discount_percent,
+                  discount_percent: item.discount_percent || 0,
                 })),
                 paid_amount: calculateTotal(),
               };

@@ -4,6 +4,7 @@ export interface User {
   full_name: string;
   role: string;
   van_id?: number;
+  location_id?: number; // Location ID for the van
   is_active: boolean;
 }
 

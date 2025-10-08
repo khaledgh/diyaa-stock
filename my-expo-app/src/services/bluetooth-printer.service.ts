@@ -3,7 +3,6 @@ import { CartItem } from '../types';
 interface PrinterDevice {
   address: string;
   name: string;
-  inner_mac_address?: string;
 }
 
 interface ReceiptData {
@@ -23,8 +22,10 @@ let ThermalPrinterModule: any = null;
 
 // Try to load native modules
 try {
-  ThermalPrinterModule = require('@poriyaalar/react-native-thermal-receipt-printer').default;
-} catch (error) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { RNThermalPrinter } = require('react-native-thermal-printer');
+  ThermalPrinterModule = RNThermalPrinter;
+} catch {
   console.log('Thermal printer module not available (requires development build)');
 }
 
@@ -39,19 +40,18 @@ class BluetoothPrinterService {
   }
 
   async scanDevices(): Promise<PrinterDevice[]> {
-    if (!this.isAvailable()) {
+    if (!this.isAvailable() || !ThermalPrinterModule) {
       throw new Error('Thermal printer not available. Requires development build.');
     }
     try {
-      const devices = await ThermalPrinterModule.getBluetoothDeviceList();
+      const devices = await ThermalPrinterModule.getBondedDevices();
       return devices.map((device: any) => ({
-        address: device.inner_mac_address || device.address,
-        name: device.device_name || device.name,
-        inner_mac_address: device.inner_mac_address,
+        address: device.address || device.macAddress,
+        name: device.name || device.deviceName || 'Unknown Device',
       }));
     } catch (error) {
       console.error('Scan error:', error);
-      return [];
+      throw error;
     }
   }
 
@@ -60,7 +60,7 @@ class BluetoothPrinterService {
       throw new Error('Thermal printer not available. Requires development build.');
     }
     try {
-      await ThermalPrinterModule.connectPrinter(address);
+      await ThermalPrinterModule.connect(address);
       return true;
     } catch (error) {
       console.error('Connect error:', error);
@@ -71,7 +71,7 @@ class BluetoothPrinterService {
   async disconnectPrinter(): Promise<void> {
     if (!this.isAvailable()) return;
     try {
-      await ThermalPrinterModule.closeConn();
+      await ThermalPrinterModule.disconnect();
     } catch (error) {
       console.error('Disconnect error:', error);
     }
@@ -80,9 +80,9 @@ class BluetoothPrinterService {
   async isConnected(): Promise<boolean> {
     if (!this.isAvailable()) return false;
     try {
-      const status = await ThermalPrinterModule.getStatus();
-      return status === 'connected';
-    } catch (error) {
+      const connected = await ThermalPrinterModule.isConnected();
+      return connected === true;
+    } catch {
       return false;
     }
   }
@@ -154,7 +154,7 @@ class BluetoothPrinterService {
       receipt += '\n\n\n';
 
       // Print the receipt
-      await ThermalPrinterModule.printBill(receipt);
+      await ThermalPrinterModule.printText(receipt);
     } catch (error) {
       console.error('Print error:', error);
       throw error;
@@ -167,11 +167,14 @@ class BluetoothPrinterService {
     }
     try {
       const testReceipt = 
-        '[C]<font size="big">TEST PRINT</font>\n' +
-        '[C]Printer is working!\n' +
+        '\n' +
+        '================================\n' +
+        '       TEST PRINT\n' +
+        '================================\n' +
+        '   Printer is working!\n' +
         '\n\n\n';
       
-      await ThermalPrinterModule.printBill(testReceipt);
+      await ThermalPrinterModule.printText(testReceipt);
     } catch (error) {
       console.error('Test print error:', error);
       throw error;

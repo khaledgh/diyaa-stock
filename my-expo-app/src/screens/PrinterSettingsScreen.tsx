@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import bluetoothPrinterService from '../services/bluetooth-printer.service';
+import bluetoothPrinterService from '../services/bluetooth-printer.index';
 
 interface PrinterDevice {
   address: string;
@@ -55,7 +55,11 @@ export default function PrinterSettingsScreen({ onClose }: { onClose: () => void
       const foundDevices = await bluetoothPrinterService.scanDevices();
       setDevices(foundDevices);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to scan for devices');
+      console.error('Scan error:', error);
+      Alert.alert(
+        'Scan Error',
+        error.message || 'Failed to scan for devices. Make sure you are using a development build.'
+      );
     } finally {
       setIsScanning(false);
     }

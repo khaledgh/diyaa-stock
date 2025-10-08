@@ -12,7 +12,8 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "./plugins/withThermalPrinter"
     ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -33,12 +34,21 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_ADVERTISE"
+      ],
       "package": "com.kgh.myexpoapp"
     },
     "extra": {
       "eas": {
         "projectId": "d90dcde5-2c91-4d26-a9de-0f46f477b1e8"
       }
-    }
+    },
+    "owner": "kgh"
   }
 }
