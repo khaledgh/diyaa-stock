@@ -6,24 +6,44 @@ class Stock extends BaseModel {
     protected $table = 'stock';
 
     public function getWarehouseStock() {
+        // Get stock from warehouse-type locations
         $sql = "SELECT s.*, p.sku, p.name_en, p.name_ar, p.unit, p.min_stock_level,
-                       c.name_en as category_name_en, c.name_ar as category_name_ar
+                       c.name_en as category_name_en, c.name_ar as category_name_ar,
+                       l.name as location_name
                 FROM stock s
                 JOIN products p ON s.product_id = p.id
                 LEFT JOIN categories c ON p.category_id = c.id
-                WHERE s.location_type = 'warehouse' AND s.location_id = 0
+                LEFT JOIN locations l ON s.location_id = l.id
+                WHERE l.type = 'warehouse'
                 ORDER BY p.name_en";
         
         return $this->query($sql);
     }
 
-    public function getVanStock($vanId) {
+    public function getLocationStock($locationId) {
         $sql = "SELECT s.*, p.sku, p.name_en, p.name_ar, p.unit, p.unit_price,
-                       c.name_en as category_name_en, c.name_ar as category_name_ar
+                       c.name_en as category_name_en, c.name_ar as category_name_ar,
+                       l.name as location_name, l.type as location_type
                 FROM stock s
                 JOIN products p ON s.product_id = p.id
                 LEFT JOIN categories c ON p.category_id = c.id
-                WHERE s.location_type = 'van' AND s.location_id = ?
+                LEFT JOIN locations l ON s.location_id = l.id
+                WHERE s.location_id = ?
+                ORDER BY p.name_en";
+        
+        return $this->query($sql, [$locationId]);
+    }
+
+    public function getVanStock($vanId) {
+        // Get stock from van-type locations or locations linked to a van
+        $sql = "SELECT s.*, p.sku, p.name_en, p.name_ar, p.unit, p.unit_price,
+                       c.name_en as category_name_en, c.name_ar as category_name_ar,
+                       l.name as location_name
+                FROM stock s
+                JOIN products p ON s.product_id = p.id
+                LEFT JOIN categories c ON p.category_id = c.id
+                LEFT JOIN locations l ON s.location_id = l.id
+                WHERE l.van_id = ?
                 ORDER BY p.name_en";
         
         return $this->query($sql, [$vanId]);
@@ -83,24 +103,19 @@ class Stock extends BaseModel {
                     p.unit,
                     c.name_en as category_name_en,
                     c.name_ar as category_name_ar,
-                    COALESCE(warehouse.quantity, 0) as warehouse_quantity,
                     GROUP_CONCAT(
-                        CONCAT(v.name, ':', COALESCE(van_stock.quantity, 0))
-                        ORDER BY v.name
+                        CONCAT(l.name, ':', COALESCE(s.quantity, 0), ':', l.type)
+                        ORDER BY l.name
                         SEPARATOR '|'
-                    ) as van_quantities,
-                    COALESCE(warehouse.quantity, 0) + COALESCE(SUM(van_stock.quantity), 0) as total_quantity
+                    ) as location_quantities,
+                    COALESCE(SUM(s.quantity), 0) as total_quantity
                 FROM products p
                 LEFT JOIN categories c ON p.category_id = c.id
-                LEFT JOIN stock warehouse ON p.id = warehouse.product_id 
-                    AND warehouse.location_type = 'warehouse' 
-                    AND warehouse.location_id = 0
-                LEFT JOIN stock van_stock ON p.id = van_stock.product_id 
-                    AND van_stock.location_type = 'van'
-                LEFT JOIN vans v ON van_stock.location_id = v.id AND v.is_active = 1
+                LEFT JOIN stock s ON p.id = s.product_id
+                LEFT JOIN locations l ON s.location_id = l.id AND l.is_active = 1
                 WHERE p.is_active = 1
                 GROUP BY p.id, p.sku, p.name_en, p.name_ar, p.unit, 
-                         c.name_en, c.name_ar, warehouse.quantity
+                         c.name_en, c.name_ar
                 ORDER BY p.name_en";
         
         return $this->query($sql);

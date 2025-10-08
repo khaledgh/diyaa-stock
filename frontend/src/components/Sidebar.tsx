@@ -137,7 +137,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   >
                     <div className="flex items-center">
                       <Package className="mr-2 h-4 w-4" />
-                      <span>Products</span>
+                      <span>{t('nav.products')}</span>
                     </div>
                     {isProductsOpen ? (
                       <ChevronDown className="h-4 w-4" />
@@ -179,7 +179,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   >
                     <div className="flex items-center">
                       <Warehouse className="mr-2 h-4 w-4" />
-                      <span>Inventory</span>
+                      <span>{t('nav.inventory')}</span>
                     </div>
                     {isInventoryOpen ? (
                       <ChevronDown className="h-4 w-4" />
@@ -219,7 +219,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     onClick={() => setIsBusinessOpen(!isBusinessOpen)}
                     className="w-full flex items-center justify-between px-2 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200"
                   >
-                    <span>Business</span>
+                    <span>{t('nav.business')}</span>
                     {isBusinessOpen ? (
                       <ChevronDown className="h-4 w-4" />
                     ) : (

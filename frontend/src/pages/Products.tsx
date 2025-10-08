@@ -132,6 +132,7 @@ export default function Products() {
                   <TableHead>{t('products.sku')}</TableHead>
                   <TableHead>{t('products.name')}</TableHead>
                   <TableHead>{t('products.category')}</TableHead>
+                  <TableHead>{t('products.type')}</TableHead>
                   <TableHead>{t('products.unitPrice')}</TableHead>
                   <TableHead>{t('products.warehouseStock')}</TableHead>
                   <TableHead>{t('common.status')}</TableHead>
@@ -141,7 +142,7 @@ export default function Products() {
               <TableBody>
                 {products?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       {t('common.noData')}
                     </TableCell>
                   </TableRow>
@@ -151,6 +152,7 @@ export default function Products() {
                       <TableCell className="font-medium">{product.sku}</TableCell>
                       <TableCell>{product.name_en}</TableCell>
                       <TableCell>{product.category_name_en || '-'}</TableCell>
+                      <TableCell>{product.type_name_en || '-'}</TableCell>
                       <TableCell>{formatCurrency(product.unit_price)}</TableCell>
                       <TableCell>{product.warehouse_stock || 0}</TableCell>
                       <TableCell>

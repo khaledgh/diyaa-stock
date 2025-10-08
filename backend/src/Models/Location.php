@@ -10,9 +10,10 @@ class Location extends BaseModel {
     }
 
     public function getLocationsWithUsers() {
-        $sql = "SELECT l.*, u.id as user_id, u.full_name as user_name, u.email as user_email, u.phone as user_phone
+        $sql = "SELECT l.*, v.sales_rep_id as user_id, u.full_name as user_name, u.email as user_email, u.phone as user_phone
                 FROM {$this->table} l
-                LEFT JOIN users u ON l.employee_id = u.id
+                LEFT JOIN vans v ON l.van_id = v.id
+                LEFT JOIN users u ON v.sales_rep_id = u.id
                 ORDER BY l.name ASC";
         
         $stmt = $this->db->prepare($sql);
@@ -21,9 +22,10 @@ class Location extends BaseModel {
     }
 
     public function getLocationWithUser($id) {
-        $sql = "SELECT l.*, u.id as user_id, u.full_name as user_name, u.email as user_email, u.phone as user_phone
+        $sql = "SELECT l.*, v.sales_rep_id as user_id, u.full_name as user_name, u.email as user_email, u.phone as user_phone
                 FROM {$this->table} l
-                LEFT JOIN users u ON l.employee_id = u.id
+                LEFT JOIN vans v ON l.van_id = v.id
+                LEFT JOIN users u ON v.sales_rep_id = u.id
                 WHERE l.id = ?";
         
         $stmt = $this->db->prepare($sql);

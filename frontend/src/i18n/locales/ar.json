@@ -17,6 +17,7 @@
     "products": "المنتجات",
     "inventory": "جرد المخزون",
     "categories": "الفئات",
+    "product-types": "أنواع المنتجات",
     "customers": "العملاء",
     "vendors": "الموردون",
     "employees": "الموظفون",
@@ -28,7 +29,8 @@
     "invoices": "الفواتير",
     "payments": "المدفوعات",
     "reports": "التقارير",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "business": "الأعمال"
   },
   "common": {
     "search": "بحث",
@@ -299,6 +301,8 @@
     "phone": "الهاتف",
     "phonePlaceholder": "أدخل رقم الهاتف",
     "selectType": "اختر النوع",
+    "location": "الموقع",
+    "locations": "المواقع",
     "createSuccess": "تم إنشاء الموقع بنجاح",
     "createError": "فشل في إنشاء الموقع",
     "updateSuccess": "تم تحديث الموقع بنجاح",

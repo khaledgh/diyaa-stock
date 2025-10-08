@@ -17,6 +17,7 @@
     "products": "Products",
     "inventory": "Inventory",
     "categories": "Categories",
+    "product-types": "Product Types",
     "customers": "Customers",
     "vendors": "Vendors",
     "employees": "Employees",
@@ -28,7 +29,8 @@
     "invoices": "Invoices",
     "payments": "Payments",
     "reports": "Reports",
-    "settings": "Settings"
+    "settings": "Settings",
+    "business": "Business"
   },
   "common": {
     "search": "Search",
@@ -117,15 +119,14 @@
       "rental": "Rental"
     },
     "employee": "Assigned Employee",
-    "employeePlaceholder": "Select employee",
     "noEmployee": "No employee assigned",
     "selectEmployee": "Select employee",
     "list": "All Vans",
     "createSuccess": "Van created successfully",
     "createError": "Failed to create van",
-    "updateSuccess": "Van updated successfully",
-    "updateError": "Failed to update van",
-    "deleteSuccess": "Van deleted successfully",
+    "saveSuccess": "Saved successfully",
+    "updateSuccess": "Updated successfully",
+    "deleteSuccess": "Deleted successfully",
     "deleteError": "Failed to delete van",
     "deleteConfirm": "Are you sure you want to delete this van?",
     "selectOwnerType": "Select owner type"
@@ -182,6 +183,8 @@
     "phone": "Phone",
     "phonePlaceholder": "Enter phone number",
     "selectType": "Select type",
+    "location": "Location",
+    "locations": "Locations",
     "createSuccess": "Location created successfully",
     "createError": "Failed to create location",
     "updateSuccess": "Location updated successfully",

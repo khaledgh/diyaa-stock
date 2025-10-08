@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { stockApi, productApi, vanApi } from '@/lib/api';
+import { stockApi, productApi, locationApi } from '@/lib/api';
 import { Package, Search, Plus, Warehouse, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -19,8 +19,7 @@ export default function Inventory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState('');
-  const [locationType, setLocationType] = useState('warehouse');
-  const [selectedVan, setSelectedVan] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState('');
   const [quantity, setQuantity] = useState('');
 
   const { data: inventory, isLoading } = useQuery({
@@ -47,10 +46,10 @@ export default function Inventory() {
     },
   });
 
-  const { data: vans } = useQuery({
-    queryKey: ['vans-all'],
+  const { data: locations } = useQuery({
+    queryKey: ['locations-all'],
     queryFn: async () => {
-      const response = await vanApi.getAll();
+      const response = await locationApi.getAll();
       return response.data.data;
     },
   });
@@ -73,26 +72,19 @@ export default function Inventory() {
 
   const resetForm = () => {
     setSelectedProduct('');
-    setLocationType('warehouse');
-    setSelectedVan('');
+    setSelectedLocation('');
     setQuantity('');
   };
 
   const handleAddStock = () => {
-    if (!selectedProduct || !quantity) {
+    if (!selectedProduct || !quantity || !selectedLocation) {
       toast.error(t('common.fillRequired'));
-      return;
-    }
-
-    if (locationType === 'van' && !selectedVan) {
-      toast.error(t('stock.selectVan'));
       return;
     }
 
     addStockMutation.mutate({
       product_id: parseInt(selectedProduct),
-      location_type: locationType,
-      location_id: locationType === 'van' ? parseInt(selectedVan) : 0,
+      location_id: parseInt(selectedLocation),
       quantity: parseInt(quantity),
     });
   };
@@ -113,11 +105,11 @@ export default function Inventory() {
   const totalWarehouseItems = warehouseStock?.length || 0;
   const totalWarehouseQuantity = warehouseStock?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
 
-  const parseVanQuantities = (vanQuantitiesStr: string) => {
-    if (!vanQuantitiesStr) return [];
-    return vanQuantitiesStr.split('|').map(item => {
-      const [name, qty] = item.split(':');
-      return { name, quantity: parseInt(qty) || 0 };
+  const parseLocationQuantities = (locationQuantitiesStr: string) => {
+    if (!locationQuantitiesStr) return [];
+    return locationQuantitiesStr.split('|').map(item => {
+      const [name, qty, type] = item.split(':');
+      return { name, quantity: parseInt(qty) || 0, type };
     });
   };
 
@@ -161,35 +153,20 @@ export default function Inventory() {
               </div>
 
               <div>
-                <Label>{t('inventory.locationType')}</Label>
-                <Select value={locationType} onValueChange={setLocationType}>
+                <Label>{t('locations.location')}</Label>
+                <Select value={selectedLocation} onValueChange={setSelectedLocation}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select location" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="warehouse">{t('stock.warehouse')}</SelectItem>
-                    <SelectItem value="van">{t('vans.title')}</SelectItem>
+                    {locations?.map((location: any) => (
+                      <SelectItem key={location.id} value={location.id.toString()}>
+                        {location.name} ({location.type})
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-
-              {locationType === 'van' && (
-                <div>
-                  <Label>{t('vans.name')}</Label>
-                  <Select value={selectedVan} onValueChange={setSelectedVan}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t('transfers.selectVan')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {vans?.map((van: any) => (
-                        <SelectItem key={van.id} value={van.id.toString()}>
-                          {van.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
 
               <div>
                 <Label>{t('common.quantity')}</Label>
@@ -248,38 +225,33 @@ export default function Inventory() {
                         <TableHead>{t('products.sku')}</TableHead>
                         <TableHead>{t('products.name')}</TableHead>
                         <TableHead>{t('products.category')}</TableHead>
-                        <TableHead className="text-right">{t('stock.warehouse')}</TableHead>
-                        <TableHead>{t('inventory.vanStock')}</TableHead>
+                        <TableHead>{t('locations.locations')}</TableHead>
                         <TableHead className="text-right">{t('inventory.totalStock')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredInventory?.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                          <TableCell colSpan={5} className="text-center py-8 text-gray-500">
                             {searchTerm ? t('common.noResults') : t('common.noData')}
                           </TableCell>
                         </TableRow>
                       ) : (
                         filteredInventory?.map((item: any) => {
-                          const vanQtys = parseVanQuantities(item.van_quantities);
+                          const locationQtys = parseLocationQuantities(item.location_quantities);
                           return (
                             <TableRow key={item.product_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                               <TableCell className="font-medium">{item.sku}</TableCell>
                               <TableCell className="font-medium">{item.name_en}</TableCell>
                               <TableCell>{item.category_name_en || '-'}</TableCell>
-                              <TableCell className="text-right">
-                                <span className="font-semibold text-gray-900 dark:text-white">
-                                  {item.warehouse_quantity} {item.unit}
-                                </span>
-                              </TableCell>
                               <TableCell>
-                                {vanQtys.length > 0 ? (
+                                {locationQtys.length > 0 ? (
                                   <div className="space-y-1">
-                                    {vanQtys.map((van: any, idx: number) => (
+                                    {locationQtys.map((loc: any, idx: number) => (
                                       <div key={idx} className="text-sm">
-                                        <span className="text-gray-600 dark:text-gray-400">{van.name}:</span>{' '}
-                                        <span className="font-medium">{van.quantity}</span>
+                                        <span className="text-gray-600 dark:text-gray-400">{loc.name}</span>
+                                        <span className="text-xs text-gray-500 ml-1">({loc.type}):</span>{' '}
+                                        <span className="font-medium">{loc.quantity}</span>
                                       </div>
                                     ))}
                                   </div>
