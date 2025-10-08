@@ -44,6 +44,12 @@ type TransferFormData = z.infer<typeof transferSchema>;
 
 interface Transfer {
   id: number;
+  from_location_id: number;
+  to_location_id: number;
+  from_location_type: string;
+  to_location_type: string;
+  from_location_name?: string;
+  to_location_name?: string;
   to_van_name?: string;
   status: string;
   created_by_name?: string;
@@ -102,19 +108,6 @@ export default function Transfers() {
     setValue('items', transferItems);
   }, [transferItems, setValue]);
 
-  const { data: transfers, isLoading } = useQuery({
-    queryKey: ['transfers'],
-    queryFn: async () => {
-      try {
-        const response = await transferApi.getAll();
-        return response.data.data || [];
-      } catch (error) {
-        console.error('Failed to fetch transfers:', error);
-        return [];
-      }
-    },
-  });
-
   const { data: locations } = useQuery({
     queryKey: ['locations'],
     queryFn: async () => {
@@ -126,6 +119,36 @@ export default function Transfers() {
         return [];
       }
     },
+  });
+
+  const { data: transfers, isLoading } = useQuery({
+    queryKey: ['transfers', locations],
+    queryFn: async () => {
+      try {
+        const response = await transferApi.getAll();
+        const transfersData = response.data.data || [];
+        
+        // Map location IDs to names
+        if (locations && transfersData.length > 0) {
+          return transfersData.map((transfer: Transfer) => {
+            const fromLocation = locations.find((loc: any) => loc.id === transfer.from_location_id);
+            const toLocation = locations.find((loc: any) => loc.id === transfer.to_location_id);
+            
+            return {
+              ...transfer,
+              from_location_name: fromLocation?.name || `Location ${transfer.from_location_id}`,
+              to_location_name: toLocation?.name || `Location ${transfer.to_location_id}`,
+            };
+          });
+        }
+        
+        return transfersData;
+      } catch (error) {
+        console.error('Failed to fetch transfers:', error);
+        return [];
+      }
+    },
+    enabled: !!locations,
   });
 
   const { data: products } = useQuery({
@@ -174,7 +197,18 @@ export default function Transfers() {
   const handleViewDetails = async (transferId: number) => {
     try {
       const response = await transferApi.getById(transferId);
-      setSelectedTransfer(response.data.data);
+      const transferData = response.data.data;
+      
+      // Map location IDs to names
+      if (locations) {
+        const fromLocation = locations.find((loc: any) => loc.id === transferData.from_location_id);
+        const toLocation = locations.find((loc: any) => loc.id === transferData.to_location_id);
+        
+        transferData.from_location_name = fromLocation?.name || `Location ${transferData.from_location_id}`;
+        transferData.to_location_name = toLocation?.name || `Location ${transferData.to_location_id}`;
+      }
+      
+      setSelectedTransfer(transferData);
       setIsDetailsDialogOpen(true);
     } catch (error) {
       toast.error('Failed to load transfer details');
@@ -282,21 +316,30 @@ export default function Transfers() {
           ) : (
             <div className="overflow-x-auto -mx-4 sm:mx-0">
               <div className="inline-block min-w-full align-middle">
-                <Table>
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>{t('common.date') || 'Date'}</TableHead>
-                      <TableHead className="hidden md:table-cell">{t('transfers.toVan') || 'To Van'}</TableHead>
+                      <TableHead className="hidden lg:table-cell">{t('transfers.fromLocation') || 'From'}</TableHead>
+                      <TableHead className="hidden md:table-cell">{t('transfers.toLocation') || 'To'}</TableHead>
                       <TableHead className="hidden sm:table-cell">{t('common.status') || 'Status'}</TableHead>
-                      <TableHead className="hidden lg:table-cell">Created By</TableHead>
+                      <TableHead className="hidden xl:table-cell">Created By</TableHead>
                       <TableHead className="text-right">{t('common.actions') || 'Actions'}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {transfers?.map((transfer: Transfer) => (
                       <TableRow key={transfer.id}>
-                        <TableCell>{formatDateTime(transfer.created_at)}</TableCell>
-                        <TableCell className="hidden md:table-cell">{transfer.to_van_name || '-'}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div>{formatDateTime(transfer.created_at)}</div>
+                            <div className="lg:hidden text-xs text-muted-foreground mt-1">
+                              {transfer.from_location_name} → {transfer.to_location_name}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">{transfer.from_location_name || '-'}</TableCell>
+                        <TableCell className="hidden md:table-cell">{transfer.to_location_name || '-'}</TableCell>
                         <TableCell className="hidden sm:table-cell">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             transfer.status === 'completed'
@@ -306,7 +349,7 @@ export default function Transfers() {
                             {transfer.status}
                           </span>
                         </TableCell>
-                        <TableCell className="hidden lg:table-cell">{transfer.created_by_name || '-'}</TableCell>
+                        <TableCell className="hidden xl:table-cell">{transfer.created_by_name || '-'}</TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"
@@ -492,12 +535,16 @@ export default function Transfers() {
                   <p className="font-medium">{formatDateTime(selectedTransfer.created_at)}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">{t('transfers.toVan') || 'To Van'}</Label>
-                  <p className="font-medium">{selectedTransfer.to_van_name || '-'}</p>
-                </div>
-                <div>
                   <Label className="text-muted-foreground">{t('common.status') || 'Status'}</Label>
                   <p className="font-medium capitalize">{selectedTransfer.status}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">{t('transfers.fromLocation') || 'From Location'}</Label>
+                  <p className="font-medium">{selectedTransfer.from_location_name || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">{t('transfers.toLocation') || 'To Location'}</Label>
+                  <p className="font-medium">{selectedTransfer.to_location_name || '-'}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Created By</Label>

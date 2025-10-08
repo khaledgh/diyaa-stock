@@ -5,7 +5,7 @@ import {
   LayoutDashboard,
   Package,
   Users,
-  UserCog,
+  // UserCog,
   Truck,
   Warehouse,
   ArrowRightLeft,
@@ -33,7 +33,7 @@ const mainNavigation = [
   { name: 'pos', href: '/pos', icon: ShoppingCart },
   { name: 'customers', href: '/customers', icon: Users },
   { name: 'vendors', href: '/vendors', icon: Building2 },
-  { name: 'employees', href: '/employees', icon: UserCog },
+  // { name: 'employees', href: '/employees', icon: UserCog },
   { name: 'users', href: '/users', icon: Shield },
 ];
 
