@@ -301,6 +301,8 @@
     "phone": "الهاتف",
     "phonePlaceholder": "أدخل رقم الهاتف",
     "selectType": "اختر النوع",
+    "selectVan": "اختر السيارة",
+    "van": "السيارة",
     "location": "الموقع",
     "locations": "المواقع",
     "createSuccess": "تم إنشاء الموقع بنجاح",

@@ -26,16 +26,8 @@ SET location_type = 'location',
     location_id = @warehouse_location_id
 WHERE location_type = 'warehouse' AND location_id = 0;
 
--- Step 5: Update existing van stock to use location-based approach
--- For each van, create or link to a location
-UPDATE `stock` s
-INNER JOIN `vans` v ON s.location_id = v.id AND s.location_type = 'van'
-LEFT JOIN `locations` l ON l.van_id = v.id
-SET s.location_type = 'location',
-    s.location_id = COALESCE(l.id, s.location_id)
-WHERE s.location_type = 'van';
-
--- Step 6: Create locations for vans that don't have one
+-- Step 5: Create locations for vans that don't have one
+-- This must happen BEFORE updating stock records
 INSERT INTO `locations` (name, type, van_id, is_active, created_at)
 SELECT 
     CONCAT(v.name, ' Location'),
@@ -45,6 +37,15 @@ SELECT
     NOW()
 FROM `vans` v
 WHERE NOT EXISTS (SELECT 1 FROM `locations` WHERE van_id = v.id);
+
+-- Step 6: Update existing van stock to use location-based approach
+-- Now that locations exist for all vans, update stock records
+UPDATE `stock` s
+INNER JOIN `vans` v ON s.location_id = v.id AND s.location_type = 'van'
+INNER JOIN `locations` l ON l.van_id = v.id
+SET s.location_type = 'location',
+    s.location_id = l.id
+WHERE s.location_type = 'van';
 
 -- Step 7: Update stock_movements table to use location-based approach
 ALTER TABLE `stock_movements`

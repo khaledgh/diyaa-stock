@@ -183,6 +183,8 @@
     "phone": "Phone",
     "phonePlaceholder": "Enter phone number",
     "selectType": "Select type",
+    "selectVan": "Select Van",
+    "van": "Van",
     "location": "Location",
     "locations": "Locations",
     "createSuccess": "Location created successfully",

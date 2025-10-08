@@ -212,7 +212,7 @@ export default function Locations() {
                     <TableRow>
                       <TableHead>{t('locations.name') || 'Name'}</TableHead>
                       <TableHead className="hidden md:table-cell">{t('locations.type') || 'Type'}</TableHead>
-                      <TableHead className="hidden xl:table-cell">Van</TableHead>
+                      <TableHead className="hidden xl:table-cell">{t('locations.van') || 'Van'}</TableHead>
                       <TableHead className="hidden lg:table-cell">{t('locations.address') || 'Address'}</TableHead>
                       <TableHead className="hidden sm:table-cell">{t('locations.phone') || 'Phone'}</TableHead>
                       <TableHead className="text-right">{t('common.actions') || 'Actions'}</TableHead>
