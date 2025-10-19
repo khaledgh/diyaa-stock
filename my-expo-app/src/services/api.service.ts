@@ -77,6 +77,7 @@ class ApiService {
       tax_percent?: number;
     }>;
     paid_amount?: number;
+    payment_method?: string; // Required by backend: 'cash', 'card', 'bank_transfer'
     discount_amount?: number;
     tax_percent?: number;
     notes?: string;

@@ -12,18 +12,26 @@ export default function Stock() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const { data: warehouseStock, isLoading } = useQuery({
-    queryKey: ['warehouse-stock'],
+    queryKey: ['all-stock'],
     queryFn: async () => {
-      const response = await stockApi.getWarehouse();
+      const response = await stockApi.getAllStock();
+      console.log('All Stock API Response:', response.data);
+      console.log('All Stock Data:', response.data.data);
       return response.data.data;
     },
   });
+
+  console.log('warehouseStock:', warehouseStock);
+  console.log('isLoading:', isLoading);
 
   const filteredStock = warehouseStock?.filter((item: any) =>
     item.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.category_name_en?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  console.log('filteredStock:', filteredStock);
+  console.log('filteredStock length:', filteredStock?.length);
 
   const lowStockItems = warehouseStock?.filter((item: any) => item.quantity <= item.min_stock_level) || [];
   const totalItems = warehouseStock?.length || 0;
@@ -36,7 +44,7 @@ export default function Stock() {
           <Warehouse className="h-8 w-8 text-purple-600" />
           {t('stock.title')}
         </h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Monitor warehouse inventory levels</p>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Monitor inventory levels across all locations</p>
       </div>
 
       {/* Stats Cards */}

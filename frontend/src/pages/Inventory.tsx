@@ -42,7 +42,7 @@ export default function Inventory() {
     queryKey: ['products-all'],
     queryFn: async () => {
       const response = await productApi.getAll();
-      return response.data.data.data;
+      return response.data.data;
     },
   });
 
@@ -108,9 +108,9 @@ export default function Inventory() {
   const parseLocationQuantities = (locationQuantitiesStr: string) => {
     if (!locationQuantitiesStr) return [];
     return locationQuantitiesStr.split('|').map(item => {
-      const [name, qty, type] = item.split(':');
-      return { name, quantity: parseInt(qty) || 0, type };
-    });
+      const [name, qty] = item.split(':');
+      return { name, quantity: parseInt(qty) || 0 };
+    }).filter(item => item.name); // Filter out any empty entries
   };
 
   return (
@@ -249,8 +249,7 @@ export default function Inventory() {
                                   <div className="space-y-1">
                                     {locationQtys.map((loc: any, idx: number) => (
                                       <div key={idx} className="text-sm">
-                                        <span className="text-gray-600 dark:text-gray-400">{loc.name}</span>
-                                        <span className="text-xs text-gray-500 ml-1">({loc.type}):</span>{' '}
+                                        <span className="text-gray-600 dark:text-gray-400">{loc.name}:</span>{' '}
                                         <span className="font-medium">{loc.quantity}</span>
                                       </div>
                                     ))}

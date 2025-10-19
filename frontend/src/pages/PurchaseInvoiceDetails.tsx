@@ -233,9 +233,9 @@ export default function PurchaseInvoiceDetails() {
                   <TableRow key={index}>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{item.product_name || item.name_en}</p>
-                        {item.sku && (
-                          <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
+                        <p className="font-medium">{item.product?.name_en || item.product_name || item.name_en || '-'}</p>
+                        {(item.product?.sku || item.sku) && (
+                          <p className="text-xs text-muted-foreground">SKU: {item.product?.sku || item.sku}</p>
                         )}
                       </div>
                     </TableCell>

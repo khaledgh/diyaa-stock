@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { transferApi, locationApi, productApi, stockApi } from '@/lib/api';
+import { transferApi, locationApi, productApi, stockApi, vanApi } from '@/lib/api';
 import { formatDateTime } from '@/lib/utils';
 import { Combobox } from '@/components/ui/combobox';
 
@@ -62,6 +62,13 @@ interface TransferItem {
   product_name?: string;
   name_en?: string;
   quantity: number;
+  product?: {
+    id: number;
+    sku: string;
+    name_en: string;
+    name_ar: string;
+    unit: string;
+  };
 }
 
 export default function Transfers() {
@@ -167,18 +174,40 @@ export default function Transfers() {
   });
 
   const { data: sourceLocationStock } = useQuery({
-    queryKey: ['location-stock', selectedFromLocation],
+    queryKey: ['location-stock', selectedFromLocation, locations],
     queryFn: async () => {
       if (!selectedFromLocation) return [];
       try {
-        const response = await stockApi.getByLocation(selectedFromLocation);
-        return response.data.data || [];
+        // Find the selected location to determine its type
+        const location = locations?.find((loc: any) => loc.id === selectedFromLocation);
+        
+        let response;
+        // Always use the location-specific endpoint with the actual location ID
+        // The backend will query based on location_type and location_id
+        if (location?.type === 'van') {
+          // For van, use the van stock endpoint
+          response = await vanApi.getStock(selectedFromLocation);
+          console.log('Fetching van stock for van ID:', selectedFromLocation);
+        } else {
+          // For warehouse and other locations, use the location stock endpoint with actual ID
+          response = await stockApi.getByLocation(selectedFromLocation);
+          console.log('Fetching stock for location ID:', selectedFromLocation, 'type:', location?.type);
+        }
+        
+        const stockData = response.data.data || [];
+        console.log('Stock Response:', {
+          locationId: selectedFromLocation,
+          locationType: location?.type,
+          stockData,
+          stockDataLength: stockData.length,
+        });
+        return stockData;
       } catch (error) {
         console.error('Failed to fetch location stock:', error);
         return [];
       }
     },
-    enabled: !!selectedFromLocation,
+    enabled: !!selectedFromLocation && !!locations,
   });
 
   const createMutation = useMutation({
@@ -264,11 +293,30 @@ export default function Transfers() {
       return;
     }
 
+    // Determine location types based on actual location data
+    const fromLocation = locations?.find((loc: any) => loc.id === data.from_location_id);
+    const toLocation = locations?.find((loc: any) => loc.id === data.to_location_id);
+
+    // Use the actual location type from the database and the actual location ID
+    const fromLocationType = fromLocation?.type || 'location';
+    const toLocationType = toLocation?.type || 'location';
+
+    console.log('Transfer Data:', {
+      fromLocation: fromLocation?.name,
+      fromLocationType,
+      fromLocationId: data.from_location_id,
+      toLocation: toLocation?.name,
+      toLocationType,
+      toLocationId: data.to_location_id,
+    });
+
     // Add the current transfer items to the form data
     const formDataWithItems = {
       ...data,
-      from_location_type: 'location',
-      to_location_type: 'location',
+      from_location_type: fromLocationType,
+      from_location_id: data.from_location_id,
+      to_location_type: toLocationType,
+      to_location_id: data.to_location_id,
       items: transferItems,
     };
 
@@ -280,11 +328,78 @@ export default function Transfers() {
     label: `${loc.name} (${loc.type})`,
   })) || [];
 
+  // Log all stock data to debug
+  if (sourceLocationStock && sourceLocationStock.length > 0) {
+    console.log('=== STOCK DATA DEBUG ===');
+    console.log('Total stock records:', sourceLocationStock.length);
+    console.log('First stock record:', sourceLocationStock[0]);
+    console.log('All field names in first stock record:', Object.keys(sourceLocationStock[0] || {}));
+    console.log('All stock records:', sourceLocationStock);
+  }
+  
+  if (products && products.length > 0) {
+    console.log('=== PRODUCTS DEBUG ===');
+    console.log('Total products:', products.length);
+    console.log('First product:', products[0]);
+  }
+
   const productOptions = products?.map((product: any) => {
-    const stock = sourceLocationStock?.find((s: any) => s.product_id === product.id);
+    // Find matching stock record
+    const stock = sourceLocationStock?.find((s: any) => {
+      // Log each stock record being checked
+      const allKeys = Object.keys(s);
+      console.log(`Checking stock record with keys: ${allKeys.join(', ')}`);
+      
+      // Try to get product_id from all possible locations
+      let stockProductId = null;
+      for (const key of allKeys) {
+        if (key.toLowerCase().includes('product') && key.toLowerCase().includes('id')) {
+          stockProductId = s[key];
+          console.log(`Found product ID field: ${key} = ${stockProductId}`);
+          break;
+        }
+      }
+      
+      const productIdNum = Number(product.id);
+      const stockProductIdNum = Number(stockProductId);
+      
+      const matches = stockProductIdNum === productIdNum;
+      
+      if (matches) {
+        console.log('✅ MATCH FOUND:', {
+          productId: product.id,
+          productName: product.name_en,
+          stockProductId,
+          stockRecord: s
+        });
+      }
+      
+      return matches;
+    });
+    
+    // Get quantity from stock record
+    let stockQty = 0;
+    if (stock) {
+      const allKeys = Object.keys(stock);
+      for (const key of allKeys) {
+        if (key.toLowerCase() === 'quantity' || key.toLowerCase() === 'qty') {
+          stockQty = Number(stock[key]) || 0;
+          console.log(`Found quantity field: ${key} = ${stockQty}`);
+          break;
+        }
+      }
+    }
+    
+    console.log('Product Option:', {
+      productId: product.id,
+      productName: product.name_en,
+      foundStock: !!stock,
+      stockQuantity: stockQty
+    });
+    
     return {
       value: product.id.toString(),
-      label: `${product.name_en} (Stock: ${stock?.quantity || 0})`,
+      label: `${product.name_en} (Stock: ${stockQty})`,
     };
   }) || [];
 
@@ -564,8 +679,13 @@ export default function Transfers() {
                   <TableBody>
                     {selectedTransfer.items?.map((item, index) => (
                       <TableRow key={index}>
-                        <TableCell className="font-medium">{item.product_name || item.name_en}</TableCell>
-                        <TableCell className="text-right">{item.quantity}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{item.product?.name_en || item.product_name || item.name_en || '-'}</div>
+                            <div className="text-xs text-muted-foreground">{item.product?.sku || ''}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">{item.quantity}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

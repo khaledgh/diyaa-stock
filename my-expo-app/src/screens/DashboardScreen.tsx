@@ -36,8 +36,8 @@ export default function DashboardScreen() {
         offset: 0,
       });
 
-      if (invoicesResponse.success) {
-        const invoices = invoicesResponse.data?.data || [];
+      if (invoicesResponse.ok || invoicesResponse.success) {
+        const invoices = invoicesResponse.invoices?.data || invoicesResponse.data?.data || [];
         
         const now = new Date();
         const todayStart = new Date(now.setHours(0, 0, 0, 0));

@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Truck, Package } from 'lucide-react';
+import { Plus, Edit, Trash2, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,7 +26,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { vanApi, userApi } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
 import { Combobox } from '@/components/ui/combobox';
 
 const vanSchema = z.object({
@@ -54,9 +53,7 @@ export default function Vans() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isStockDialogOpen, setIsStockDialogOpen] = useState(false);
   const [editingVan, setEditingVan] = useState<Van | null>(null);
-  const [selectedVanForStock, setSelectedVanForStock] = useState<Van | null>(null);
 
   const {
     register,
@@ -96,16 +93,6 @@ export default function Vans() {
         return [];
       }
     },
-  });
-
-  const { data: vanStock } = useQuery({
-    queryKey: ['van-stock', selectedVanForStock?.id],
-    queryFn: async () => {
-      if (!selectedVanForStock) return [];
-      const response = await vanApi.getStock(selectedVanForStock.id);
-      return response.data.data || [];
-    },
-    enabled: !!selectedVanForStock,
   });
 
   const createMutation = useMutation({
@@ -272,17 +259,6 @@ export default function Vans() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => {
-                                setSelectedVanForStock(van);
-                                setIsStockDialogOpen(true);
-                              }}
-                              title="View Stock"
-                            >
-                              <Package className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
                               onClick={() => handleOpenDialog(van)}
                             >
                               <Edit className="h-4 w-4" />
@@ -402,72 +378,6 @@ export default function Vans() {
         </DialogContent>
       </Dialog>
 
-      {/* Van Stock Dialog */}
-      <Dialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedVanForStock?.name} - Stock Inventory
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {!vanStock || vanStock.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No products in this van
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead className="text-right">Quantity</TableHead>
-                    <TableHead className="text-right">Unit Price</TableHead>
-                    <TableHead className="text-right">Total Value</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {vanStock.map((item: any) => (
-                    <TableRow key={item.product_id}>
-                      <TableCell className="font-medium">
-                        <div>
-                          <div>{item.name_en}</div>
-                          <div className="text-xs text-muted-foreground">{item.sku}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">{item.quantity}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.unit_price || 0)}</TableCell>
-                      <TableCell className="text-right font-bold">
-                        {formatCurrency((item.quantity || 0) * (item.unit_price || 0))}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow className="bg-muted/50">
-                    <TableCell colSpan={3} className="text-right font-semibold">Total Value:</TableCell>
-                    <TableCell className="text-right font-bold text-lg">
-                      {formatCurrency(
-                        vanStock.reduce((sum: number, item: any) => 
-                          sum + ((item.quantity || 0) * (item.unit_price || 0)), 0
-                        )
-                      )}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                setIsStockDialogOpen(false);
-                setSelectedVanForStock(null);
-              }}
-              className="w-full sm:w-auto"
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

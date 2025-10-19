@@ -370,6 +370,7 @@ export default function POSScreen() {
                   discount_percent: item.discount_percent || 0,
                 })),
                 paid_amount: calculateTotal(),
+                payment_method: 'cash', // Default to cash for POS sales
               };
 
               console.log('Creating invoice with data:', JSON.stringify(invoiceData, null, 2));
@@ -377,7 +378,7 @@ export default function POSScreen() {
 
               const response = await apiService.createSalesInvoice(invoiceData);
 
-              if (response.success) {
+              if (response.ok || response.success) {
                 const invoice = response.data;
                 
                 // Ask if user wants to print receipt

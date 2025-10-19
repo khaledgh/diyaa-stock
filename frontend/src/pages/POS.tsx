@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { invoiceApi, productApi, vanApi, customerApi } from '@/lib/api';
+import { invoiceApi, productApi, locationApi, customerApi, stockApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Combobox } from '@/components/ui/combobox';
 import { InvoicePrint } from '@/components/InvoicePrint';
@@ -31,7 +31,7 @@ export default function POS() {
   const queryClient = useQueryClient();
   const printRef = useRef<HTMLDivElement>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedVan, setSelectedVan] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState('1');
@@ -40,10 +40,10 @@ export default function POS() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [lastInvoice, setLastInvoice] = useState<any>(null);
 
-  const { data: vans } = useQuery({
-    queryKey: ['vans'],
+  const { data: locations } = useQuery({
+    queryKey: ['locations'],
     queryFn: async () => {
-      const response = await vanApi.getAll();
+      const response = await locationApi.getAll();
       return response.data.data || [];
     },
   });
@@ -68,14 +68,14 @@ export default function POS() {
     },
   });
 
-  const { data: vanStock } = useQuery({
-    queryKey: ['van-stock', selectedVan],
+  const { data: locationStock } = useQuery({
+    queryKey: ['location-stock', selectedLocation],
     queryFn: async () => {
-      if (!selectedVan) return [];
-      const response = await vanApi.getStock(Number(selectedVan));
+      if (!selectedLocation) return [];
+      const response = await stockApi.getByLocation(Number(selectedLocation));
       return response.data.data || [];
     },
-    enabled: !!selectedVan,
+    enabled: !!selectedLocation,
   });
 
   const handlePrint = () => {
@@ -100,7 +100,7 @@ export default function POS() {
     mutationFn: (data: any) => invoiceApi.createSales(data),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['van-stock'] });
+      queryClient.invalidateQueries({ queryKey: ['location-stock'] });
       
       // Save invoice data for printing
       const total = calculateTotal();
@@ -108,7 +108,7 @@ export default function POS() {
         invoiceNumber: response.data.data?.invoice_number,
         invoiceDate: new Date().toISOString(),
         customerName: customers?.find((c: any) => c.id === Number(selectedCustomer))?.name || 'Walk-in Customer',
-        vanName: vans?.find((v: any) => v.id === Number(selectedVan))?.name,
+        locationName: locations?.find((l: any) => l.id === Number(selectedLocation))?.name,
         items: cart,
         subtotal: total,
         paidAmount: Number(paidAmount) || 0,
@@ -132,16 +132,16 @@ export default function POS() {
   });
 
   const addProductToCart = (productId: number, qty: number = 1) => {
-    if (!selectedVan) {
-      toast.error('Please select a van first');
+    if (!selectedLocation) {
+      toast.error('Please select a location first');
       return;
     }
 
     const product = products?.find((p: any) => p.id === productId);
-    const stock = vanStock?.find((s: any) => s.product_id === productId);
+    const stock = locationStock?.find((s: any) => s.product_id === productId);
 
     if (!stock || stock.quantity < qty) {
-      toast.error('Insufficient stock in selected van');
+      toast.error('Insufficient stock in selected location');
       return;
     }
 
@@ -190,7 +190,7 @@ export default function POS() {
       return;
     }
 
-    const stock = vanStock?.find((s: any) => s.product_id === productId);
+    const stock = locationStock?.find((s: any) => s.product_id === productId);
     if (stock && newQuantity > stock.quantity) {
       toast.error('Insufficient stock');
       return;
@@ -209,7 +209,7 @@ export default function POS() {
 
   const handleClearCart = () => {
     setCart([]);
-    setSelectedVan('');
+    setSelectedLocation('');
     setSelectedCustomer('');
     setPaidAmount('');
     setPaymentMethod('cash');
@@ -224,8 +224,8 @@ export default function POS() {
       toast.error('Cart is empty');
       return;
     }
-    if (!selectedVan) {
-      toast.error('Please select a van');
+    if (!selectedLocation) {
+      toast.error('Please select a location');
       return;
     }
     setIsCheckoutOpen(true);
@@ -242,7 +242,7 @@ export default function POS() {
     }
 
     const saleData: any = {
-      van_id: Number(selectedVan),
+      location_id: Number(selectedLocation),
       items: cart.map(item => ({
         product_id: item.product_id,
         quantity: item.quantity,
@@ -260,9 +260,9 @@ export default function POS() {
     createSaleMutation.mutate(saleData);
   };
 
-  const vanOptions = vans?.filter((van: any) => van.is_active).map((van: any) => ({
-    value: van.id.toString(),
-    label: van.name,
+  const locationOptions = locations?.filter((location: any) => location.is_active).map((location: any) => ({
+    value: location.id.toString(),
+    label: `${location.name} (${location.type})`,
   })) || [];
 
   const customerOptions = customers?.map((customer: any) => ({
@@ -271,7 +271,7 @@ export default function POS() {
   })) || [];
 
   const productOptions = products?.map((product: any) => {
-    const stock = vanStock?.find((s: any) => s.product_id === product.id);
+    const stock = locationStock?.find((s: any) => s.product_id === product.id);
     return {
       value: product.id.toString(),
       label: `${product.name_en} - ${product.sku} (Stock: ${stock?.quantity || 0})`,
@@ -292,7 +292,7 @@ export default function POS() {
           <p className="text-gray-600 dark:text-gray-400 mt-1">Quick sales checkout system</p>
         </div>
 
-        {/* Van & Customer Selection */}
+        {/* Location & Customer Selection */}
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <h2 className="text-lg font-semibold">Sale Information</h2>
@@ -300,14 +300,14 @@ export default function POS() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="w-full space-y-2">
-                <Label className="text-base">Select Van <span className="text-red-500">*</span></Label>
+                <Label className="text-base">Select Location <span className="text-red-500">*</span></Label>
                 <Combobox
-                  options={[{ value: '', label: 'Select van...' }, ...vanOptions]}
-                  value={selectedVan}
-                  onChange={setSelectedVan}
-                  placeholder="Select van"
-                  searchPlaceholder="Search vans..."
-                  emptyText="No vans found"
+                  options={[{ value: '', label: 'Select location...' }, ...locationOptions]}
+                  value={selectedLocation}
+                  onChange={setSelectedLocation}
+                  placeholder="Select location"
+                  searchPlaceholder="Search locations..."
+                  emptyText="No locations found"
                 />
               </div>
               <div className="w-full space-y-2">
@@ -343,8 +343,8 @@ export default function POS() {
                   onChange={setSelectedProduct}
                   placeholder="Search products..."
                   searchPlaceholder="Type to search..."
-                  emptyText="No products in van"
-                  disabled={!selectedVan}
+                  emptyText="No products in location"
+                  disabled={!selectedLocation}
                 />
               </div>
               <div className="w-full space-y-2">
@@ -358,7 +358,7 @@ export default function POS() {
                     min="1"
                     className="flex-1 h-11"
                   />
-                  <Button onClick={handleAddToCart} disabled={!selectedVan} size="lg" className="px-6">
+                  <Button onClick={handleAddToCart} disabled={!selectedLocation} size="lg" className="px-6">
                     <Plus className="h-5 w-5" />
                   </Button>
                 </div>
@@ -368,14 +368,14 @@ export default function POS() {
         </Card>
 
         {/* Quick Product Grid */}
-        {selectedVan && vanStock && vanStock.length > 0 && (
+        {selectedLocation && locationStock && locationStock.length > 0 && (
           <Card className="border-0 shadow-lg">
             <CardHeader>
               <h2 className="text-lg font-semibold">Quick Select</h2>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {vanStock.slice(0, 12).map((stock: any) => {
+                {locationStock.slice(0, 12).map((stock: any) => {
                   const product = products?.find((p: any) => p.id === stock.product_id);
                   if (!product || stock.quantity === 0) return null;
                   return (
@@ -484,7 +484,7 @@ export default function POS() {
                   className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white"
                   size="lg"
                   onClick={handleCheckout}
-                  disabled={cart.length === 0 || !selectedVan}
+                  disabled={cart.length === 0 || !selectedLocation}
                 >
                   <DollarSign className="mr-2 h-5 w-5" />
                   Proceed to Checkout
@@ -586,7 +586,7 @@ export default function POS() {
           invoiceNumber={lastInvoice.invoiceNumber}
           invoiceDate={lastInvoice.invoiceDate}
           customerName={lastInvoice.customerName}
-          vanName={lastInvoice.vanName}
+          locationName={lastInvoice.locationName}
           items={lastInvoice.items}
           subtotal={lastInvoice.subtotal}
           paidAmount={lastInvoice.paidAmount}

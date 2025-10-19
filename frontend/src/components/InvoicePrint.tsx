@@ -13,7 +13,7 @@ interface InvoicePrintProps {
   invoiceNumber?: string;
   invoiceDate: string;
   customerName?: string;
-  vanName?: string;
+  locationName?: string;
   items: InvoiceItem[];
   subtotal: number;
   paidAmount: number;
@@ -27,7 +27,7 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
       invoiceNumber,
       invoiceDate,
       customerName,
-      vanName,
+      locationName,
       items,
       subtotal,
       paidAmount,
@@ -79,10 +79,10 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
                 <span>{customerName}</span>
               </div>
             )}
-            {vanName && (
+            {locationName && (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                <span style={{ fontWeight: 'bold' }}>Van:</span>
-                <span>{vanName}</span>
+                <span style={{ fontWeight: 'bold' }}>Location:</span>
+                <span>{locationName}</span>
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>

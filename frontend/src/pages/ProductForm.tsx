@@ -108,7 +108,7 @@ export default function ProductForm() {
         cost_price: product.cost_price?.toString() || '',
         unit: product.unit || 'piece',
         min_stock_level: product.min_stock_level?.toString() || '0',
-        is_active: product.is_active,
+        is_active: product.is_active ? 1 : 0,
       });
     }
   }, [product, reset]);

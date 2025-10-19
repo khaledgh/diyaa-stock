@@ -151,8 +151,8 @@ export default function Products() {
                     <TableRow key={product.id}>
                       <TableCell className="font-medium">{product.sku}</TableCell>
                       <TableCell>{product.name_en}</TableCell>
-                      <TableCell>{product.category_name_en || '-'}</TableCell>
-                      <TableCell>{product.type_name_en || '-'}</TableCell>
+                      <TableCell>{product.category?.name_en || '-'}</TableCell>
+                      <TableCell>{product.product_type?.name_en || '-'}</TableCell>
                       <TableCell>{formatCurrency(product.unit_price)}</TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">

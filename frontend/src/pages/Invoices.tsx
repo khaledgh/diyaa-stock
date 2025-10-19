@@ -1,24 +1,50 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { FileText, Eye, Plus, Trash2, DollarSign, Printer, Receipt, Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import {
+  FileText,
+  Eye,
+  Plus,
+  Trash2,
+  DollarSign,
+  Printer,
+  Receipt,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { invoiceApi, productApi, vanApi, customerApi, vendorApi, paymentApi, stockApi } from '@/lib/api';
-import { formatCurrency, formatDateTime } from '@/lib/utils';
-import { Combobox } from '@/components/ui/combobox';
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  invoiceApi,
+  productApi,
+  vanApi,
+  customerApi,
+  vendorApi,
+  paymentApi,
+  stockApi,
+} from "@/lib/api";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { Combobox } from "@/components/ui/combobox";
 
 interface InvoiceItem {
   product_id: number;
@@ -33,49 +59,95 @@ export default function Invoices() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [invoiceType, setInvoiceType] = useState<'purchase' | 'sales'>('sales');
+  const [invoiceType, setInvoiceType] = useState<"purchase" | "sales">("sales");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
-  
+
   // Form states
-  const [selectedVan, setSelectedVan] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState('');
-  const [selectedVendor, setSelectedVendor] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [unitPrice, setUnitPrice] = useState('');
-  const [discount, setDiscount] = useState('');
-  const [paidAmount, setPaidAmount] = useState('');
-  const [notes, setNotes] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [referenceNumber, setReferenceNumber] = useState('');
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentDialogMethod, setPaymentDialogMethod] = useState('cash');
-  const [paymentDialogReference, setPaymentDialogReference] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedVan, setSelectedVan] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState("");
+  const [selectedVendor, setSelectedVendor] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [unitPrice, setUnitPrice] = useState("");
+  const [discount, setDiscount] = useState("");
+  const [paidAmount, setPaidAmount] = useState("");
+  const [notes, setNotes] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [referenceNumber, setReferenceNumber] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDialogMethod, setPaymentDialogMethod] = useState("cash");
+  const [paymentDialogReference, setPaymentDialogReference] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
-  const [purchaseLocationType, setPurchaseLocationType] = useState('warehouse');
-  const [purchaseLocationVan, setPurchaseLocationVan] = useState('');
+  const [purchaseLocationType, setPurchaseLocationType] = useState("warehouse");
+  const [purchaseLocationVan, setPurchaseLocationVan] = useState("");
 
   const { data: invoicesData, isLoading } = useQuery({
-    queryKey: ['invoices', invoiceType, searchQuery, currentPage, pageSize],
+    queryKey: ["invoices", invoiceType, searchQuery, currentPage, pageSize],
     queryFn: async () => {
-      const response = await invoiceApi.getAll({ 
+      const response = await invoiceApi.getAll({
         invoice_type: invoiceType,
         search: searchQuery || undefined,
         limit: pageSize,
-        offset: (currentPage - 1) * pageSize
+        offset: (currentPage - 1) * pageSize,
       });
-      return response.data.data;
+
+      const payload = response?.data;
+
+      // Normalize into { data: [], pagination: {...} }
+      const defaultResult = { data: [], pagination: { total: 0, pages: 1, page: 1 } } as {
+        data: any[];
+        pagination: { total: number; pages: number; page: number };
+      };
+
+      if (!payload) return defaultResult;
+
+      // Case A: API returns array directly
+      if (Array.isArray(payload)) {
+        return {
+          data: payload,
+          pagination: { total: payload.length, pages: 1, page: 1 },
+        };
+      }
+
+      // Case B: API returns { invoices: { data, pagination } } or { invoices: [] }
+      if (payload.invoices) {
+        const inv = payload.invoices;
+        if (Array.isArray(inv)) {
+          return { data: inv, pagination: { total: inv.length, pages: 1, page: 1 } };
+        }
+        const dataArr = Array.isArray(inv?.data) ? inv.data : [];
+        const pag = inv?.pagination || { total: dataArr.length, pages: 1, page: 1 };
+        return { data: dataArr, pagination: pag };
+      }
+
+      // Case C: API returns { data: [], pagination? }
+      if (payload.data) {
+        const maybeData = payload.data;
+        if (Array.isArray(maybeData)) {
+          return {
+            data: maybeData,
+            pagination: payload.pagination || { total: maybeData.length, pages: 1, page: 1 },
+          };
+        }
+        // { data: { data: [], pagination } }
+        const innerData = Array.isArray(maybeData?.data) ? maybeData.data : [];
+        const pag = maybeData?.pagination || payload.pagination || { total: innerData.length, pages: 1, page: 1 };
+        return { data: innerData, pagination: pag };
+      }
+
+      // Safe fallback
+      return defaultResult;
     },
   });
 
   const { data: invoiceStats } = useQuery({
-    queryKey: ['invoice-stats'],
+    queryKey: ["invoice-stats"],
     queryFn: async () => {
       const response = await invoiceApi.getStats();
       return response.data.data;
@@ -83,20 +155,24 @@ export default function Invoices() {
   });
 
   const invoices = invoicesData?.data || [];
-  const pagination = invoicesData?.pagination || { total: 0, pages: 1, page: 1 };
+  const pagination = invoicesData?.pagination || {
+    total: 0,
+    pages: 1,
+    page: 1,
+  };
 
   const { data: products } = useQuery({
-    queryKey: ['products'],
+    queryKey: ["products"],
     queryFn: async () => {
       const response = await productApi.getAll();
       // Handle paginated response
       const apiData = response.data.data || response.data;
-      return Array.isArray(apiData) ? apiData : (apiData.data || []);
+      return Array.isArray(apiData) ? apiData : apiData.data || [];
     },
   });
 
   const { data: vans } = useQuery({
-    queryKey: ['vans'],
+    queryKey: ["vans"],
     queryFn: async () => {
       const response = await vanApi.getAll();
       return response.data.data || [];
@@ -104,96 +180,104 @@ export default function Invoices() {
   });
 
   const { data: customers } = useQuery({
-    queryKey: ['customers'],
+    queryKey: ["customers"],
     queryFn: async () => {
       const response = await customerApi.getAll();
       // Handle paginated response
       const apiData = response.data.data || response.data;
-      return Array.isArray(apiData) ? apiData : (apiData.data || []);
+      return Array.isArray(apiData) ? apiData : apiData.data || [];
     },
   });
 
   const { data: vendors } = useQuery({
-    queryKey: ['vendors'],
+    queryKey: ["vendors"],
     queryFn: async () => {
       const response = await vendorApi.getAll();
       // Handle paginated response
       const apiData = response.data.data || response.data;
-      return Array.isArray(apiData) ? apiData : (apiData.data || []);
+      return Array.isArray(apiData) ? apiData : apiData.data || [];
     },
   });
 
   const { data: vanStock } = useQuery({
-    queryKey: ['van-stock', selectedVan],
+    queryKey: ["van-stock", selectedVan],
     queryFn: async () => {
-      if (!selectedVan || invoiceType !== 'sales') return [];
+      if (!selectedVan || invoiceType !== "sales") return [];
       const response = await vanApi.getStock(Number(selectedVan));
       return response.data.data || [];
     },
-    enabled: !!selectedVan && invoiceType === 'sales',
+    enabled: !!selectedVan && invoiceType === "sales",
   });
 
   const { data: warehouseStock } = useQuery({
-    queryKey: ['warehouse-stock'],
+    queryKey: ["warehouse-stock"],
     queryFn: async () => {
       const response = await stockApi.getWarehouse();
       return response.data.data || [];
     },
-    enabled: invoiceType === 'purchase',
+    enabled: invoiceType === "purchase",
   });
 
   const createInvoiceMutation = useMutation({
     mutationFn: (data: any) => {
-      return invoiceType === 'purchase' 
+      return invoiceType === "purchase"
         ? invoiceApi.createPurchase(data)
         : invoiceApi.createSales(data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['warehouse-stock'] });
-      queryClient.invalidateQueries({ queryKey: ['van-stock'] });
-      toast.success(`${invoiceType === 'purchase' ? 'Purchase' : 'Sales'} invoice created successfully`);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["van-stock"] });
+      toast.success(
+        `${
+          invoiceType === "purchase" ? "Purchase" : "Sales"
+        } invoice created successfully`
+      );
       handleCloseCreateDialog();
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to create invoice');
+      toast.error(error.response?.data?.message || "Failed to create invoice");
     },
   });
 
   const createPaymentMutation = useMutation({
     mutationFn: (data: any) => paymentApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      toast.success('Payment recorded successfully');
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Payment recorded successfully");
       setIsPaymentDialogOpen(false);
       if (selectedInvoice) {
         handleViewDetails(selectedInvoice.id);
       }
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to record payment');
+      toast.error(error.response?.data?.message || "Failed to record payment");
     },
   });
 
   const handleAddItem = () => {
     if (!selectedProduct || !quantity || !unitPrice) {
-      toast.error('Please fill all item fields');
+      toast.error("Please fill all item fields");
       return;
     }
 
-    const product = products?.find((p: any) => p.id === Number(selectedProduct));
-    
+    const product = products?.find(
+      (p: any) => p.id === Number(selectedProduct)
+    );
+
     // Check stock for sales
-    if (invoiceType === 'sales') {
-      const stock = vanStock?.find((s: any) => s.product_id === Number(selectedProduct));
+    if (invoiceType === "sales") {
+      const stock = vanStock?.find(
+        (s: any) => s.product_id === Number(selectedProduct)
+      );
       if (!stock || stock.quantity < Number(quantity)) {
-        toast.error('Insufficient van stock');
+        toast.error("Insufficient van stock");
         return;
       }
     }
 
     const itemTotal = Number(quantity) * Number(unitPrice);
-    const discountAmount = itemTotal * (Number(discount) || 0) / 100;
+    const discountAmount = (itemTotal * (Number(discount) || 0)) / 100;
     const finalTotal = itemTotal - discountAmount;
 
     const newItem: InvoiceItem = {
@@ -206,10 +290,10 @@ export default function Invoices() {
     };
 
     setInvoiceItems([...invoiceItems, newItem]);
-    setSelectedProduct('');
-    setQuantity('');
-    setUnitPrice('');
-    setDiscount('');
+    setSelectedProduct("");
+    setQuantity("");
+    setUnitPrice("");
+    setDiscount("");
   };
 
   const handleRemoveItem = (index: number) => {
@@ -223,39 +307,43 @@ export default function Invoices() {
   const handleCloseCreateDialog = () => {
     setIsCreateDialogOpen(false);
     setInvoiceItems([]);
-    setSelectedVan('');
-    setSelectedCustomer('');
-    setSelectedVendor('');
-    setSelectedProduct('');
-    setQuantity('');
-    setUnitPrice('');
-    setDiscount('');
-    setPaidAmount('');
-    setPaymentMethod('cash');
-    setReferenceNumber('');
-    setNotes('');
-    setPurchaseLocationType('warehouse');
-    setPurchaseLocationVan('');
+    setSelectedVan("");
+    setSelectedCustomer("");
+    setSelectedVendor("");
+    setSelectedProduct("");
+    setQuantity("");
+    setUnitPrice("");
+    setDiscount("");
+    setPaidAmount("");
+    setPaymentMethod("cash");
+    setReferenceNumber("");
+    setNotes("");
+    setPurchaseLocationType("warehouse");
+    setPurchaseLocationVan("");
   };
 
   const handleCreateInvoice = () => {
     if (invoiceItems.length === 0) {
-      toast.error('Please add at least one item');
+      toast.error("Please add at least one item");
       return;
     }
 
-    if (invoiceType === 'sales' && !selectedVan) {
-      toast.error('Please select a van');
+    if (invoiceType === "sales" && !selectedVan) {
+      toast.error("Please select a van");
       return;
     }
 
-    if (invoiceType === 'purchase' && purchaseLocationType === 'van' && !purchaseLocationVan) {
-      toast.error('Please select a van for the destination');
+    if (
+      invoiceType === "purchase" &&
+      purchaseLocationType === "van" &&
+      !purchaseLocationVan
+    ) {
+      toast.error("Please select a van for the destination");
       return;
     }
 
     const invoiceData: any = {
-      items: invoiceItems.map(item => ({
+      items: invoiceItems.map((item) => ({
         product_id: item.product_id,
         quantity: item.quantity,
         unit_price: item.unit_price,
@@ -267,18 +355,19 @@ export default function Invoices() {
       notes: notes || undefined,
     };
 
-    if (invoiceType === 'sales') {
+    if (invoiceType === "sales") {
       invoiceData.van_id = Number(selectedVan);
       if (selectedCustomer) {
         invoiceData.customer_id = Number(selectedCustomer);
       }
-    } else if (invoiceType === 'purchase') {
+    } else if (invoiceType === "purchase") {
       if (selectedVendor) {
         invoiceData.vendor_id = Number(selectedVendor);
       }
       // Add location information for purchase invoices
       invoiceData.location_type = purchaseLocationType;
-      invoiceData.location_id = purchaseLocationType === 'van' ? Number(purchaseLocationVan) : 0;
+      invoiceData.location_id =
+        purchaseLocationType === "van" ? Number(purchaseLocationVan) : 0;
     }
 
     createInvoiceMutation.mutate(invoiceData);
@@ -290,19 +379,20 @@ export default function Invoices() {
       setSelectedInvoice(response.data.data);
       setIsDetailsDialogOpen(true);
     } catch (error) {
-      toast.error('Failed to load invoice details');
+      toast.error("Failed to load invoice details");
     }
   };
 
   const handleAddPayment = () => {
     if (!selectedInvoice || !paymentAmount) {
-      toast.error('Please enter payment amount');
+      toast.error("Please enter payment amount");
       return;
     }
 
-    const remaining = selectedInvoice.total_amount - selectedInvoice.paid_amount;
+    const remaining =
+      selectedInvoice.total_amount - selectedInvoice.paid_amount;
     if (Number(paymentAmount) > remaining) {
-      toast.error('Payment amount exceeds remaining balance');
+      toast.error("Payment amount exceeds remaining balance");
       return;
     }
 
@@ -316,28 +406,28 @@ export default function Invoices() {
 
   const handlePrintInvoice = () => {
     if (!selectedInvoice) return;
-    
+
     // Load company settings
-    const savedSettings = localStorage.getItem('company_settings');
+    const savedSettings = localStorage.getItem("company_settings");
     let companySettings: any = {
-      company_name: 'Company Name',
-      company_address: '',
-      company_phone: '',
-      company_email: '',
-      company_tax_id: '',
-      company_logo_url: '',
-      invoice_footer: 'Thank you for your business!',
+      company_name: "Company Name",
+      company_address: "",
+      company_phone: "",
+      company_email: "",
+      company_tax_id: "",
+      company_logo_url: "",
+      invoice_footer: "Thank you for your business!",
     };
-    
+
     if (savedSettings) {
       try {
         companySettings = JSON.parse(savedSettings);
       } catch (error) {
-        console.error('Failed to load company settings');
+        console.error("Failed to load company settings");
       }
     }
-    
-    const printWindow = window.open('', '_blank');
+
+    const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
     const invoiceHtml = `
@@ -367,26 +457,72 @@ export default function Invoices() {
       </head>
       <body>
         <div class="header">
-          ${companySettings.company_logo_url ? `<img src="${companySettings.company_logo_url}" alt="Company Logo" />` : ''}
+          ${
+            companySettings.company_logo_url
+              ? `<img src="${companySettings.company_logo_url}" alt="Company Logo" />`
+              : ""
+          }
           <h1>${companySettings.company_name}</h1>
-          ${companySettings.company_address ? `<p>${companySettings.company_address}</p>` : ''}
+          ${
+            companySettings.company_address
+              ? `<p>${companySettings.company_address}</p>`
+              : ""
+          }
           <p>
-            ${companySettings.company_phone ? `Tel: ${companySettings.company_phone}` : ''}
-            ${companySettings.company_phone && companySettings.company_email ? ' | ' : ''}
-            ${companySettings.company_email ? `Email: ${companySettings.company_email}` : ''}
+            ${
+              companySettings.company_phone
+                ? `Tel: ${companySettings.company_phone}`
+                : ""
+            }
+            ${
+              companySettings.company_phone && companySettings.company_email
+                ? " | "
+                : ""
+            }
+            ${
+              companySettings.company_email
+                ? `Email: ${companySettings.company_email}`
+                : ""
+            }
           </p>
-          ${companySettings.company_tax_id ? `<p>Tax ID: ${companySettings.company_tax_id}</p>` : ''}
+          ${
+            companySettings.company_tax_id
+              ? `<p>Tax ID: ${companySettings.company_tax_id}</p>`
+              : ""
+          }
         </div>
         
         <div class="invoice-title">INVOICE</div>
-        <p><strong>Invoice Number:</strong> ${selectedInvoice.invoice_number}</p>
+        <p><strong>Invoice Number:</strong> ${
+          selectedInvoice.invoice_number
+        }</p>
         
         <div class="info">
           <div class="info-section">
-            <strong>Date:</strong> ${formatDateTime(selectedInvoice.created_at)}<br>
-            ${selectedInvoice.invoice_type === 'purchase' && selectedInvoice.vendor_name ? `<strong>Vendor:</strong> ${selectedInvoice.vendor_name}${selectedInvoice.vendor_company ? ` (${selectedInvoice.vendor_company})` : ''}<br>` : ''}
-            ${selectedInvoice.invoice_type === 'sales' && selectedInvoice.customer_name ? `<strong>Customer:</strong> ${selectedInvoice.customer_name}<br>` : ''}
-            ${selectedInvoice.van_name ? `<strong>Van:</strong> ${selectedInvoice.van_name}<br>` : ''}
+            <strong>Date:</strong> ${formatDateTime(
+              selectedInvoice.created_at
+            )}<br>
+            ${
+              selectedInvoice.invoice_type === "purchase" &&
+              selectedInvoice.vendor_name
+                ? `<strong>Vendor:</strong> ${selectedInvoice.vendor_name}${
+                    selectedInvoice.vendor_company
+                      ? ` (${selectedInvoice.vendor_company})`
+                      : ""
+                  }<br>`
+                : ""
+            }
+            ${
+              selectedInvoice.invoice_type === "sales" &&
+              selectedInvoice.customer_name
+                ? `<strong>Customer:</strong> ${selectedInvoice.customer_name}<br>`
+                : ""
+            }
+            ${
+              selectedInvoice.van_name
+                ? `<strong>Van:</strong> ${selectedInvoice.van_name}<br>`
+                : ""
+            }
           </div>
           <div class="info-section" style="text-align: right;">
             <strong>Status:</strong> ${selectedInvoice.payment_status.toUpperCase()}<br>
@@ -404,14 +540,18 @@ export default function Invoices() {
             </tr>
           </thead>
           <tbody>
-            ${selectedInvoice.items?.map((item: any) => `
+            ${selectedInvoice.items
+              ?.map(
+                (item: any) => `
               <tr>
                 <td>${item.product_name || item.name_en}</td>
                 <td class="text-right">${item.quantity}</td>
                 <td class="text-right">${formatCurrency(item.unit_price)}</td>
                 <td class="text-right">${formatCurrency(item.total)}</td>
               </tr>
-            `).join('')}
+            `
+              )
+              .join("")}
           </tbody>
         </table>
 
@@ -420,18 +560,26 @@ export default function Invoices() {
             <span>Subtotal:</span>
             <span>${formatCurrency(selectedInvoice.subtotal)}</span>
           </div>
-          ${selectedInvoice.tax_amount > 0 ? `
+          ${
+            selectedInvoice.tax_amount > 0
+              ? `
             <div class="totals-row">
               <span>Tax:</span>
               <span>${formatCurrency(selectedInvoice.tax_amount)}</span>
             </div>
-          ` : ''}
-          ${selectedInvoice.discount_amount > 0 ? `
+          `
+              : ""
+          }
+          ${
+            selectedInvoice.discount_amount > 0
+              ? `
             <div class="totals-row">
               <span>Discount:</span>
               <span>-${formatCurrency(selectedInvoice.discount_amount)}</span>
             </div>
-          ` : ''}
+          `
+              : ""
+          }
           <div class="totals-row total-row">
             <span>Total:</span>
             <span>${formatCurrency(selectedInvoice.total_amount)}</span>
@@ -442,15 +590,21 @@ export default function Invoices() {
           </div>
           <div class="totals-row" style="color: red; font-weight: bold;">
             <span>Remaining:</span>
-            <span>${formatCurrency(selectedInvoice.total_amount - selectedInvoice.paid_amount)}</span>
+            <span>${formatCurrency(
+              selectedInvoice.total_amount - selectedInvoice.paid_amount
+            )}</span>
           </div>
         </div>
 
-        ${companySettings.invoice_footer ? `
+        ${
+          companySettings.invoice_footer
+            ? `
           <div class="footer">
             ${companySettings.invoice_footer}
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
         <div style="margin-top: 50px; text-align: center;">
           <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">Print Invoice</button>
@@ -465,24 +619,24 @@ export default function Invoices() {
 
   const handlePrintPOSReceipt = () => {
     if (!selectedInvoice) return;
-    
+
     // Load company settings
-    const savedSettings = localStorage.getItem('company_settings');
+    const savedSettings = localStorage.getItem("company_settings");
     let companySettings: any = {
-      company_name: 'Company Name',
-      company_phone: '',
-      company_tax_id: '',
+      company_name: "Company Name",
+      company_phone: "",
+      company_tax_id: "",
     };
-    
+
     if (savedSettings) {
       try {
         companySettings = JSON.parse(savedSettings);
       } catch (error) {
-        console.error('Failed to load company settings');
+        console.error("Failed to load company settings");
       }
     }
-    
-    const printWindow = window.open('', '_blank');
+
+    const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
     // POS thermal receipt format (80mm width)
@@ -520,8 +674,16 @@ export default function Invoices() {
       </head>
       <body>
         <div class="center bold large">${companySettings.company_name}</div>
-        ${companySettings.company_phone ? `<div class="center">Tel: ${companySettings.company_phone}</div>` : ''}
-        ${companySettings.company_tax_id ? `<div class="center">Tax ID: ${companySettings.company_tax_id}</div>` : ''}
+        ${
+          companySettings.company_phone
+            ? `<div class="center">Tel: ${companySettings.company_phone}</div>`
+            : ""
+        }
+        ${
+          companySettings.company_tax_id
+            ? `<div class="center">Tax ID: ${companySettings.company_tax_id}</div>`
+            : ""
+        }
         
         <div class="line"></div>
         
@@ -533,28 +695,48 @@ export default function Invoices() {
           <span>Date:</span>
           <span>${new Date(selectedInvoice.created_at).toLocaleString()}</span>
         </div>
-        ${selectedInvoice.invoice_type === 'purchase' && selectedInvoice.vendor_name ? `
+        ${
+          selectedInvoice.invoice_type === "purchase" &&
+          selectedInvoice.vendor_name
+            ? `
           <div class="row">
             <span>Vendor:</span>
-            <span>${selectedInvoice.vendor_name}${selectedInvoice.vendor_company ? ` (${selectedInvoice.vendor_company})` : ''}</span>
+            <span>${selectedInvoice.vendor_name}${
+                selectedInvoice.vendor_company
+                  ? ` (${selectedInvoice.vendor_company})`
+                  : ""
+              }</span>
           </div>
-        ` : ''}
-        ${selectedInvoice.invoice_type === 'sales' && selectedInvoice.customer_name ? `
+        `
+            : ""
+        }
+        ${
+          selectedInvoice.invoice_type === "sales" &&
+          selectedInvoice.customer_name
+            ? `
           <div class="row">
             <span>Customer:</span>
             <span>${selectedInvoice.customer_name}</span>
           </div>
-        ` : ''}
-        ${selectedInvoice.van_name ? `
+        `
+            : ""
+        }
+        ${
+          selectedInvoice.van_name
+            ? `
           <div class="row">
             <span>Van:</span>
             <span>${selectedInvoice.van_name}</span>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
         <div class="double-line"></div>
         
-        ${selectedInvoice.items?.map((item: any) => `
+        ${selectedInvoice.items
+          ?.map(
+            (item: any) => `
           <div class="item-row">
             <div class="item-name">${item.product_name || item.name_en}</div>
           </div>
@@ -563,7 +745,9 @@ export default function Invoices() {
             <div class="item-price">${formatCurrency(item.unit_price)}</div>
             <div class="item-price">${formatCurrency(item.total)}</div>
           </div>
-        `).join('')}
+        `
+          )
+          .join("")}
         
         <div class="line"></div>
         
@@ -571,18 +755,26 @@ export default function Invoices() {
           <span>Subtotal:</span>
           <span>${formatCurrency(selectedInvoice.subtotal)}</span>
         </div>
-        ${selectedInvoice.tax_amount > 0 ? `
+        ${
+          selectedInvoice.tax_amount > 0
+            ? `
           <div class="row">
             <span>Tax:</span>
             <span>${formatCurrency(selectedInvoice.tax_amount)}</span>
           </div>
-        ` : ''}
-        ${selectedInvoice.discount_amount > 0 ? `
+        `
+            : ""
+        }
+        ${
+          selectedInvoice.discount_amount > 0
+            ? `
           <div class="row">
             <span>Discount:</span>
             <span>-${formatCurrency(selectedInvoice.discount_amount)}</span>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
         <div class="double-line"></div>
         
@@ -596,12 +788,18 @@ export default function Invoices() {
           <span>${formatCurrency(selectedInvoice.paid_amount)}</span>
         </div>
         
-        ${selectedInvoice.total_amount - selectedInvoice.paid_amount > 0 ? `
+        ${
+          selectedInvoice.total_amount - selectedInvoice.paid_amount > 0
+            ? `
           <div class="row bold">
             <span>Balance Due:</span>
-            <span>${formatCurrency(selectedInvoice.total_amount - selectedInvoice.paid_amount)}</span>
+            <span>${formatCurrency(
+              selectedInvoice.total_amount - selectedInvoice.paid_amount
+            )}</span>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
         <div class="line"></div>
         
@@ -621,67 +819,87 @@ export default function Invoices() {
     printWindow.document.close();
   };
 
-  const vanOptions = vans?.filter((van: any) => van.is_active).map((van: any) => ({
-    value: van.id.toString(),
-    label: van.name,
-  })) || [];
+  const vanOptions =
+    vans
+      ?.filter((van: any) => van.is_active)
+      .map((van: any) => ({
+        value: van.id.toString(),
+        label: van.name,
+      })) || [];
 
-  const customerOptions = customers?.map((customer: any) => ({
-    value: customer.id.toString(),
-    label: customer.name,
-  })) || [];
+  const customerOptions =
+    customers?.map((customer: any) => ({
+      value: customer.id.toString(),
+      label: customer.name,
+    })) || [];
 
-  const vendorOptions = vendors?.map((vendor: any) => ({
-    value: vendor.id.toString(),
-    label: vendor.company_name || vendor.name,
-  })) || [];
+  const vendorOptions =
+    vendors?.map((vendor: any) => ({
+      value: vendor.id.toString(),
+      label: vendor.company_name || vendor.name,
+    })) || [];
 
-  const productOptions = products?.map((product: any) => {
-    let stockInfo = '';
-    if (invoiceType === 'sales' && selectedVan) {
-      const stock = vanStock?.find((s: any) => s.product_id === product.id);
-      stockInfo = ` (Stock: ${stock?.quantity || 0})`;
-    } else if (invoiceType === 'purchase') {
-      const stock = warehouseStock?.find((s: any) => s.product_id === product.id);
-      stockInfo = ` (Stock: ${stock?.quantity || 0})`;
-    }
-    return {
-      value: product.id.toString(),
-      label: `${product.name_en}${stockInfo}`,
-    };
-  }) || [];
+  const productOptions =
+    products?.map((product: any) => {
+      let stockInfo = "";
+      if (invoiceType === "sales" && selectedVan) {
+        const stock = vanStock?.find((s: any) => s.product_id === product.id);
+        stockInfo = ` (Stock: ${stock?.quantity || 0})`;
+      } else if (invoiceType === "purchase") {
+        const stock = warehouseStock?.find(
+          (s: any) => s.product_id === product.id
+        );
+        stockInfo = ` (Stock: ${stock?.quantity || 0})`;
+      }
+      return {
+        value: product.id.toString(),
+        label: `${product.name_en}${stockInfo}`,
+      };
+    }) || [];
 
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold">{t('invoices.title') || 'Invoices'}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">
+            {t("invoices.title") || "Invoices"}
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {invoiceType === 'purchase' 
-              ? 'Purchase invoices add stock to warehouse or van and record expenses' 
-              : 'Sales invoices reduce van stock and record income'}
+            {invoiceType === "purchase"
+              ? "Purchase invoices add stock to warehouse or van and record expenses"
+              : "Sales invoices reduce van stock and record income"}
           </p>
         </div>
-        <Button onClick={() => navigate(`/invoices/new?type=${invoiceType}`)} size="lg" className="shadow-lg">
+        <Button
+          onClick={() => navigate(`/invoices/new?type=${invoiceType}`)}
+          size="lg"
+          className="shadow-lg"
+        >
           <Plus className="mr-2 h-5 w-5" />
-          {invoiceType === 'purchase' ? 'New Purchase' : 'New Sale'}
+          {invoiceType === "purchase" ? "New Purchase" : "New Sale"}
         </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Card 
-          className={`cursor-pointer transition-all ${invoiceType === 'purchase' ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950' : 'hover:bg-muted'}`}
+        <Card
+          className={`cursor-pointer transition-all ${
+            invoiceType === "purchase"
+              ? "ring-2 ring-red-500 bg-red-50 dark:bg-red-950"
+              : "hover:bg-muted"
+          }`}
           onClick={() => {
-            setInvoiceType('purchase');
+            setInvoiceType("purchase");
             setCurrentPage(1);
-            setSearchQuery('');
+            setSearchQuery("");
           }}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Purchase Invoices</h3>
-                <p className="text-sm text-muted-foreground">Buying from suppliers</p>
+                <p className="text-sm text-muted-foreground">
+                  Buying from suppliers
+                </p>
               </div>
               <div className="text-3xl font-bold text-red-600">
                 {invoiceStats?.purchase_count || 0}
@@ -690,19 +908,25 @@ export default function Invoices() {
           </CardContent>
         </Card>
 
-        <Card 
-          className={`cursor-pointer transition-all ${invoiceType === 'sales' ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950' : 'hover:bg-muted'}`}
+        <Card
+          className={`cursor-pointer transition-all ${
+            invoiceType === "sales"
+              ? "ring-2 ring-green-500 bg-green-50 dark:bg-green-950"
+              : "hover:bg-muted"
+          }`}
           onClick={() => {
-            setInvoiceType('sales');
+            setInvoiceType("sales");
             setCurrentPage(1);
-            setSearchQuery('');
+            setSearchQuery("");
           }}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Sales Invoices</h3>
-                <p className="text-sm text-muted-foreground">Selling to customers</p>
+                <p className="text-sm text-muted-foreground">
+                  Selling to customers
+                </p>
               </div>
               <div className="text-3xl font-bold text-green-600">
                 {invoiceStats?.sales_count || 0}
@@ -729,92 +953,138 @@ export default function Invoices() {
             </div>
           </div>
           {isLoading ? (
-            <div className="text-center py-8">{t('common.loading') || 'Loading...'}</div>
+            <div className="text-center py-8">
+              {t("common.loading") || "Loading..."}
+            </div>
           ) : (
             <>
               <div className="overflow-x-auto -mx-4 sm:mx-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('invoices.invoiceNumber') || 'Invoice #'}</TableHead>
-                    <TableHead className="hidden md:table-cell">{t('common.date') || 'Date'}</TableHead>
-                    <TableHead className="hidden lg:table-cell">{invoiceType === 'purchase' ? (t('invoices.vendor') || 'Vendor') : (t('invoices.customer') || 'Customer')}</TableHead>
-                    {invoiceType === 'sales' && <TableHead className="hidden xl:table-cell">{t('invoices.van') || 'Van'}</TableHead>}
-                    <TableHead className="text-right">{t('common.total') || 'Total'}</TableHead>
-                    <TableHead className="hidden sm:table-cell">{t('invoices.paid') || 'Paid'}</TableHead>
-                    <TableHead>{t('invoices.paymentStatus') || 'Status'}</TableHead>
-                    <TableHead className="text-right">{t('common.actions') || 'Actions'}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoices?.map((invoice: any) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          {invoice.invoice_number}
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">{formatDateTime(invoice.created_at)}</TableCell>
-                      <TableCell className="hidden lg:table-cell">{invoiceType === 'purchase' ? (invoice.vendor_name || invoice.vendor_company || '-') : (invoice.customer_name || '-')}</TableCell>
-                      {invoiceType === 'sales' && <TableCell className="hidden xl:table-cell">{invoice.van_name || '-'}</TableCell>}
-                      <TableCell className="text-right font-medium">{formatCurrency(invoice.total_amount)}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-right">{formatCurrency(invoice.paid_amount)}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          invoice.payment_status === 'paid' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                          invoice.payment_status === 'partial' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                          'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                        }`}>
-                          {invoice.payment_status}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewDetails(invoice.id)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>
+                        {t("invoices.invoiceNumber") || "Invoice #"}
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        {t("common.date") || "Date"}
+                      </TableHead>
+                      <TableHead className="hidden lg:table-cell">
+                        {invoiceType === "purchase"
+                          ? t("invoices.vendor") || "Vendor"
+                          : t("invoices.customer") || "Customer"}
+                      </TableHead>
+                      {invoiceType === "sales" && (
+                        <TableHead className="hidden xl:table-cell">
+                          {t("invoices.van") || "Van"}
+                        </TableHead>
+                      )}
+                      <TableHead className="text-right">
+                        {t("common.total") || "Total"}
+                      </TableHead>
+                      <TableHead className="hidden sm:table-cell">
+                        {t("invoices.paid") || "Paid"}
+                      </TableHead>
+                      <TableHead>
+                        {t("invoices.paymentStatus") || "Status"}
+                      </TableHead>
+                      <TableHead className="text-right">
+                        {t("common.actions") || "Actions"}
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            
-            {/* Pagination */}
-            {pagination.pages > 1 && (
-              <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                <div className="text-sm text-muted-foreground">
-                  Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, pagination.total)} of {pagination.total} results
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Previous
-                  </Button>
-                  <div className="text-sm">
-                    Page {currentPage} of {pagination.pages}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.min(pagination.pages, p + 1))}
-                    disabled={currentPage === pagination.pages}
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
+                  </TableHeader>
+                  <TableBody>
+                    {invoices?.map((invoice: any) => (
+                      <TableRow key={invoice.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            {invoice.invoice_number}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {formatDateTime(invoice.created_at)}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          {invoiceType === "purchase"
+                            ? invoice.vendor_name ||
+                              invoice.vendor_company ||
+                              "-"
+                            : invoice.customer_name || "-"}
+                        </TableCell>
+                        {invoiceType === "sales" && (
+                          <TableCell className="hidden xl:table-cell">
+                            {invoice.van_name || "-"}
+                          </TableCell>
+                        )}
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(invoice.total_amount)}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-right">
+                          {formatCurrency(invoice.paid_amount)}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              invoice.payment_status === "paid"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : invoice.payment_status === "partial"
+                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                            }`}
+                          >
+                            {invoice.payment_status}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewDetails(invoice.id)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-            )}
+
+              {/* Pagination */}
+              {pagination.pages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {(currentPage - 1) * pageSize + 1} to{" "}
+                    {Math.min(currentPage * pageSize, pagination.total)} of{" "}
+                    {pagination.total} results
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <div className="text-sm">
+                      Page {currentPage} of {pagination.pages}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCurrentPage((p) => Math.min(pagination.pages, p + 1))
+                      }
+                      disabled={currentPage === pagination.pages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </CardContent>
@@ -824,25 +1094,46 @@ export default function Invoices() {
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <div className={`p-4 rounded-lg mb-4 ${invoiceType === 'purchase' ? 'bg-red-50 dark:bg-red-950' : 'bg-green-50 dark:bg-green-950'}`}>
-              <DialogTitle className={`flex items-center gap-2 ${invoiceType === 'purchase' ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>
+            <div
+              className={`p-4 rounded-lg mb-4 ${
+                invoiceType === "purchase"
+                  ? "bg-red-50 dark:bg-red-950"
+                  : "bg-green-50 dark:bg-green-950"
+              }`}
+            >
+              <DialogTitle
+                className={`flex items-center gap-2 ${
+                  invoiceType === "purchase"
+                    ? "text-red-700 dark:text-red-300"
+                    : "text-green-700 dark:text-green-300"
+                }`}
+              >
                 <FileText className="h-5 w-5" />
-                {invoiceType === 'purchase' ? 'Create Purchase Invoice' : 'Create Sales Invoice'}
+                {invoiceType === "purchase"
+                  ? "Create Purchase Invoice"
+                  : "Create Sales Invoice"}
               </DialogTitle>
               <p className="text-sm mt-1 text-muted-foreground">
-                {invoiceType === 'purchase' 
-                  ? '📦 Buying products - Adds to warehouse stock - Payment is expense (-)' 
-                  : '💰 Selling products - Reduces van stock - Payment is income (+)'}
+                {invoiceType === "purchase"
+                  ? "📦 Buying products - Adds to warehouse stock - Payment is expense (-)"
+                  : "💰 Selling products - Reduces van stock - Payment is income (+)"}
               </p>
             </div>
           </DialogHeader>
           <div className="space-y-4">
-            {invoiceType === 'sales' && (
+            {invoiceType === "sales" && (
               <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md">
-                <Label className="text-blue-700 dark:text-blue-300">Select Van <span className="text-red-500">*</span></Label>
-                <p className="text-xs text-muted-foreground mb-2">Products will be deducted from this van's stock</p>
+                <Label className="text-blue-700 dark:text-blue-300">
+                  Select Van <span className="text-red-500">*</span>
+                </Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Products will be deducted from this van's stock
+                </p>
                 <Combobox
-                  options={[{ value: '', label: 'Select a van...' }, ...vanOptions]}
+                  options={[
+                    { value: "", label: "Select a van..." },
+                    ...vanOptions,
+                  ]}
                   value={selectedVan}
                   onChange={setSelectedVan}
                   placeholder="Select van"
@@ -852,13 +1143,20 @@ export default function Invoices() {
               </div>
             )}
 
-            {invoiceType === 'purchase' && (
+            {invoiceType === "purchase" && (
               <>
                 <div className="bg-amber-50 dark:bg-amber-950 p-3 rounded-md">
-                  <Label className="text-amber-700 dark:text-amber-300">Vendor/Supplier</Label>
-                  <p className="text-xs text-muted-foreground mb-2">Who are you buying from? (Optional)</p>
+                  <Label className="text-amber-700 dark:text-amber-300">
+                    Vendor/Supplier
+                  </Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Who are you buying from? (Optional)
+                  </p>
                   <Combobox
-                    options={[{ value: '', label: 'Select vendor...' }, ...vendorOptions]}
+                    options={[
+                      { value: "", label: "Select vendor..." },
+                      ...vendorOptions,
+                    ]}
                     value={selectedVendor}
                     onChange={setSelectedVendor}
                     placeholder="Select vendor"
@@ -868,15 +1166,19 @@ export default function Invoices() {
                 </div>
 
                 <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md">
-                  <Label className="text-blue-700 dark:text-blue-300">Destination Location <span className="text-red-500">*</span></Label>
-                  <p className="text-xs text-muted-foreground mb-2">Where should the purchased products be added?</p>
+                  <Label className="text-blue-700 dark:text-blue-300">
+                    Destination Location <span className="text-red-500">*</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Where should the purchased products be added?
+                  </p>
                   <div className="space-y-3">
                     <select
                       value={purchaseLocationType}
                       onChange={(e) => {
                         setPurchaseLocationType(e.target.value);
-                        if (e.target.value === 'warehouse') {
-                          setPurchaseLocationVan('');
+                        if (e.target.value === "warehouse") {
+                          setPurchaseLocationVan("");
                         }
                       }}
                       className="w-full border rounded-md p-2"
@@ -884,9 +1186,12 @@ export default function Invoices() {
                       <option value="warehouse">Warehouse</option>
                       <option value="van">Van</option>
                     </select>
-                    {purchaseLocationType === 'van' && (
+                    {purchaseLocationType === "van" && (
                       <Combobox
-                        options={[{ value: '', label: 'Select a van...' }, ...vanOptions]}
+                        options={[
+                          { value: "", label: "Select a van..." },
+                          ...vanOptions,
+                        ]}
                         value={purchaseLocationVan}
                         onChange={setPurchaseLocationVan}
                         placeholder="Select van"
@@ -899,11 +1204,14 @@ export default function Invoices() {
               </>
             )}
 
-            {invoiceType === 'sales' && (
+            {invoiceType === "sales" && (
               <div>
                 <Label>Customer (Optional)</Label>
                 <Combobox
-                  options={[{ value: '', label: 'Walk-in customer' }, ...customerOptions]}
+                  options={[
+                    { value: "", label: "Walk-in customer" },
+                    ...customerOptions,
+                  ]}
                   value={selectedCustomer}
                   onChange={setSelectedCustomer}
                   placeholder="Select customer"
@@ -919,13 +1227,18 @@ export default function Invoices() {
                 <div className="md:col-span-2">
                   <Label>Product</Label>
                   <Combobox
-                    options={[{ value: '', label: 'Select product...' }, ...productOptions]}
+                    options={[
+                      { value: "", label: "Select product..." },
+                      ...productOptions,
+                    ]}
                     value={selectedProduct}
                     onChange={(value) => {
                       setSelectedProduct(value);
-                      const product = products?.find((p: any) => p.id === Number(value));
+                      const product = products?.find(
+                        (p: any) => p.id === Number(value)
+                      );
                       if (product) {
-                        setUnitPrice(product.price?.toString() || '');
+                        setUnitPrice(product.price?.toString() || "");
                       }
                     }}
                     placeholder="Select product"
@@ -966,7 +1279,11 @@ export default function Invoices() {
                       max="100"
                       className="flex-1"
                     />
-                    <Button type="button" onClick={handleAddItem} variant="outline">
+                    <Button
+                      type="button"
+                      onClick={handleAddItem}
+                      variant="outline"
+                    >
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
@@ -989,11 +1306,21 @@ export default function Invoices() {
                     <TableBody>
                       {invoiceItems.map((item, index) => (
                         <TableRow key={index}>
-                          <TableCell className="font-medium">{item.product_name}</TableCell>
-                          <TableCell className="text-right">{item.quantity}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                          <TableCell className="text-right">{item.discount_percent}%</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(item.total || 0)}</TableCell>
+                          <TableCell className="font-medium">
+                            {item.product_name}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.quantity}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(item.unit_price)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.discount_percent}%
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(item.total || 0)}
+                          </TableCell>
                           <TableCell className="text-right">
                             <Button
                               type="button"
@@ -1007,8 +1334,15 @@ export default function Invoices() {
                         </TableRow>
                       ))}
                       <TableRow>
-                        <TableCell colSpan={4} className="text-right font-semibold">Total:</TableCell>
-                        <TableCell className="text-right font-bold text-lg">{formatCurrency(calculateTotal())}</TableCell>
+                        <TableCell
+                          colSpan={4}
+                          className="text-right font-semibold"
+                        >
+                          Total:
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-lg">
+                          {formatCurrency(calculateTotal())}
+                        </TableCell>
                         <TableCell></TableCell>
                       </TableRow>
                     </TableBody>
@@ -1017,15 +1351,21 @@ export default function Invoices() {
               )}
             </div>
 
-            <div className={`border-t pt-4 ${invoiceType === 'purchase' ? 'bg-red-50 dark:bg-red-950' : 'bg-green-50 dark:bg-green-950'} p-4 rounded-lg`}>
+            <div
+              className={`border-t pt-4 ${
+                invoiceType === "purchase"
+                  ? "bg-red-50 dark:bg-red-950"
+                  : "bg-green-50 dark:bg-green-950"
+              } p-4 rounded-lg`}
+            >
               <h3 className="font-semibold mb-2 flex items-center gap-2">
                 <DollarSign className="h-5 w-5" />
                 Payment Information (Optional)
               </h3>
               <p className="text-xs text-muted-foreground mb-4">
-                {invoiceType === 'purchase' 
-                  ? '⚠️ Payment will be recorded as EXPENSE (negative amount in red)' 
-                  : '✅ Payment will be recorded as INCOME (positive amount in green)'}
+                {invoiceType === "purchase"
+                  ? "⚠️ Payment will be recorded as EXPENSE (negative amount in red)"
+                  : "✅ Payment will be recorded as INCOME (positive amount in green)"}
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1037,11 +1377,25 @@ export default function Invoices() {
                     placeholder="0.00"
                     min="0"
                     step="0.01"
-                    className={paidAmount ? (invoiceType === 'purchase' ? 'border-red-500' : 'border-green-500') : ''}
+                    className={
+                      paidAmount
+                        ? invoiceType === "purchase"
+                          ? "border-red-500"
+                          : "border-green-500"
+                        : ""
+                    }
                   />
                   {paidAmount && (
-                    <p className={`text-xs mt-1 font-medium ${invoiceType === 'purchase' ? 'text-red-600' : 'text-green-600'}`}>
-                      Will be recorded as: {invoiceType === 'purchase' ? '-' : '+'}{formatCurrency(Number(paidAmount))}
+                    <p
+                      className={`text-xs mt-1 font-medium ${
+                        invoiceType === "purchase"
+                          ? "text-red-600"
+                          : "text-green-600"
+                      }`}
+                    >
+                      Will be recorded as:{" "}
+                      {invoiceType === "purchase" ? "-" : "+"}
+                      {formatCurrency(Number(paidAmount))}
                     </p>
                   )}
                 </div>
@@ -1092,7 +1446,9 @@ export default function Invoices() {
               disabled={createInvoiceMutation.isPending}
               className="w-full sm:w-auto"
             >
-              {createInvoiceMutation.isPending ? 'Creating...' : 'Create Invoice'}
+              {createInvoiceMutation.isPending
+                ? "Creating..."
+                : "Create Invoice"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1130,22 +1486,34 @@ export default function Invoices() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-muted-foreground">Invoice Number</Label>
-                  <p className="font-medium">{selectedInvoice.invoice_number}</p>
+                  <Label className="text-muted-foreground">
+                    Invoice Number
+                  </Label>
+                  <p className="font-medium">
+                    {selectedInvoice.invoice_number}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Date</Label>
-                  <p className="font-medium">{formatDateTime(selectedInvoice.created_at)}</p>
+                  <p className="font-medium">
+                    {formatDateTime(selectedInvoice.created_at)}
+                  </p>
                 </div>
-                {selectedInvoice.invoice_type === 'purchase' ? (
+                {selectedInvoice.invoice_type === "purchase" ? (
                   <div>
                     <Label className="text-muted-foreground">Vendor</Label>
-                    <p className="font-medium">{selectedInvoice.vendor_name || selectedInvoice.vendor_company || '-'}</p>
+                    <p className="font-medium">
+                      {selectedInvoice.vendor_name ||
+                        selectedInvoice.vendor_company ||
+                        "-"}
+                    </p>
                   </div>
                 ) : (
                   <div>
                     <Label className="text-muted-foreground">Customer</Label>
-                    <p className="font-medium">{selectedInvoice.customer_name || '-'}</p>
+                    <p className="font-medium">
+                      {selectedInvoice.customer_name || "-"}
+                    </p>
                   </div>
                 )}
                 {selectedInvoice.van_name && (
@@ -1170,10 +1538,18 @@ export default function Invoices() {
                   <TableBody>
                     {selectedInvoice.items?.map((item: any, index: number) => (
                       <TableRow key={index}>
-                        <TableCell className="font-medium">{item.product_name || item.name_en}</TableCell>
-                        <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(item.total)}</TableCell>
+                        <TableCell className="font-medium">
+                          {item.product_name || item.name_en}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.quantity}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(item.unit_price)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(item.total)}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1184,18 +1560,24 @@ export default function Invoices() {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span className="font-medium">{formatCurrency(selectedInvoice.subtotal)}</span>
+                    <span className="font-medium">
+                      {formatCurrency(selectedInvoice.subtotal)}
+                    </span>
                   </div>
                   {selectedInvoice.tax_amount > 0 && (
                     <div className="flex justify-between">
                       <span>Tax:</span>
-                      <span className="font-medium">{formatCurrency(selectedInvoice.tax_amount)}</span>
+                      <span className="font-medium">
+                        {formatCurrency(selectedInvoice.tax_amount)}
+                      </span>
                     </div>
                   )}
                   {selectedInvoice.discount_amount > 0 && (
                     <div className="flex justify-between">
                       <span>Discount:</span>
-                      <span className="font-medium text-red-600">-{formatCurrency(selectedInvoice.discount_amount)}</span>
+                      <span className="font-medium text-red-600">
+                        -{formatCurrency(selectedInvoice.discount_amount)}
+                      </span>
                     </div>
                   )}
                   <div className="flex justify-between text-lg font-bold border-t pt-2">
@@ -1204,16 +1586,23 @@ export default function Invoices() {
                   </div>
                   <div className="flex justify-between text-green-600">
                     <span>Paid:</span>
-                    <span className="font-medium">{formatCurrency(selectedInvoice.paid_amount)}</span>
+                    <span className="font-medium">
+                      {formatCurrency(selectedInvoice.paid_amount)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-red-600 font-semibold">
                     <span>Remaining:</span>
-                    <span>{formatCurrency(selectedInvoice.total_amount - selectedInvoice.paid_amount)}</span>
+                    <span>
+                      {formatCurrency(
+                        selectedInvoice.total_amount -
+                          selectedInvoice.paid_amount
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {selectedInvoice.payment_status !== 'paid' && (
+              {selectedInvoice.payment_status !== "paid" && (
                 <div className="border-t pt-4">
                   <Button
                     onClick={() => setIsPaymentDialogOpen(true)}
@@ -1240,27 +1629,39 @@ export default function Invoices() {
               <div className="bg-muted p-4 rounded-md">
                 <div className="flex justify-between mb-2">
                   <span>Invoice Total:</span>
-                  <span className="font-medium">{formatCurrency(selectedInvoice.total_amount)}</span>
+                  <span className="font-medium">
+                    {formatCurrency(selectedInvoice.total_amount)}
+                  </span>
                 </div>
                 <div className="flex justify-between mb-2">
                   <span>Already Paid:</span>
-                  <span className="font-medium text-green-600">{formatCurrency(selectedInvoice.paid_amount)}</span>
+                  <span className="font-medium text-green-600">
+                    {formatCurrency(selectedInvoice.paid_amount)}
+                  </span>
                 </div>
                 <div className="flex justify-between font-bold border-t pt-2">
                   <span>Remaining:</span>
-                  <span className="text-red-600">{formatCurrency(selectedInvoice.total_amount - selectedInvoice.paid_amount)}</span>
+                  <span className="text-red-600">
+                    {formatCurrency(
+                      selectedInvoice.total_amount - selectedInvoice.paid_amount
+                    )}
+                  </span>
                 </div>
               </div>
 
               <div>
-                <Label>Payment Amount <span className="text-red-500">*</span></Label>
+                <Label>
+                  Payment Amount <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   type="number"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   placeholder="0.00"
                   min="0"
-                  max={selectedInvoice.total_amount - selectedInvoice.paid_amount}
+                  max={
+                    selectedInvoice.total_amount - selectedInvoice.paid_amount
+                  }
                   step="0.01"
                 />
               </div>
@@ -1296,9 +1697,9 @@ export default function Invoices() {
               variant="outline"
               onClick={() => {
                 setIsPaymentDialogOpen(false);
-                setPaymentAmount('');
-                setPaymentDialogMethod('cash');
-                setPaymentDialogReference('');
+                setPaymentAmount("");
+                setPaymentDialogMethod("cash");
+                setPaymentDialogReference("");
               }}
               className="w-full sm:w-auto"
             >
@@ -1309,7 +1710,9 @@ export default function Invoices() {
               disabled={createPaymentMutation.isPending}
               className="w-full sm:w-auto"
             >
-              {createPaymentMutation.isPending ? 'Processing...' : 'Add Payment'}
+              {createPaymentMutation.isPending
+                ? "Processing..."
+                : "Add Payment"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -41,8 +41,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response = await apiService.login(email, password);
       
-      if (response.success && response.data) {
-        const userData = response.data.user;
+      if ((response.ok || response.success) && response.data) {
+        const userData = response.data.user || response.data;
         
         console.log('Login response user data:', JSON.stringify(userData, null, 2));
         

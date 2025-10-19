@@ -33,9 +33,9 @@ export default function HistoryScreen() {
 
       console.log('Invoices response:', response);
       
-      if (response.success) {
-        // The response has data inside response.data.data due to pagination
-        const invoicesData = response.data?.data || response.data || [];
+      if (response.ok || response.success) {
+        // The response has data inside response.invoices.data or response.data.data due to pagination
+        const invoicesData = response.invoices?.data || response.data?.data || response.data || [];
         console.log('Invoices data:', invoicesData);
         console.log('Is array?', Array.isArray(invoicesData));
         

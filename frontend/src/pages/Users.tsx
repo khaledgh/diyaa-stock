@@ -144,11 +144,11 @@ export default function Users() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.full_name.trim()) {
+    if (!formData.full_name || !formData.full_name.trim()) {
       toast.error('Full name is required');
       return;
     }
-    if (!formData.email.trim()) {
+    if (!formData.email || !formData.email.trim()) {
       toast.error('Email is required');
       return;
     }

@@ -27,7 +27,46 @@ export default function InvoicesNew() {
         limit: pageSize,
         offset: (currentPage - 1) * pageSize
       });
-      return response.data.data;
+      const payload = response?.data;
+
+      const defaultResult = { data: [], pagination: { total: 0, pages: 1, page: 1 } } as {
+        data: any[];
+        pagination: { total: number; pages: number; page: number };
+      };
+
+      if (!payload) return defaultResult;
+
+      if (Array.isArray(payload)) {
+        return {
+          data: payload,
+          pagination: { total: payload.length, pages: 1, page: 1 },
+        };
+      }
+
+      if (payload.invoices) {
+        const inv = payload.invoices;
+        if (Array.isArray(inv)) {
+          return { data: inv, pagination: { total: inv.length, pages: 1, page: 1 } };
+        }
+        const dataArr = Array.isArray(inv?.data) ? inv.data : [];
+        const pag = inv?.pagination || { total: dataArr.length, pages: 1, page: 1 };
+        return { data: dataArr, pagination: pag };
+      }
+
+      if (payload.data) {
+        const maybeData = payload.data;
+        if (Array.isArray(maybeData)) {
+          return {
+            data: maybeData,
+            pagination: payload.pagination || { total: maybeData.length, pages: 1, page: 1 },
+          };
+        }
+        const innerData = Array.isArray(maybeData?.data) ? maybeData.data : [];
+        const pag = maybeData?.pagination || payload.pagination || { total: innerData.length, pages: 1, page: 1 };
+        return { data: innerData, pagination: pag };
+      }
+
+      return defaultResult;
     },
   });
 
@@ -178,11 +217,11 @@ export default function InvoicesNew() {
                           </TableCell>
                           <TableCell className="hidden lg:table-cell">
                             {invoiceType === 'purchase' 
-                              ? (invoice.vendor_name || invoice.vendor_company || '-')
-                              : (invoice.customer_name || '-')}
+                              ? (invoice.vendor?.name || invoice.vendor?.company || '-')
+                              : (invoice.customer?.name || '-')}
                           </TableCell>
                           <TableCell className="hidden xl:table-cell">
-                            {invoice.location_name || '-'}
+                            {invoice.location?.name || '-'}
                           </TableCell>
                           <TableCell className="text-right font-medium">
                             {formatCurrency(invoice.total_amount)}
