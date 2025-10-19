@@ -1,5 +1,5 @@
 // API Configuration
-export const API_BASE_URL = 'https://api-transgate.linksbridge.top/api';
+export const API_BASE_URL = 'https://transgate-api.linksbridge.top/api';
 
 export const API_ENDPOINTS = {
   LOGIN: '/login',
