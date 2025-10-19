@@ -171,14 +171,16 @@ export default function POSScreen() {
   const cartWidth = 380;
 
   const loadStock = useCallback(async () => {
-    if (!user?.van_id) {
-      Alert.alert('Error', 'No van assigned to your account');
+    const locationId = user?.location_id || user?.van_id;
+    
+    if (!locationId) {
+      Alert.alert('Error', 'No location or van assigned to your account');
       setIsLoading(false);
       return;
     }
 
     try {
-      const response = await apiService.getVanStock(user.van_id);
+      const response = await apiService.getLocationStock(locationId);
       if (response.success) {
         // Transform backend data to match frontend interface
         const transformedData = (response.data || []).map((item: any) => ({
@@ -201,7 +203,7 @@ export default function POSScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.van_id]);
+  }, [user?.location_id, user?.van_id]);
 
   const loadCustomers = useCallback(async () => {
     try {

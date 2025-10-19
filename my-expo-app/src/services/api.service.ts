@@ -56,6 +56,11 @@ class ApiService {
     return response.data;
   }
 
+  async getLocationStock(locationId: number) {
+    const response = await this.api.get(`/locations/${locationId}/stock`);
+    return response.data;
+  }
+
   async getVanLocation(vanId: number) {
     const response = await this.api.get(`/locations?van_id=${vanId}&type=van`);
     return response.data;

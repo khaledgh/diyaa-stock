@@ -64,6 +64,11 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.POST("/locations", locationHandler.CreateHandler)
 	apiGroup.PUT("/locations/:id", locationHandler.UpdateHandler)
 	apiGroup.DELETE("/locations/:id", locationHandler.Delete)
+	
+	// Stock service for location stock endpoint
+	stockService := services.NewStockService(models.Stock{}, store)
+	stockHandler := handlers.NewStockHandler(stockService)
+	apiGroup.GET("/locations/:id/stock", stockHandler.LocationStockHandler)
 
 	// Employee routes - matches PHP: /api/employees
 	employeeService := services.NewEmployeeService(models.Employee{}, store)
@@ -77,8 +82,6 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	// Van routes - matches PHP: /api/vans
 	vanService := services.NewVanService(models.Van{}, store)
 	vanHandler := handlers.NewVanHandler(vanService)
-	stockService := services.NewStockService(models.Stock{}, store)
-	stockHandler := handlers.NewStockHandler(stockService)
 	apiGroup.GET("/vans", vanHandler.GetAllHandler)
 	apiGroup.GET("/vans/:id", vanHandler.GetIDHandler)
 	apiGroup.GET("/vans/:id/stock", stockHandler.VanStockHandler)
