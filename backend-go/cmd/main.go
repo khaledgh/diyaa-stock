@@ -28,5 +28,5 @@ func main() {
 
 	routes.SetupRoutes(e, db)
 	// cron.StartCron(db)
-	e.Logger.Fatal(e.Start(":9000"))
+	e.Logger.Fatal(e.Start(":9001"))
 }
