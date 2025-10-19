@@ -62,10 +62,35 @@ func (vh *VanHandler) GetIDHandler(c echo.Context) error {
 }
 
 func (vh *VanHandler) CreateHandler(c echo.Context) error {
-	var van models.Van
-	if err := c.Bind(&van); err != nil {
+	// Use DTO to handle employee_id from frontend
+	var dto struct {
+		Name        string `json:"name"`
+		PlateNumber string `json:"plate_number"`
+		OwnerType   string `json:"owner_type"`
+		EmployeeID  any    `json:"employee_id"` // Accept string or number
+		IsActive    bool   `json:"is_active"`
+	}
+	
+	if err := c.Bind(&dto); err != nil {
 		return ResponseError(c, err)
 	}
+	
+	// Create van with converted fields
+	van := models.Van{
+		Name:      dto.Name,
+		OwnerType: dto.OwnerType,
+		IsActive:  dto.IsActive,
+	}
+	
+	if dto.PlateNumber != "" {
+		van.PlateNumber = &dto.PlateNumber
+	}
+	
+	// Convert employee_id to user_id
+	if dto.EmployeeID != nil && dto.EmployeeID != "" {
+		van.UserID = convertToUintPtr(dto.EmployeeID)
+	}
+	
 	response, err := vh.VanServices.Create(van)
 	if err != nil {
 		return ResponseError(c, err)
@@ -79,8 +104,36 @@ func (vh *VanHandler) UpdateHandler(c echo.Context) error {
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	if err = c.Bind(&van); err != nil {
+	
+	// Use DTO to handle employee_id from frontend
+	var dto struct {
+		Name        string `json:"name"`
+		PlateNumber string `json:"plate_number"`
+		OwnerType   string `json:"owner_type"`
+		EmployeeID  any    `json:"employee_id"` // Accept string or number
+		IsActive    bool   `json:"is_active"`
+	}
+	
+	if err = c.Bind(&dto); err != nil {
 		return ResponseError(c, err)
+	}
+	
+	// Update van fields
+	van.Name = dto.Name
+	van.OwnerType = dto.OwnerType
+	van.IsActive = dto.IsActive
+	
+	if dto.PlateNumber != "" {
+		van.PlateNumber = &dto.PlateNumber
+	} else {
+		van.PlateNumber = nil
+	}
+	
+	// Convert employee_id to user_id
+	if dto.EmployeeID != nil && dto.EmployeeID != "" {
+		van.UserID = convertToUintPtr(dto.EmployeeID)
+	} else {
+		van.UserID = nil
 	}
 
 	response, err := vh.VanServices.Update(van)
