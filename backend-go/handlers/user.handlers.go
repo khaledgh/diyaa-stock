@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gonext-tech/invoicing-system/backend/models"
 	"github.com/gonext-tech/invoicing-system/backend/services"
@@ -151,6 +152,7 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 		Email      string `json:"email"`
 		FirstName  string `json:"first_name"`
 		LastName   string `json:"last_name"`
+		FullName   string `json:"full_name"` // Frontend sends this
 		Phone      string `json:"phone"`
 		Role       string `json:"role"`
 		Status     string `json:"status"`
@@ -165,11 +167,33 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 	
 	// Update user fields
 	user.Email = dto.Email
-	user.FirstName = dto.FirstName
-	user.LastName = dto.LastName
 	user.Phone = dto.Phone
 	user.Role = dto.Role
-	user.Status = dto.Status
+	if dto.Status != "" {
+		user.Status = dto.Status
+	}
+	
+	// Handle full_name splitting
+	if dto.FullName != "" {
+		// Split full name into first and last name
+		parts := strings.Fields(strings.TrimSpace(dto.FullName))
+		if len(parts) > 0 {
+			user.FirstName = parts[0]
+			if len(parts) > 1 {
+				user.LastName = strings.Join(parts[1:], " ")
+			} else {
+				user.LastName = ""
+			}
+		}
+	} else {
+		// Use separate first_name and last_name if provided
+		if dto.FirstName != "" {
+			user.FirstName = dto.FirstName
+		}
+		if dto.LastName != "" {
+			user.LastName = dto.LastName
+		}
+	}
 	
 	// Handle Position
 	if dto.Position != "" {
