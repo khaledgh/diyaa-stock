@@ -23,9 +23,29 @@ func main() {
 			"https://qwikbill.gonext.tech",
 			"https://transgate.linksbridge.top",
 			"https://transgate-api.linksbridge.top",
-			"capacitor://localhost", // For mobile apps
-			"ionic://localhost",     // For mobile apps
-			"http://localhost",      // For mobile apps
+			"capacitor://localhost",
+			"ionic://localhost",
+			"http://localhost",
+		},
+		AllowOriginFunc: func(origin string) (bool, error) {
+			// Dynamically allow the listed origins
+			allowed := []string{
+				"http://localhost:3000",
+				"http://localhost:5173",
+				"http://localhost:5174",
+				"https://qwikbill.gonext.tech",
+				"https://transgate.linksbridge.top",
+				"https://transgate-api.linksbridge.top",
+				"capacitor://localhost",
+				"ionic://localhost",
+				"http://localhost",
+			}
+			for _, o := range allowed {
+				if o == origin {
+					return true, nil
+				}
+			}
+			return false, nil
 		},
 		AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.DELETE, echo.PATCH, echo.OPTIONS},
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
