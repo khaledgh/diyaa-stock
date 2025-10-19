@@ -38,6 +38,14 @@ func (s *VanService) GetALL(limit, page int, orderBy, sortBy, searchTerm string)
 		return PaginationResponse{}, err
 	}
 
+	// Populate computed fields
+	for i := range vans {
+		vans[i].EmployeeID = vans[i].UserID
+		if vans[i].User != nil {
+			vans[i].EmployeeName = vans[i].User.FirstName + " " + vans[i].User.LastName
+		}
+	}
+
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
 
 	return PaginationResponse{
@@ -57,6 +65,13 @@ func (s *VanService) GetID(id string) (models.Van, error) {
 		}
 		return van, err
 	}
+	
+	// Populate computed fields
+	van.EmployeeID = van.UserID
+	if van.User != nil {
+		van.EmployeeName = van.User.FirstName + " " + van.User.LastName
+	}
+	
 	return van, nil
 }
 

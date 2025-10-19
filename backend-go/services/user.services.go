@@ -24,7 +24,7 @@ func (us *UserService) GetALL(limit, page int, orderBy, sortBy, status, role, se
 	users := []models.User{}
 	var totalRecords int64
 	
-	query := us.DB.Model(&models.User{})
+	query := us.DB.Model(&models.User{}).Preload("Van")
 	if searchTerm != "" {
 		searchTermWithWildcard := "%" + searchTerm + "%"
 		query = query.Where("email LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR phone LIKE ?", searchTermWithWildcard, searchTermWithWildcard, searchTermWithWildcard, searchTermWithWildcard)
@@ -45,6 +45,15 @@ func (us *UserService) GetALL(limit, page int, orderBy, sortBy, status, role, se
 		return PaginationResponse{}, err
 	}
 	
+	// Populate computed fields
+	for i := range users {
+		users[i].FullName = users[i].FirstName + " " + users[i].LastName
+		users[i].IsActive = users[i].Status == "ACTIVE"
+		if users[i].Van != nil {
+			users[i].VanName = users[i].Van.Name
+		}
+	}
+	
 	totalPages := int(math.Ceil(float64(totalRecords) / float64(limit)))
 	
 	log.Println("response", users)
@@ -60,9 +69,17 @@ func (us *UserService) GetALL(limit, page int, orderBy, sortBy, status, role, se
 
 func (us *UserService) GetID(id string) (models.User, error) {
 	var user models.User
-	if result := us.DB.First(&user, id); result.Error != nil {
+	if result := us.DB.Preload("Van").First(&user, id); result.Error != nil {
 		return models.User{}, result.Error
 	}
+	
+	// Populate computed fields
+	user.FullName = user.FirstName + " " + user.LastName
+	user.IsActive = user.Status == "ACTIVE"
+	if user.Van != nil {
+		user.VanName = user.Van.Name
+	}
+	
 	return user, nil
 }
 

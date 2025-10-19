@@ -172,7 +172,7 @@ export default function Vans() {
 
   const employeeOptions = employees?.map((employee: any) => ({
     value: employee.id.toString(),
-    label: employee.name,
+    label: employee.full_name || `${employee.first_name} ${employee.last_name}` || employee.email,
   })) || [];
 
   const getOwnerTypeLabel = (type: string) => {
