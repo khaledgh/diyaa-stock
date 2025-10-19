@@ -24,7 +24,7 @@ func (s *LocationService) GetALL(limit, page int, orderBy, sortBy, searchTerm st
 	var locations []models.Location
 	var total int64
 
-	query := s.db.Model(&models.Location{})
+	query := s.db.Model(&models.Location{}).Preload("Van")
 
 	if searchTerm != "" {
 		query = query.Where("name LIKE ? OR address LIKE ?", "%"+searchTerm+"%", "%"+searchTerm+"%")
@@ -35,6 +35,13 @@ func (s *LocationService) GetALL(limit, page int, orderBy, sortBy, searchTerm st
 	offset := (page - 1) * limit
 	if err := query.Order(sortBy + " " + orderBy).Limit(limit).Offset(offset).Find(&locations).Error; err != nil {
 		return PaginationResponse{}, err
+	}
+
+	// Populate computed fields
+	for i := range locations {
+		if locations[i].Van != nil {
+			locations[i].VanName = locations[i].Van.Name
+		}
 	}
 
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
@@ -50,12 +57,18 @@ func (s *LocationService) GetALL(limit, page int, orderBy, sortBy, searchTerm st
 
 func (s *LocationService) GetID(id string) (models.Location, error) {
 	var location models.Location
-	if err := s.db.First(&location, id).Error; err != nil {
+	if err := s.db.Preload("Van").First(&location, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return location, errors.New("location not found")
 		}
 		return location, err
 	}
+	
+	// Populate computed fields
+	if location.Van != nil {
+		location.VanName = location.Van.Name
+	}
+	
 	return location, nil
 }
 

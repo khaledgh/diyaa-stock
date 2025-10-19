@@ -62,10 +62,43 @@ func (lh *LocationHandler) GetIDHandler(c echo.Context) error {
 }
 
 func (lh *LocationHandler) CreateHandler(c echo.Context) error {
-	var location models.Location
-	if err := c.Bind(&location); err != nil {
+	// Use DTO to handle van_id from frontend
+	var dto struct {
+		Name        string `json:"name"`
+		Type        string `json:"type"`
+		Address     string `json:"address"`
+		Phone       string `json:"phone"`
+		ManagerName string `json:"manager_name"`
+		VanID       any    `json:"van_id"` // Accept string or number
+		IsActive    bool   `json:"is_active"`
+	}
+	
+	if err := c.Bind(&dto); err != nil {
 		return ResponseError(c, err)
 	}
+	
+	// Create location with converted fields
+	location := models.Location{
+		Name:     dto.Name,
+		Type:     dto.Type,
+		IsActive: dto.IsActive,
+	}
+	
+	if dto.Address != "" {
+		location.Address = &dto.Address
+	}
+	if dto.Phone != "" {
+		location.Phone = &dto.Phone
+	}
+	if dto.ManagerName != "" {
+		location.ManagerName = &dto.ManagerName
+	}
+	
+	// Convert van_id
+	if dto.VanID != nil && dto.VanID != "" {
+		location.VanID = convertToUintPtr(dto.VanID)
+	}
+	
 	response, err := lh.LocationServices.Create(location)
 	if err != nil {
 		return ResponseError(c, err)
@@ -79,8 +112,50 @@ func (lh *LocationHandler) UpdateHandler(c echo.Context) error {
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	if err = c.Bind(&location); err != nil {
+	
+	// Use DTO to handle van_id from frontend
+	var dto struct {
+		Name        string `json:"name"`
+		Type        string `json:"type"`
+		Address     string `json:"address"`
+		Phone       string `json:"phone"`
+		ManagerName string `json:"manager_name"`
+		VanID       any    `json:"van_id"` // Accept string or number
+		IsActive    bool   `json:"is_active"`
+	}
+	
+	if err = c.Bind(&dto); err != nil {
 		return ResponseError(c, err)
+	}
+	
+	// Update location fields
+	location.Name = dto.Name
+	location.Type = dto.Type
+	location.IsActive = dto.IsActive
+	
+	if dto.Address != "" {
+		location.Address = &dto.Address
+	} else {
+		location.Address = nil
+	}
+	
+	if dto.Phone != "" {
+		location.Phone = &dto.Phone
+	} else {
+		location.Phone = nil
+	}
+	
+	if dto.ManagerName != "" {
+		location.ManagerName = &dto.ManagerName
+	} else {
+		location.ManagerName = nil
+	}
+	
+	// Convert van_id
+	if dto.VanID != nil && dto.VanID != "" {
+		location.VanID = convertToUintPtr(dto.VanID)
+	} else {
+		location.VanID = nil
 	}
 
 	response, err := lh.LocationServices.Update(location)
