@@ -84,7 +84,7 @@ func (s *StockService) GetLocationStock(locationID string) ([]map[string]interfa
 	}
 	
 	err = s.db.Table("stocks").
-		Select("stocks.*, products.sku, products.name_en, products.name_ar, products.unit, products.min_stock_level, categories.name_en as category_name_en, categories.name_ar as category_name_ar").
+		Select("stocks.*, products.sku, products.name_en, products.name_ar, products.unit, products.unit_price, products.barcode, products.min_stock_level, categories.name_en as category_name_en, categories.name_ar as category_name_ar").
 		Joins("LEFT JOIN products ON stocks.product_id = products.id").
 		Joins("LEFT JOIN categories ON products.category_id = categories.id").
 		Where("stocks.location_type = ?", locationType).

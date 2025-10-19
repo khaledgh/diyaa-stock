@@ -173,6 +173,9 @@ export default function POSScreen() {
   const loadStock = useCallback(async () => {
     const locationId = user?.location_id || user?.van_id;
     
+    console.log('Loading stock for location:', locationId);
+    console.log('User location_id:', user?.location_id, 'User van_id:', user?.van_id);
+    
     if (!locationId) {
       Alert.alert('Error', 'No location or van assigned to your account');
       setIsLoading(false);
@@ -180,8 +183,12 @@ export default function POSScreen() {
     }
 
     try {
+      console.log('Calling getLocationStock API with locationId:', locationId);
       const response = await apiService.getLocationStock(locationId);
-      if (response.success) {
+      console.log('Stock response:', response);
+      
+      if (response.ok || response.success) {
+        console.log('Stock data:', response.data);
         // Transform backend data to match frontend interface
         const transformedData = (response.data || []).map((item: any) => ({
           id: item.product_id,
@@ -195,7 +202,10 @@ export default function POSScreen() {
           location_id: item.location_id,
         }));
         
+        console.log('Transformed stock items:', transformedData);
         setStockItems(transformedData);
+      } else {
+        console.log('Stock response not successful:', response);
       }
     } catch (error) {
       console.error('Failed to load stock:', error);
