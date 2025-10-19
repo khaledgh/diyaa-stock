@@ -75,16 +75,21 @@ func (ah *AuthHandler) LoginHandler(c echo.Context) error {
 	}
 	c.SetCookie(cookie)
 
+	type LoginData struct {
+		User  models.User `json:"user"`
+		Token string      `json:"token"`
+	}
 	type LoginResponse struct {
-		OK      bool        `json:"ok"`
-		User    models.User `json:"user"`
-		Token   string      `json:"token"`
-		Message string      `json:"message"`
+		OK      bool      `json:"ok"`
+		Data    LoginData `json:"data"`
+		Message string    `json:"message"`
 	}
 	response := LoginResponse{
-		OK:      true,
-		User:    user,
-		Token:   tokenString,
+		OK: true,
+		Data: LoginData{
+			User:  user,
+			Token: tokenString,
+		},
 		Message: "Login successful",
 	}
 	return c.JSON(http.StatusOK, response)

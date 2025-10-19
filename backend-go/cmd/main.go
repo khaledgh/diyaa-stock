@@ -16,10 +16,20 @@ func main() {
 	}
 	e := echo.New()
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     []string{"*"}, // Allow all origins for mobile app
+		AllowOrigins: []string{
+			"http://localhost:3000",
+			"http://localhost:5173",
+			"http://localhost:5174",
+			"https://qwikbill.gonext.tech",
+			"https://transgate.linksbridge.top",
+			"https://transgate-api.linksbridge.top",
+			"capacitor://localhost", // For mobile apps
+			"ionic://localhost",     // For mobile apps
+			"http://localhost",      // For mobile apps
+		},
 		AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.DELETE, echo.PATCH, echo.OPTIONS},
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
-		AllowCredentials: false, // Must be false when AllowOrigins is "*"
+		AllowCredentials: true,
 	}))
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
