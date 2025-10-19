@@ -62,15 +62,47 @@ func (ch *CustomerHandler) GetIDHandler(c echo.Context) error {
 }
 
 func (ch *CustomerHandler) CreateHandler(c echo.Context) error {
-	var customer models.Customer
-	if err := c.Bind(&customer); err != nil {
+	// Use DTO to handle flexible types from frontend
+	var dto struct {
+		Name        string `json:"name"`
+		Phone       string `json:"phone"`
+		Email       string `json:"email"`
+		Address     string `json:"address"`
+		TaxNumber   string `json:"tax_number"`
+		CreditLimit any    `json:"credit_limit"` // Accept string or number
+		IsActive    bool   `json:"is_active"`
+	}
+	
+	if err := c.Bind(&dto); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid customer data: "+err.Error())
 	}
 	
 	// Validate required fields
-	if customer.Name == "" {
+	if dto.Name == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "Customer name is required")
 	}
+	
+	// Create customer with converted fields
+	customer := models.Customer{
+		Name:     dto.Name,
+		IsActive: dto.IsActive,
+	}
+	
+	if dto.Phone != "" {
+		customer.Phone = &dto.Phone
+	}
+	if dto.Email != "" {
+		customer.Email = &dto.Email
+	}
+	if dto.Address != "" {
+		customer.Address = &dto.Address
+	}
+	if dto.TaxNumber != "" {
+		customer.TaxNumber = &dto.TaxNumber
+	}
+	
+	// Convert credit_limit
+	customer.CreditLimit = convertToFloat64(dto.CreditLimit)
 	
 	response, err := ch.CustomerServices.Create(customer)
 	if err != nil {
@@ -85,9 +117,52 @@ func (ch *CustomerHandler) UpdateHandler(c echo.Context) error {
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	if err = c.Bind(&customer); err != nil {
-		return ResponseError(c, err)
+	
+	// Use DTO to handle flexible types from frontend
+	var dto struct {
+		Name        string `json:"name"`
+		Phone       string `json:"phone"`
+		Email       string `json:"email"`
+		Address     string `json:"address"`
+		TaxNumber   string `json:"tax_number"`
+		CreditLimit any    `json:"credit_limit"` // Accept string or number
+		IsActive    bool   `json:"is_active"`
 	}
+	
+	if err = c.Bind(&dto); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid customer data: "+err.Error())
+	}
+	
+	// Update customer fields
+	customer.Name = dto.Name
+	customer.IsActive = dto.IsActive
+	
+	if dto.Phone != "" {
+		customer.Phone = &dto.Phone
+	} else {
+		customer.Phone = nil
+	}
+	
+	if dto.Email != "" {
+		customer.Email = &dto.Email
+	} else {
+		customer.Email = nil
+	}
+	
+	if dto.Address != "" {
+		customer.Address = &dto.Address
+	} else {
+		customer.Address = nil
+	}
+	
+	if dto.TaxNumber != "" {
+		customer.TaxNumber = &dto.TaxNumber
+	} else {
+		customer.TaxNumber = nil
+	}
+	
+	// Convert credit_limit
+	customer.CreditLimit = convertToFloat64(dto.CreditLimit)
 
 	response, err := ch.CustomerServices.Update(customer)
 	if err != nil {
