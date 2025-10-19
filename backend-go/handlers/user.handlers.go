@@ -145,9 +145,55 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	if err = c.Bind(&user); err != nil {
+	
+	// Use DTO to handle flexible types from frontend
+	var dto struct {
+		Email      string `json:"email"`
+		FirstName  string `json:"first_name"`
+		LastName   string `json:"last_name"`
+		Phone      string `json:"phone"`
+		Role       string `json:"role"`
+		Status     string `json:"status"`
+		Position   string `json:"position"`
+		VanID      any    `json:"van_id"`      // Accept string or number
+		LocationID any    `json:"location_id"` // Accept string or number
+	}
+	
+	if err = c.Bind(&dto); err != nil {
 		return ResponseError(c, err)
 	}
+	
+	// Update user fields
+	user.Email = dto.Email
+	user.FirstName = dto.FirstName
+	user.LastName = dto.LastName
+	user.Phone = dto.Phone
+	user.Role = dto.Role
+	user.Status = dto.Status
+	
+	// Handle Position
+	if dto.Position != "" {
+		user.Position = &dto.Position
+	}
+	
+	// Handle VanID conversion
+	if dto.VanID != nil && dto.VanID != "" {
+		if vanID := convertToUintPtr(dto.VanID); vanID != nil {
+			user.VanID = vanID
+		}
+	} else {
+		user.VanID = nil
+	}
+	
+	// Handle LocationID conversion
+	if dto.LocationID != nil && dto.LocationID != "" {
+		if locationID := convertToUintPtr(dto.LocationID); locationID != nil {
+			user.LocationID = locationID
+		}
+	} else {
+		user.LocationID = nil
+	}
+	
 	user, err = uh.UserServices.Update(user)
 	if err != nil {
 		return ResponseError(c, err)
