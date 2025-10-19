@@ -32,6 +32,20 @@ func (s *CustomerService) GetALL(limit, page int, orderBy, sortBy, searchTerm st
 
 	query.Count(&total)
 
+	// Validate sortBy to prevent SQL injection and errors
+	validSortFields := map[string]bool{
+		"id": true, "name": true, "phone": true, "email": true, 
+		"address": true, "created_at": true, "updated_at": true,
+	}
+	if !validSortFields[sortBy] {
+		sortBy = "id"
+	}
+	
+	// Validate orderBy
+	if orderBy != "asc" && orderBy != "desc" {
+		orderBy = "asc"
+	}
+
 	offset := (page - 1) * limit
 	if err := query.Order(sortBy + " " + orderBy).Limit(limit).Offset(offset).Find(&customers).Error; err != nil {
 		return PaginationResponse{}, err

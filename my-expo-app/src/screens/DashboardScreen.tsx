@@ -4,14 +4,12 @@ import {
   Text,
   ScrollView,
   RefreshControl,
-  Dimensions,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
-
-const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const { user } = useAuth();
@@ -124,12 +122,12 @@ export default function DashboardScreen() {
             <View className="bg-blue-600 rounded-2xl p-5 mb-3" style={{ elevation: 4, shadowColor: '#2563EB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}>
               <View className="flex-row justify-between items-start">
                 <View className="flex-1">
-                  <Text className="text-blue-100 text-xs font-semibold mb-2">TODAY'S SALES</Text>
+                  <Text className="text-blue-100 text-xs font-semibold mb-2">TODAY&apos;S SALES</Text>
                   <Text className="text-white text-4xl font-bold mb-1">${stats.todaySales.toFixed(2)}</Text>
                   <Text className="text-blue-200 text-sm">Current day performance</Text>
                 </View>
                 <View className="w-16 h-16 bg-white/20 rounded-2xl items-center justify-center">
-                  <Text className="text-4xl">💰</Text>
+                  <Ionicons name="cash" size={32} color="#FFFFFF" />
                 </View>
               </View>
             </View>

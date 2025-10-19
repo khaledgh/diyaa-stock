@@ -64,11 +64,17 @@ func (ch *CustomerHandler) GetIDHandler(c echo.Context) error {
 func (ch *CustomerHandler) CreateHandler(c echo.Context) error {
 	var customer models.Customer
 	if err := c.Bind(&customer); err != nil {
-		return ResponseError(c, err)
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid customer data: "+err.Error())
 	}
+	
+	// Validate required fields
+	if customer.Name == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Customer name is required")
+	}
+	
 	response, err := ch.CustomerServices.Create(customer)
 	if err != nil {
-		return ResponseError(c, err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create customer: "+err.Error())
 	}
 	return ResponseSuccess(c, "Customer created successfully", response)
 }

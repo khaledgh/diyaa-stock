@@ -14,6 +14,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
 import receiptService from '../services/receipt.service';
@@ -539,44 +540,49 @@ export default function POSScreen() {
   );
 
   return (
-    <View className="flex-1 bg-white">
-      <StatusBar barStyle="light-content" backgroundColor="#2563EB" translucent={false} />
+    <View className="flex-1 bg-gray-50">
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
       
-      {/* Header with SafeArea */}
+      {/* Modern Header with SafeArea */}
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View className="px-4 py-3 border-b border-gray-100">
-          <View className="flex-row items-center justify-between mb-3">
+        <View className="px-5 py-4 bg-white shadow-sm">
+          <View className="flex-row items-center justify-between mb-4">
             <View className="flex-1">
-              <Text className="text-gray-900 text-xl font-bold">POS</Text>
+              <Text className="text-gray-900 text-2xl font-bold tracking-tight">Point of Sale</Text>
+              <Text className="text-gray-500 text-sm mt-0.5">Sales Terminal</Text>
             </View>
-            <View className="flex-row items-center gap-2">
-              <View className="bg-gray-50 rounded-lg px-3 py-1.5">
-                <Text className="text-gray-600 text-xs font-medium">{user?.full_name}</Text>
-              </View>
+            <View className="flex-row items-center gap-3">
               <TouchableOpacity
                 onPress={() => setShowCart(true)}
-                className="bg-blue-600 rounded-lg px-3 py-2 flex-row items-center"
+                className="bg-blue-600 rounded-2xl px-4 py-3 flex-row items-center"
+                style={{ 
+                  shadowColor: '#3B82F6', 
+                  shadowOffset: { width: 0, height: 4 }, 
+                  shadowOpacity: 0.3, 
+                  shadowRadius: 8,
+                  elevation: 6
+                }}
               >
-                <Text className="text-white text-sm font-semibold mr-1">Cart</Text>
+                <Ionicons name="cart" size={20} color="#FFFFFF" />
                 {cart.length > 0 && (
-                  <View className="bg-white rounded-full w-5 h-5 items-center justify-center">
-                    <Text className="text-blue-600 text-xs font-bold">{cart.length}</Text>
+                  <View className="bg-white rounded-full w-5 h-5 items-center justify-center ml-2">
+                    <Text className="text-blue-600 text-xs font-extrabold">{cart.length}</Text>
                   </View>
                 )}
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={logout}
-                className="bg-gray-100 rounded-lg px-3 py-2"
+                className="bg-gray-100 rounded-2xl px-4 py-3"
               >
-                <Text className="text-gray-700 text-sm font-semibold">Logout</Text>
+                <Ionicons name="log-out-outline" size={20} color="#374151" />
               </TouchableOpacity>
             </View>
           </View>
 
-          <View className="bg-gray-50 rounded-xl flex-row items-center px-4 py-2.5">
-            <Text className="text-gray-400 mr-2">🔍</Text>
+          <View className="bg-gray-50 rounded-2xl flex-row items-center px-5 py-3.5 border border-gray-200">
+            <Ionicons name="search" size={20} color="#9CA3AF" style={{ marginRight: 12 }} />
             <TextInput
-              className="flex-1 text-sm text-gray-900"
+              className="flex-1 text-base text-gray-900"
               placeholder="Search products..."
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
@@ -586,66 +592,84 @@ export default function POSScreen() {
         </View>
       </SafeAreaView>
 
-      {/* Products Grid */}
-      <View className="flex-1 bg-white">
+      {/* Modern Products Grid */}
+      <View className="flex-1 bg-gray-50">
         <FlatList
           data={filteredStock}
           keyExtractor={(item) => item.id.toString()}
           numColumns={2}
-          columnWrapperStyle={{ gap: 10 }}
-          contentContainerStyle={{ gap: 10, padding: 10, paddingBottom: 16 }}
+          columnWrapperStyle={{ gap: 12 }}
+          contentContainerStyle={{ gap: 12, padding: 16, paddingBottom: 24 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={['#2563EB']}
-              tintColor="#2563EB"
+              colors={['#3B82F6']}
+              tintColor="#3B82F6"
             />
           }
           renderItem={({ item }) => (
             <TouchableOpacity
-              className={`flex-1 rounded-2xl ${item.quantity <= 0 ? 'bg-gray-50' : 'bg-white'}`}
+              className={`flex-1 rounded-3xl overflow-hidden ${item.quantity <= 0 ? 'bg-gray-100' : 'bg-white'}`}
               style={{ 
                 maxWidth: '50%',
-                borderWidth: 1,
-                borderColor: item.quantity <= 0 ? '#E5E7EB' : '#F3F4F6',
-                elevation: item.quantity <= 0 ? 0 : 2,
+                borderWidth: item.quantity <= 0 ? 1 : 0,
+                borderColor: '#E5E7EB',
+                elevation: item.quantity <= 0 ? 0 : 4,
                 shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 8
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.08,
+                shadowRadius: 12
               }}
               onPress={() => addToCart(item)}
               disabled={item.quantity <= 0}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <View className="p-3">
-                <Text className={`text-sm font-semibold mb-1 ${item.quantity <= 0 ? 'text-gray-400' : 'text-gray-900'}`} numberOfLines={2}>
+              <View className="p-4">
+                {/* Stock Badge */}
+                <View className={`self-start px-3 py-1 rounded-full mb-3 ${item.quantity <= 0 ? 'bg-red-100' : 'bg-green-100'}`}>
+                  <Text className={`text-xs font-bold ${item.quantity <= 0 ? 'text-red-700' : 'text-green-700'}`}>
+                    {item.quantity <= 0 ? 'Out of Stock' : `${item.quantity} in stock`}
+                  </Text>
+                </View>
+
+                {/* Product Name */}
+                <Text className={`text-base font-bold mb-1 leading-tight ${item.quantity <= 0 ? 'text-gray-400' : 'text-gray-900'}`} numberOfLines={2}>
                   {item.name}
                 </Text>
-                <Text className="text-xs text-gray-400 mb-3">{item.sku}</Text>
                 
-                <View className="flex-row justify-between items-end">
+                {/* SKU */}
+                <Text className="text-xs text-gray-400 mb-4 font-medium">{item.sku}</Text>
+                
+                {/* Price and Add Button */}
+                <View className="flex-row justify-between items-center">
                   <View>
-                    <Text className={`text-xl font-bold ${item.quantity <= 0 ? 'text-gray-400' : 'text-gray-900'}`}>
+                    <Text className="text-xs text-gray-500 mb-0.5">Price</Text>
+                    <Text className={`text-2xl font-extrabold ${item.quantity <= 0 ? 'text-gray-400' : 'text-blue-600'}`}>
                       ${item.unit_price.toFixed(2)}
-                    </Text>
-                    <Text className={`text-xs mt-0.5 ${item.quantity <= 0 ? 'text-red-500' : 'text-green-600'}`}>
-                      {item.quantity <= 0 ? 'Out of stock' : `${item.quantity} left`}
                     </Text>
                   </View>
                   <View 
-                    className={`w-10 h-10 rounded-xl items-center justify-center ${item.quantity <= 0 ? 'bg-gray-200' : 'bg-blue-600'}`}
+                    className={`w-12 h-12 rounded-2xl items-center justify-center ${item.quantity <= 0 ? 'bg-gray-300' : 'bg-blue-600'}`}
+                    style={!item.quantity ? {} : { 
+                      shadowColor: '#3B82F6',
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.4,
+                      shadowRadius: 8,
+                      elevation: 8
+                    }}
                   >
-                    <Text className="text-white font-bold text-lg">+</Text>
+                    <Ionicons name="add" size={28} color="#FFFFFF" />
                   </View>
                 </View>
               </View>
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <View className="p-8 items-center">
-              <Text className="text-gray-500">No products found</Text>
+            <View className="p-16 items-center">
+              <Text className="text-6xl mb-4">📦</Text>
+              <Text className="text-gray-900 font-bold text-lg mb-2">No Products Found</Text>
+              <Text className="text-gray-500 text-center">Try adjusting your search or check back later</Text>
             </View>
           }
         />
