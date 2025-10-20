@@ -221,16 +221,12 @@ export default function POSScreen() {
       const response = await apiService.getCustomers();
       console.log('Customers response:', response);
       
-      if (response.success) {
-        // Handle both response.data.data (paginated) and response.data (direct array)
-        const customersData = response.data?.data || response.data || [];
-        console.log('Customers data:', customersData);
-        
-        if (Array.isArray(customersData)) {
-          setCustomers(customersData);
-        } else {
-          setCustomers([]);
-        }
+      // Handle pagination response format: {data: [], total: 0, current_page: 1, ...}
+      const customersData = response.data || [];
+      console.log('Customers data:', customersData);
+      
+      if (Array.isArray(customersData)) {
+        setCustomers(customersData);
       } else {
         setCustomers([]);
       }

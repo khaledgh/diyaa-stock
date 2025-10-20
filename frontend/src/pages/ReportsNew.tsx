@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { invoiceApi, productApi, reportApi } from '@/lib/api';
+import { invoiceApi, productApi } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 
 export default function ReportsNew() {
@@ -53,7 +53,6 @@ export default function ReportsNew() {
 
   // Calculate purchase metrics
   const totalPurchases = purchaseData?.reduce((sum: number, inv: any) => sum + Number(inv.total_amount), 0) || 0;
-  const totalPurchasesPaid = purchaseData?.reduce((sum: number, inv: any) => sum + Number(inv.paid_amount), 0) || 0;
   const purchaseCount = purchaseData?.length || 0;
 
   // Calculate profit
@@ -88,21 +87,6 @@ export default function ReportsNew() {
 
   const locationSales = Object.values(salesByLocation || {})
     .sort((a: any, b: any) => b.total - a.total);
-
-  // Purchase by vendor
-  const purchaseByVendor = purchaseData?.reduce((acc: any, inv: any) => {
-    const vendor = inv.vendor_name || 'Unknown';
-    if (!acc[vendor]) {
-      acc[vendor] = { name: vendor, total: 0, count: 0 };
-    }
-    acc[vendor].total += Number(inv.total_amount);
-    acc[vendor].count += 1;
-    return acc;
-  }, {});
-
-  const topVendors = Object.values(purchaseByVendor || {})
-    .sort((a: any, b: any) => b.total - a.total)
-    .slice(0, 10);
 
   // Low stock products
   const lowStockProducts = Array.isArray(productsData) ? productsData.filter((p: any) => {

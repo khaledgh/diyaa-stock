@@ -1,26 +1,15 @@
-import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { ArrowLeft, Printer, Package, ShoppingCart, MapPin, User, Calendar, DollarSign, Plus } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, Printer, Package, ShoppingCart, MapPin, User, Calendar, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { invoiceApi, paymentApi } from '@/lib/api';
+import { invoiceApi } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 
 export default function PurchaseInvoiceDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  
-  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [referenceNumber, setReferenceNumber] = useState('');
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['purchase-invoice', id],
