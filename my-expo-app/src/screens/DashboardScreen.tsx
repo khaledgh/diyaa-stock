@@ -26,16 +26,27 @@ export default function DashboardScreen() {
 
   const loadDashboardData = useCallback(async () => {
     try {
+      console.log('Loading dashboard data for location_id:', user?.location_id);
+      
+      if (!user?.location_id) {
+        console.warn('No location_id found for user. User data:', user);
+        setIsLoading(false);
+        return;
+      }
+      
       // Load invoices for stats
       const invoicesResponse = await apiService.getInvoices({
-        van_id: user?.van_id,
+        location_id: user.location_id,
         invoice_type: 'sales',
         limit: 100,
         offset: 0,
       });
+      
+      console.log('Invoices response:', invoicesResponse);
 
       if (invoicesResponse.ok || invoicesResponse.success) {
         const invoices = invoicesResponse.invoices?.data || invoicesResponse.data?.data || [];
+        console.log(`Loaded ${invoices.length} invoices for location ${user.location_id}`);
         
         const now = new Date();
         const todayStart = new Date(now.setHours(0, 0, 0, 0));
@@ -70,12 +81,13 @@ export default function DashboardScreen() {
           stockValue: 0, // Would need stock endpoint
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load dashboard data:', error);
+      console.error('Error details:', error.response?.data || error.message);
     } finally {
       setIsLoading(false);
     }
-  }, [user?.van_id]);
+  }, [user]);
 
   useEffect(() => {
     loadDashboardData();
@@ -101,7 +113,7 @@ export default function DashboardScreen() {
       {/* Header */}
       <View className="px-4 py-3 bg-white border-b border-gray-100">
         <Text className="text-gray-900 text-xl font-bold">Dashboard</Text>
-        <Text className="text-gray-500 text-sm mt-0.5">Van {user?.van_id} Overview</Text>
+        <Text className="text-gray-500 text-sm mt-0.5">{user?.location_id ? `Location ${user.location_id}` : 'Your'} Overview</Text>
       </View>
 
       <ScrollView
@@ -235,8 +247,8 @@ export default function DashboardScreen() {
               <View className="h-px bg-gray-100" />
               
               <View className="flex-row justify-between items-center py-2">
-                <Text className="text-gray-600">Van Assignment</Text>
-                <Text className="text-blue-600 font-bold">Van {user?.van_id}</Text>
+                <Text className="text-gray-600">Location Assignment</Text>
+                <Text className="text-blue-600 font-bold">Location {user?.location_id || 'N/A'}</Text>
               </View>
             </View>
           </View>

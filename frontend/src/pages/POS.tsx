@@ -260,7 +260,7 @@ export default function POS() {
     createSaleMutation.mutate(saleData);
   };
 
-  const locationOptions = locations?.filter((location: any) => location.is_active).map((location: any) => ({
+  const locationOptions = locations?.map((location: any) => ({
     value: location.id.toString(),
     label: `${location.name} (${location.type})`,
   })) || [];

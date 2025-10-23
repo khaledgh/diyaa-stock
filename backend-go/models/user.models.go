@@ -20,10 +20,9 @@ type User struct {
 	Password   string    `json:"-"`
 	Role       string    `json:"role" gorm:"default:USER"`
 	Position   *string   `json:"position" gorm:"size:100"`
-	VanID      *uint     `json:"van_id"`
-	Van        *Van      `json:"van,omitempty" gorm:"foreignKey:VanID"`
-	VanName    string    `json:"van_name" gorm:"-"` // Computed field
 	LocationID *uint     `json:"location_id"`
+	Location   *Location `json:"location,omitempty" gorm:"foreignKey:LocationID"`
+	LocationName string  `json:"location_name" gorm:"-"` // Computed field
 	CreatedAt  time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt  time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }

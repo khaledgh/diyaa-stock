@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { userApi, vanApi } from '@/lib/api';
+import { userApi } from '@/lib/api';
 
 export default function Users() {
   const { t } = useTranslation();
@@ -41,15 +41,16 @@ export default function Users() {
     hire_date: '',
     salary: '',
     address: '',
-    van_id: '',
+    location_id: '',
     is_active: 1,
   });
 
-  const { data: vans } = useQuery({
-    queryKey: ['vans'],
+  const { data: locations } = useQuery({
+    queryKey: ['locations'],
     queryFn: async () => {
-      const response = await vanApi.getAll();
-      return response.data.data || [];
+      const response = await fetch('/api/locations');
+      const data = await response.json();
+      return data.data || [];
     },
   });
 
@@ -114,7 +115,7 @@ export default function Users() {
         hire_date: user.hire_date || '',
         salary: user.salary || '',
         address: user.address || '',
-        van_id: user.van_id || '',
+        location_id: user.location_id || '',
         is_active: user.is_active,
       });
     } else {
@@ -129,7 +130,7 @@ export default function Users() {
         hire_date: '',
         salary: '',
         address: '',
-        van_id: '',
+        location_id: '',
         is_active: 1,
       });
     }
@@ -231,7 +232,7 @@ export default function Users() {
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Position</TableHead>
-                  <TableHead>Van</TableHead>
+                  <TableHead>Location</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
@@ -252,8 +253,8 @@ export default function Users() {
                       <TableCell>{user.phone || '-'}</TableCell>
                       <TableCell>{user.position || '-'}</TableCell>
                       <TableCell>
-                        {user.van_name ? (
-                          <span className="text-sm text-blue-600">{user.van_name}</span>
+                        {user.location_name ? (
+                          <span className="text-sm text-blue-600">{user.location_name}</span>
                         ) : (
                           <span className="text-sm text-gray-400">-</span>
                         )}
@@ -317,7 +318,7 @@ export default function Users() {
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
                 <TabsTrigger value="employee">Employee Info</TabsTrigger>
-                <TabsTrigger value="assignment">Van Assignment</TabsTrigger>
+                <TabsTrigger value="assignment">Location Assignment</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basic" className="space-y-4 py-4">
@@ -459,33 +460,33 @@ export default function Users() {
 
               <TabsContent value="assignment" className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="van_id">Assign to Van</Label>
+                  <Label htmlFor="location_id">Assign to Location</Label>
                   <select
-                    id="van_id"
-                    value={formData.van_id}
-                    onChange={(e) => setFormData({ ...formData, van_id: e.target.value })}
+                    id="location_id"
+                    value={formData.location_id}
+                    onChange={(e) => setFormData({ ...formData, location_id: e.target.value })}
                     className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <option value="">No van assigned</option>
-                    {vans?.map((van: any) => (
-                      <option key={van.id} value={van.id}>
-                        {van.name} {van.plate_number ? `(${van.plate_number})` : ''}
+                    <option value="">No location assigned</option>
+                    {locations?.map((location: any) => (
+                      <option key={location.id} value={location.id}>
+                        {location.name} ({location.type})
                       </option>
                     ))}
                   </select>
                   <p className="text-xs text-muted-foreground">
-                    Assign this user as the sales representative for a van. They will be able to sell from this van's stock in the POS app.
+                    Assign this user to a location. Sales users will be able to sell from this location's stock in the POS app.
                   </p>
                 </div>
 
-                {formData.van_id && (
+                {formData.location_id && (
                   <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                     <div className="flex items-start gap-2">
                       <Briefcase className="h-5 w-5 text-blue-600 mt-0.5" />
                       <div>
-                        <p className="font-medium text-blue-900 dark:text-blue-100">Van Assignment</p>
+                        <p className="font-medium text-blue-900 dark:text-blue-100">Location Assignment</p>
                         <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                          This user will have access to the POS app and can sell products from the assigned van's inventory.
+                          This user will have access to the POS app and can sell products from the assigned location's inventory.
                         </p>
                       </div>
                     </div>

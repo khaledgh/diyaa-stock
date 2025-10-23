@@ -200,15 +200,6 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 		user.Position = &dto.Position
 	}
 	
-	// Handle VanID conversion
-	if dto.VanID != nil && dto.VanID != "" {
-		if vanID := convertToUintPtr(dto.VanID); vanID != nil {
-			user.VanID = vanID
-		}
-	} else {
-		user.VanID = nil
-	}
-	
 	// Handle LocationID conversion
 	if dto.LocationID != nil && dto.LocationID != "" {
 		if locationID := convertToUintPtr(dto.LocationID); locationID != nil {

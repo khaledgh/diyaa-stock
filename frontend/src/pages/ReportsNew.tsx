@@ -16,7 +16,18 @@ export default function ReportsNew() {
     queryKey: ['sales-report', dateRange],
     queryFn: async () => {
       const response = await invoiceApi.getAll({ invoice_type: 'sales' });
-      return response.data.data?.data || [];
+      const payload = response?.data;
+      
+      // Handle different response structures
+      if (!payload) return [];
+      if (Array.isArray(payload)) return payload;
+      if (payload.invoices) {
+        return Array.isArray(payload.invoices) ? payload.invoices : (payload.invoices.data || []);
+      }
+      if (payload.data) {
+        return Array.isArray(payload.data) ? payload.data : (payload.data.data || []);
+      }
+      return [];
     },
   });
 
@@ -25,7 +36,18 @@ export default function ReportsNew() {
     queryKey: ['purchase-report', dateRange],
     queryFn: async () => {
       const response = await invoiceApi.getAll({ invoice_type: 'purchase' });
-      return response.data.data?.data || [];
+      const payload = response?.data;
+      
+      // Handle different response structures
+      if (!payload) return [];
+      if (Array.isArray(payload)) return payload;
+      if (payload.invoices) {
+        return Array.isArray(payload.invoices) ? payload.invoices : (payload.invoices.data || []);
+      }
+      if (payload.data) {
+        return Array.isArray(payload.data) ? payload.data : (payload.data.data || []);
+      }
+      return [];
     },
   });
 
@@ -240,27 +262,35 @@ export default function ReportsNew() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {salesData?.map((invoice: any) => (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
-                        <TableCell>{formatDateTime(invoice.created_at)}</TableCell>
-                        <TableCell>{invoice.customer_name || 'Walk-in'}</TableCell>
-                        <TableCell>{invoice.location_name || 'N/A'}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(invoice.total_amount)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(invoice.paid_amount)}</TableCell>
-                        <TableCell>
-                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                            invoice.payment_status === 'paid' 
-                              ? 'bg-green-100 text-green-800'
-                              : invoice.payment_status === 'partial'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {invoice.payment_status}
-                          </span>
+                    {!salesData || salesData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          No sales data available for the selected period
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      salesData.map((invoice: any) => (
+                        <TableRow key={invoice.id}>
+                          <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                          <TableCell>{formatDateTime(invoice.created_at)}</TableCell>
+                          <TableCell>{invoice.customer_name || 'Walk-in'}</TableCell>
+                          <TableCell>{invoice.location_name || 'N/A'}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(invoice.total_amount)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(invoice.paid_amount)}</TableCell>
+                          <TableCell>
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                              invoice.payment_status === 'paid' 
+                                ? 'bg-green-100 text-green-800'
+                                : invoice.payment_status === 'partial'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {invoice.payment_status}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -295,27 +325,35 @@ export default function ReportsNew() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {purchaseData?.map((invoice: any) => (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
-                        <TableCell>{formatDateTime(invoice.created_at)}</TableCell>
-                        <TableCell>{invoice.vendor_name || 'Unknown'}</TableCell>
-                        <TableCell>{invoice.location_name || 'N/A'}</TableCell>
-                        <TableCell className="text-right text-red-600">-{formatCurrency(invoice.total_amount)}</TableCell>
-                        <TableCell className="text-right text-red-600">-{formatCurrency(invoice.paid_amount)}</TableCell>
-                        <TableCell>
-                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                            invoice.payment_status === 'paid' 
-                              ? 'bg-green-100 text-green-800'
-                              : invoice.payment_status === 'partial'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {invoice.payment_status}
-                          </span>
+                    {!purchaseData || purchaseData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          No purchase data available for the selected period
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      purchaseData.map((invoice: any) => (
+                        <TableRow key={invoice.id}>
+                          <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                          <TableCell>{formatDateTime(invoice.created_at)}</TableCell>
+                          <TableCell>{invoice.vendor_name || 'Unknown'}</TableCell>
+                          <TableCell>{invoice.location_name || 'N/A'}</TableCell>
+                          <TableCell className="text-right text-red-600">-{formatCurrency(invoice.total_amount)}</TableCell>
+                          <TableCell className="text-right text-red-600">-{formatCurrency(invoice.paid_amount)}</TableCell>
+                          <TableCell>
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                              invoice.payment_status === 'paid' 
+                                ? 'bg-green-100 text-green-800'
+                                : invoice.payment_status === 'partial'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {invoice.payment_status}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -348,18 +386,26 @@ export default function ReportsNew() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {topCustomers.map((customer: any, index: number) => (
-                      <TableRow key={customer.name}>
-                        <TableCell className="font-medium">#{index + 1}</TableCell>
-                        <TableCell className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                          {customer.name}
+                    {!topCustomers || topCustomers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          No customer data available
                         </TableCell>
-                        <TableCell className="text-right">{customer.count}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(customer.total)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(customer.total / customer.count)}</TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      topCustomers.map((customer: any, index: number) => (
+                        <TableRow key={customer.name}>
+                          <TableCell className="font-medium">#{index + 1}</TableCell>
+                          <TableCell className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            {customer.name}
+                          </TableCell>
+                          <TableCell className="text-right">{customer.count}</TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(customer.total)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(customer.total / customer.count)}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -391,17 +437,25 @@ export default function ReportsNew() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {locationSales.map((location: any) => (
-                      <TableRow key={location.name}>
-                        <TableCell className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                          {location.name}
+                    {!locationSales || locationSales.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          No location sales data available
                         </TableCell>
-                        <TableCell className="text-right">{location.count}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(location.total)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(location.total / location.count)}</TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      locationSales.map((location: any) => (
+                        <TableRow key={location.name}>
+                          <TableCell className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            {location.name}
+                          </TableCell>
+                          <TableCell className="text-right">{location.count}</TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(location.total)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(location.total / location.count)}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>

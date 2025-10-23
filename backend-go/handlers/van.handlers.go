@@ -62,12 +62,10 @@ func (vh *VanHandler) GetIDHandler(c echo.Context) error {
 }
 
 func (vh *VanHandler) CreateHandler(c echo.Context) error {
-	// Use DTO to handle employee_id from frontend
 	var dto struct {
 		Name        string `json:"name"`
 		PlateNumber string `json:"plate_number"`
 		OwnerType   string `json:"owner_type"`
-		EmployeeID  any    `json:"employee_id"` // Accept string or number
 		IsActive    bool   `json:"is_active"`
 	}
 	
@@ -75,7 +73,7 @@ func (vh *VanHandler) CreateHandler(c echo.Context) error {
 		return ResponseError(c, err)
 	}
 	
-	// Create van with converted fields
+	// Create van
 	van := models.Van{
 		Name:      dto.Name,
 		OwnerType: dto.OwnerType,
@@ -84,11 +82,6 @@ func (vh *VanHandler) CreateHandler(c echo.Context) error {
 	
 	if dto.PlateNumber != "" {
 		van.PlateNumber = &dto.PlateNumber
-	}
-	
-	// Convert employee_id to user_id
-	if dto.EmployeeID != nil && dto.EmployeeID != "" {
-		van.UserID = convertToUintPtr(dto.EmployeeID)
 	}
 	
 	response, err := vh.VanServices.Create(van)
@@ -105,12 +98,10 @@ func (vh *VanHandler) UpdateHandler(c echo.Context) error {
 		return ResponseError(c, err)
 	}
 	
-	// Use DTO to handle employee_id from frontend
 	var dto struct {
 		Name        string `json:"name"`
 		PlateNumber string `json:"plate_number"`
 		OwnerType   string `json:"owner_type"`
-		EmployeeID  any    `json:"employee_id"` // Accept string or number
 		IsActive    bool   `json:"is_active"`
 	}
 	
@@ -127,13 +118,6 @@ func (vh *VanHandler) UpdateHandler(c echo.Context) error {
 		van.PlateNumber = &dto.PlateNumber
 	} else {
 		van.PlateNumber = nil
-	}
-	
-	// Convert employee_id to user_id
-	if dto.EmployeeID != nil && dto.EmployeeID != "" {
-		van.UserID = convertToUintPtr(dto.EmployeeID)
-	} else {
-		van.UserID = nil
 	}
 
 	response, err := vh.VanServices.Update(van)

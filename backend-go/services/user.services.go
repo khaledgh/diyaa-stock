@@ -69,15 +69,15 @@ func (us *UserService) GetALL(limit, page int, orderBy, sortBy, status, role, se
 
 func (us *UserService) GetID(id string) (models.User, error) {
 	var user models.User
-	if result := us.DB.Preload("Van").First(&user, id); result.Error != nil {
+	if result := us.DB.Preload("Location").First(&user, id); result.Error != nil {
 		return models.User{}, result.Error
 	}
 	
 	// Populate computed fields
 	user.FullName = user.FirstName + " " + user.LastName
 	user.IsActive = user.Status == "ACTIVE"
-	if user.Van != nil {
-		user.VanName = user.Van.Name
+	if user.Location != nil {
+		user.LocationName = user.Location.Name
 	}
 	
 	return user, nil

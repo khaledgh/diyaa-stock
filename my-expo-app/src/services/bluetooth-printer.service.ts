@@ -14,7 +14,7 @@ interface ReceiptData {
   discount: number;
   total: number;
   date: string;
-  vanId: number;
+  locationId: number;
   cashierName: string;
 }
 
@@ -108,7 +108,7 @@ class BluetoothPrinterService {
       // Invoice info
       receipt += `[L]Invoice: ${data.invoiceNumber}\n`;
       receipt += `[L]Date: ${data.date}\n`;
-      receipt += `[L]Van: ${data.vanId}\n`;
+      receipt += `[L]Location: ${data.locationId}\n`;
       receipt += `[L]Cashier: ${data.cashierName}\n`;
       
       if (data.customerName) {

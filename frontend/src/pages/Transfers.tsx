@@ -323,7 +323,7 @@ export default function Transfers() {
     createMutation.mutate(formDataWithItems);
   };
 
-  const locationOptions = locations?.filter((loc: any) => loc.is_active).map((loc: any) => ({
+  const locationOptions = locations?.map((loc: any) => ({
     value: loc.id.toString(),
     label: `${loc.name} (${loc.type})`,
   })) || [];

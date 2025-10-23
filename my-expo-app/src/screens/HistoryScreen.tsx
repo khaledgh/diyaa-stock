@@ -21,11 +21,16 @@ export default function HistoryScreen() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   const loadInvoices = useCallback(async () => {
-    if (!user?.van_id) return;
+    if (!user?.location_id) {
+      console.warn('No location_id found for user in History screen');
+      setIsLoading(false);
+      return;
+    }
 
     try {
+      console.log('Loading invoices for location_id:', user.location_id);
       const response = await apiService.getInvoices({
-        van_id: user.van_id,
+        location_id: user.location_id,
         invoice_type: 'sales',
         limit: 50,
         offset: 0,
@@ -69,7 +74,7 @@ export default function HistoryScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.van_id]);
+  }, [user]);
 
   useEffect(() => {
     loadInvoices();
@@ -119,7 +124,7 @@ export default function HistoryScreen() {
       {/* Header */}
       <View className="px-4 py-3 border-b border-gray-100">
         <Text className="text-gray-900 text-xl font-bold">Sales History</Text>
-        <Text className="text-gray-500 text-sm mt-0.5">Van {user?.van_id} - {invoices.length} invoices</Text>
+        <Text className="text-gray-500 text-sm mt-0.5">Location {user?.location_id} - {invoices.length} invoices</Text>
       </View>
 
       {/* Invoices List */}

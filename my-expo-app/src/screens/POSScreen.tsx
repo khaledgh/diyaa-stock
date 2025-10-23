@@ -172,13 +172,13 @@ export default function POSScreen() {
   const cartWidth = 380;
 
   const loadStock = useCallback(async () => {
-    const locationId = user?.location_id || user?.van_id;
+    const locationId = user?.location_id;
     
     console.log('Loading stock for location:', locationId);
-    console.log('User location_id:', user?.location_id, 'User van_id:', user?.van_id);
+    console.log('User location_id:', user?.location_id);
     
     if (!locationId) {
-      Alert.alert('Error', 'No location or van assigned to your account');
+      Alert.alert('Error', 'No location assigned to your account');
       setIsLoading(false);
       return;
     }
@@ -214,7 +214,7 @@ export default function POSScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.location_id, user?.van_id]);
+  }, [user?.location_id]);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -354,8 +354,8 @@ export default function POSScreen() {
       return;
     }
 
-    if (!user?.van_id) {
-      Alert.alert('Error', 'No van assigned to your account');
+    if (!user?.location_id) {
+      Alert.alert('Error', 'No location assigned to your account');
       return;
     }
 
@@ -370,7 +370,7 @@ export default function POSScreen() {
             try {
               setIsLoading(true);
               const invoiceData = {
-                location_id: user.location_id || user.van_id!, // Use location_id if available, fallback to van_id
+                location_id: user.location_id!,
                 customer_id: selectedCustomer?.id,
                 items: cart.map((item) => ({
                   product_id: item.product.id,
@@ -383,7 +383,7 @@ export default function POSScreen() {
               };
 
               console.log('Creating invoice with data:', JSON.stringify(invoiceData, null, 2));
-              console.log('User location_id:', user.location_id, 'User van_id:', user.van_id);
+              console.log('User location_id:', user.location_id);
 
               const response = await apiService.createSalesInvoice(invoiceData);
 
@@ -407,7 +407,7 @@ export default function POSScreen() {
                           discount: parseFloat(invoice.discount_amount) || 0,
                           total: parseFloat(invoice.total_amount) || 0,
                           date: new Date().toLocaleString(),
-                          vanId: user.van_id!,
+                          locationId: user.location_id!,
                           cashierName: user.full_name,
                         };
 

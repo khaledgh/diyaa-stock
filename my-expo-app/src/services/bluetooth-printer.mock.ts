@@ -14,7 +14,7 @@ interface ReceiptData {
   discount: number;
   total: number;
   date: string;
-  vanId: number;
+  locationId: number;
   cashierName: string;
 }
 
@@ -75,7 +75,7 @@ class MockBluetoothPrinterService {
     console.log('================================');
     console.log(`Invoice: ${data.invoiceNumber}`);
     console.log(`Date: ${data.date}`);
-    console.log(`Van: ${data.vanId}`);
+    console.log(`Location: ${data.locationId}`);
     console.log(`Cashier: ${data.cashierName}`);
     if (data.customerName) {
       console.log(`Customer: ${data.customerName}`);

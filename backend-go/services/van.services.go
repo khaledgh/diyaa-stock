@@ -25,7 +25,7 @@ func (s *VanService) GetALL(limit, page int, orderBy, sortBy, searchTerm string)
 	var vans []models.Van
 	var total int64
 
-	query := s.db.Model(&models.Van{}).Preload("User")
+	query := s.db.Model(&models.Van{})
 
 	if searchTerm != "" {
 		query = query.Where("name LIKE ? OR plate_number LIKE ?", "%"+searchTerm+"%", "%"+searchTerm+"%")
@@ -36,14 +36,6 @@ func (s *VanService) GetALL(limit, page int, orderBy, sortBy, searchTerm string)
 	offset := (page - 1) * limit
 	if err := query.Order(sortBy + " " + orderBy).Limit(limit).Offset(offset).Find(&vans).Error; err != nil {
 		return PaginationResponse{}, err
-	}
-
-	// Populate computed fields
-	for i := range vans {
-		vans[i].EmployeeID = vans[i].UserID
-		if vans[i].User != nil {
-			vans[i].EmployeeName = vans[i].User.FirstName + " " + vans[i].User.LastName
-		}
 	}
 
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
@@ -59,17 +51,11 @@ func (s *VanService) GetALL(limit, page int, orderBy, sortBy, searchTerm string)
 
 func (s *VanService) GetID(id string) (models.Van, error) {
 	var van models.Van
-	if err := s.db.Preload("User").First(&van, id).Error; err != nil {
+	if err := s.db.First(&van, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return van, errors.New("van not found")
 		}
 		return van, err
-	}
-	
-	// Populate computed fields
-	van.EmployeeID = van.UserID
-	if van.User != nil {
-		van.EmployeeName = van.User.FirstName + " " + van.User.LastName
 	}
 	
 	return van, nil

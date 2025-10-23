@@ -43,29 +43,16 @@ func (s *AuthService) Register(email, password string) error {
 
 func (s *AuthService) CheckEmail(email string) (models.User, error) {
 	var user models.User
-	if result := s.DB.Where("email = ?", email).Find(&user); result.Error != nil {
+	if result := s.DB.Preload("Location").Where("email = ?", email).Find(&user); result.Error != nil {
 		return models.User{}, errors.New("credentials not match")
-	}
-	
-	// Find van assigned to this user (where vans.user_id = user.id)
-	var van models.Van
-	if err := s.DB.Where("user_id = ?", user.ID).First(&van).Error; err == nil {
-		user.VanID = &van.ID
-		user.Van = &van
-		user.VanName = van.Name
-	}
-	
-	// Find location: If user has no direct location_id, find location where van is assigned
-	if user.LocationID == nil && user.VanID != nil {
-		var location models.Location
-		if err := s.DB.Where("van_id = ?", user.VanID).First(&location).Error; err == nil {
-			user.LocationID = &location.ID
-		}
 	}
 	
 	// Populate computed fields
 	user.FullName = user.FirstName + " " + user.LastName
 	user.IsActive = user.Status == "ACTIVE"
+	if user.Location != nil {
+		user.LocationName = user.Location.Name
+	}
 	
 	return user, nil
 }
@@ -118,30 +105,17 @@ func (s *AuthService) GetUser(tokenString string) (*models.User, error) {
 	}
 
 	var user models.User
-	result := s.DB.Where("email = ?", claims.Email).First(&user)
+	result := s.DB.Preload("Location").Where("email = ?", claims.Email).First(&user)
 	if result.Error != nil {
 		return nil, result.Error
-	}
-	
-	// Find van assigned to this user (where vans.user_id = user.id)
-	var van models.Van
-	if err := s.DB.Where("user_id = ?", user.ID).First(&van).Error; err == nil {
-		user.VanID = &van.ID
-		user.Van = &van
-		user.VanName = van.Name
-	}
-	
-	// Find location: If user has no direct location_id, find location where van is assigned
-	if user.LocationID == nil && user.VanID != nil {
-		var location models.Location
-		if err := s.DB.Where("van_id = ?", user.VanID).First(&location).Error; err == nil {
-			user.LocationID = &location.ID
-		}
 	}
 	
 	// Populate computed fields
 	user.FullName = user.FirstName + " " + user.LastName
 	user.IsActive = user.Status == "ACTIVE"
+	if user.Location != nil {
+		user.LocationName = user.Location.Name
+	}
 
 	return &user, nil
 }

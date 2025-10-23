@@ -93,7 +93,7 @@ class ApiService {
 
   async getInvoices(filters?: {
     invoice_type?: string;
-    van_id?: number;
+    location_id?: number; // Filter by location_id (van, warehouse, or branch)
     limit?: number;
     offset?: number;
   }) {

@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { vanApi, userApi } from '@/lib/api';
+import { vanApi } from '@/lib/api';
 import { Combobox } from '@/components/ui/combobox';
 
 const vanSchema = z.object({
@@ -34,7 +34,6 @@ const vanSchema = z.object({
   owner_type: z.enum(['company', 'rental'], {
     required_error: 'Owner type is required',
   }),
-  employee_id: z.number().nullable().optional(),
 });
 
 type VanFormData = z.infer<typeof vanSchema>;
@@ -44,8 +43,6 @@ interface Van {
   name: string;
   plate_number?: string;
   owner_type: string;
-  employee_id?: number;
-  employee_name?: string;
   is_active: boolean;
 }
 
@@ -67,7 +64,6 @@ export default function Vans() {
   });
 
   const ownerType = watch('owner_type');
-  const employeeId = watch('employee_id');
 
   const { data: vans, isLoading } = useQuery({
     queryKey: ['vans'],
@@ -82,18 +78,6 @@ export default function Vans() {
     },
   });
 
-  const { data: employees } = useQuery({
-    queryKey: ['users'],
-    queryFn: async () => {
-      try {
-        const response = await userApi.getAll();
-        return response.data.data || [];
-      } catch (error) {
-        console.error('Failed to fetch users:', error);
-        return [];
-      }
-    },
-  });
 
   const createMutation = useMutation({
     mutationFn: (data: VanFormData) => vanApi.create(data),
@@ -137,7 +121,6 @@ export default function Vans() {
       setValue('name', van.name);
       setValue('plate_number', van.plate_number || '');
       setValue('owner_type', van.owner_type as 'company' | 'rental');
-      setValue('employee_id', van.employee_id || null);
     } else {
       setEditingVan(null);
       reset();
@@ -170,10 +153,6 @@ export default function Vans() {
     { value: 'rental', label: t('vans.ownerTypes.rental') || 'Rental' },
   ];
 
-  const employeeOptions = employees?.map((employee: any) => ({
-    value: employee.id.toString(),
-    label: employee.full_name || `${employee.first_name} ${employee.last_name}` || employee.email,
-  })) || [];
 
   const getOwnerTypeLabel = (type: string) => {
     const option = ownerTypeOptions.find(opt => opt.value === type);
@@ -214,7 +193,6 @@ export default function Vans() {
                       <TableHead>{t('vans.name') || 'Name'}</TableHead>
                       <TableHead className="hidden md:table-cell">{t('vans.plateNumber') || 'Plate Number'}</TableHead>
                       <TableHead className="hidden lg:table-cell">{t('vans.ownerType') || 'Owner Type'}</TableHead>
-                      <TableHead className="hidden sm:table-cell">{t('vans.employee') || 'Employee'}</TableHead>
                       <TableHead className="hidden md:table-cell">{t('common.status') || 'Status'}</TableHead>
                       <TableHead className="text-right">{t('common.actions') || 'Actions'}</TableHead>
                     </TableRow>
@@ -244,7 +222,6 @@ export default function Vans() {
                             {getOwnerTypeLabel(van.owner_type)}
                           </span>
                         </TableCell>
-                        <TableCell className="hidden sm:table-cell">{van.employee_name || '-'}</TableCell>
                         <TableCell className="hidden md:table-cell">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             van.is_active
@@ -335,23 +312,6 @@ export default function Vans() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="employee_id">{t('vans.employee') || 'Assigned Employee'}</Label>
-              <Combobox
-                options={[
-                  { value: '', label: t('vans.noEmployee') || 'No employee assigned' },
-                  ...employeeOptions,
-                ]}
-                value={employeeId?.toString() || ''}
-                onChange={(value) => setValue('employee_id', value ? parseInt(value) : null)}
-                placeholder={t('vans.selectEmployee') || 'Select employee'}
-                searchPlaceholder={t('common.search') || 'Search...'}
-                emptyText={t('common.noResults') || 'No results found'}
-              />
-              {errors.employee_id && (
-                <p className="text-sm text-red-500">{errors.employee_id.message}</p>
-              )}
-            </div>
 
             <DialogFooter className="gap-2 sm:gap-0">
               <Button

@@ -11,7 +11,7 @@ interface ReceiptData {
   discount: number;
   total: number;
   date: string;
-  vanId: number;
+  locationId: number;
   cashierName: string;
 }
 
@@ -114,8 +114,8 @@ class ReceiptService {
                 <span>${data.date}</span>
               </div>
               <div class="info-row">
-                <span>Van:</span>
-                <span>${data.vanId}</span>
+                <span>Location:</span>
+                <span>${data.locationId}</span>
               </div>
               <div class="info-row">
                 <span>Cashier:</span>

@@ -3,8 +3,7 @@ export interface User {
   email: string;
   full_name: string;
   role: string;
-  van_id?: number;
-  location_id?: number; // Location ID for the van
+  location_id?: number;
   is_active: boolean;
 }
 

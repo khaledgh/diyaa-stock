@@ -230,7 +230,7 @@ export default function InvoiceFormNew() {
   const total = calculateTotal();
   const remaining = total - (Number(paidAmount) || 0);
 
-  const locationOptions = locations?.filter((loc: any) => loc.is_active).map((loc: any) => ({
+  const locationOptions = locations?.map((loc: any) => ({
     value: loc.id.toString(),
     label: `${loc.name} (${loc.type})`,
   })) || [];
