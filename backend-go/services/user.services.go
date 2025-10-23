@@ -24,7 +24,7 @@ func (us *UserService) GetALL(limit, page int, orderBy, sortBy, status, role, se
 	users := []models.User{}
 	var totalRecords int64
 	
-	query := us.DB.Model(&models.User{}).Preload("Van")
+	query := us.DB.Model(&models.User{}).Preload("Location")
 	if searchTerm != "" {
 		searchTermWithWildcard := "%" + searchTerm + "%"
 		query = query.Where("email LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR phone LIKE ?", searchTermWithWildcard, searchTermWithWildcard, searchTermWithWildcard, searchTermWithWildcard)
@@ -49,8 +49,8 @@ func (us *UserService) GetALL(limit, page int, orderBy, sortBy, status, role, se
 	for i := range users {
 		users[i].FullName = users[i].FirstName + " " + users[i].LastName
 		users[i].IsActive = users[i].Status == "ACTIVE"
-		if users[i].Van != nil {
-			users[i].VanName = users[i].Van.Name
+		if users[i].Location != nil {
+			users[i].LocationName = users[i].Location.Name
 		}
 	}
 	

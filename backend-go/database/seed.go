@@ -768,15 +768,12 @@ func seedVans(db *gorm.DB) error {
 
 	plateNumber1 := "ABC-1234"
 	plateNumber2 := "XYZ-5678"
-	userID1 := uint(1)
-	userID2 := uint(2)
 
 	vans := []models.Van{
 		{
 			Name:        "Van 1 - Ford Transit",
 			PlateNumber: &plateNumber1,
 			OwnerType:   "company",
-			UserID:      &userID1,
 			IsActive:    true,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
@@ -785,7 +782,6 @@ func seedVans(db *gorm.DB) error {
 			Name:        "Van 2 - Mercedes Sprinter",
 			PlateNumber: &plateNumber2,
 			OwnerType:   "company",
-			UserID:      &userID2,
 			IsActive:    true,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
