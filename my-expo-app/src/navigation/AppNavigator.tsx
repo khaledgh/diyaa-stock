@@ -37,13 +37,13 @@ function MainApp() {
               onPress={() => setActiveTab('dashboard')}
               activeOpacity={0.7}
             >
-              <View className={`px-6 py-3 rounded-full items-center justify-center ${activeTab === 'dashboard' ? 'bg-blue-600' : ''}`}
+              <View className={`px-6 py-3 items-center justify-center ${activeTab === 'dashboard' ? 'bg-blue-600 rounded-2xl' : 'rounded-xl'}`}
                 style={activeTab === 'dashboard' ? {
                   shadowColor: '#3B82F6',
                   shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 12,
-                  elevation: 8
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 6
                 } : {}}
               >
                 <Ionicons 
@@ -62,13 +62,13 @@ function MainApp() {
               onPress={() => setActiveTab('pos')}
               activeOpacity={0.7}
             >
-              <View className={`px-6 py-3 rounded-full items-center justify-center ${activeTab === 'pos' ? 'bg-blue-600' : ''}`}
+              <View className={`px-6 py-3 items-center justify-center ${activeTab === 'pos' ? 'bg-blue-600 rounded-2xl' : 'rounded-xl'}`}
                 style={activeTab === 'pos' ? {
                   shadowColor: '#3B82F6',
                   shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 12,
-                  elevation: 8
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 6
                 } : {}}
               >
                 <Ionicons 
@@ -87,13 +87,13 @@ function MainApp() {
               onPress={() => setActiveTab('history')}
               activeOpacity={0.7}
             >
-              <View className={`px-6 py-3 rounded-full items-center justify-center ${activeTab === 'history' ? 'bg-blue-600' : ''}`}
+              <View className={`px-6 py-3 items-center justify-center ${activeTab === 'history' ? 'bg-blue-600 rounded-2xl' : 'rounded-xl'}`}
                 style={activeTab === 'history' ? {
                   shadowColor: '#3B82F6',
                   shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 12,
-                  elevation: 8
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 6
                 } : {}}
               >
                 <Ionicons 
@@ -112,13 +112,13 @@ function MainApp() {
               onPress={() => setActiveTab('profile')}
               activeOpacity={0.7}
             >
-              <View className={`px-6 py-3 rounded-full items-center justify-center ${activeTab === 'profile' ? 'bg-blue-600' : ''}`}
+              <View className={`px-6 py-3 items-center justify-center ${activeTab === 'profile' ? 'bg-blue-600 rounded-2xl' : 'rounded-xl'}`}
                 style={activeTab === 'profile' ? {
                   shadowColor: '#3B82F6',
                   shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 12,
-                  elevation: 8
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 6
                 } : {}}
               >
                 <Ionicons 

@@ -4,6 +4,7 @@ export interface User {
   full_name: string;
   role: string;
   location_id?: number;
+  location_name?: string;
   is_active: boolean;
 }
 

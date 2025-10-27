@@ -148,4 +148,19 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.POST("/vendors", vendorHandler.CreateHandler)
 	apiGroup.PUT("/vendors/:id", vendorHandler.UpdateHandler)
 	apiGroup.DELETE("/vendors/:id", vendorHandler.Delete)
+
+	// Role and Permission routes
+	roleService := services.NewRoleService(models.Role{}, store)
+	roleHandler := handlers.NewRoleHandler(roleService)
+	apiGroup.GET("/roles", roleHandler.GetRoles)
+	apiGroup.GET("/roles/:id", roleHandler.GetRole)
+	apiGroup.POST("/roles", roleHandler.CreateRole)
+	apiGroup.PUT("/roles/:id", roleHandler.UpdateRole)
+	apiGroup.DELETE("/roles/:id", roleHandler.DeleteRole)
+	apiGroup.GET("/permissions", roleHandler.GetPermissions)
+	apiGroup.POST("/roles/:id/permissions", roleHandler.AssignPermissions)
+	apiGroup.POST("/users/assign-role", roleHandler.AssignRoleToUser)
+	apiGroup.POST("/users/remove-role", roleHandler.RemoveRoleFromUser)
+	apiGroup.GET("/users-with-roles", roleHandler.GetUsersWithRoles)
+	apiGroup.GET("/check-permission", roleHandler.CheckPermission)
 }

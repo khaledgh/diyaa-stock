@@ -468,9 +468,42 @@ export default function POSScreen() {
 
   if (isLoading && stockItems.length === 0) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-50">
-        <ActivityIndicator size="large" color="#3B82F6" />
-        <Text className="mt-4 text-gray-600">Loading stock...</Text>
+      <View className="flex-1 bg-gray-50">
+        <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
+          <View className="px-5 py-4 bg-white shadow-sm">
+            <View className="h-6 bg-gray-200 rounded-lg w-32 mb-2" />
+            <View className="h-4 bg-gray-100 rounded w-24" />
+          </View>
+        </SafeAreaView>
+        
+        <View className="p-4">
+          <View className="flex-row gap-3 mb-3">
+            {[1, 2].map((i) => (
+              <View key={i} className="flex-1 bg-white rounded-3xl p-4 h-48" style={{ elevation: 2 }}>
+                <View className="h-6 bg-gray-200 rounded-full w-20 mb-3" />
+                <View className="h-10 bg-gray-100 rounded w-full mb-2" />
+                <View className="h-4 bg-gray-100 rounded w-16 mb-4" />
+                <View className="flex-row justify-between items-center">
+                  <View className="h-8 bg-gray-200 rounded w-20" />
+                  <View className="w-12 h-12 bg-gray-200 rounded-2xl" />
+                </View>
+              </View>
+            ))}
+          </View>
+          <View className="flex-row gap-3 mb-3">
+            {[1, 2].map((i) => (
+              <View key={i} className="flex-1 bg-white rounded-3xl p-4 h-48" style={{ elevation: 2 }}>
+                <View className="h-6 bg-gray-200 rounded-full w-20 mb-3" />
+                <View className="h-10 bg-gray-100 rounded w-full mb-2" />
+                <View className="h-4 bg-gray-100 rounded w-16 mb-4" />
+                <View className="flex-row justify-between items-center">
+                  <View className="h-8 bg-gray-200 rounded w-20" />
+                  <View className="w-12 h-12 bg-gray-200 rounded-2xl" />
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
       </View>
     );
   }
@@ -482,26 +515,56 @@ export default function POSScreen() {
       transparent={true}
       onRequestClose={() => setShowCustomerModal(false)}
     >
-      <View className="flex-1 bg-black/50 justify-end">
-        <View className="bg-white rounded-t-3xl" style={{ maxHeight: height * 0.7 }}>
+      <View className="flex-1 bg-black/40 justify-end">
+        <TouchableOpacity 
+          className="flex-1" 
+          activeOpacity={1}
+          onPress={() => setShowCustomerModal(false)}
+        />
+        <View 
+          className="bg-white rounded-t-3xl" 
+          style={{ maxHeight: height * 0.7 }}
+        >
           <SafeAreaView>
-            <View className="p-4 border-b border-gray-200 flex-row justify-between items-center">
-              <Text className="text-lg font-semibold text-gray-900">Select Customer</Text>
-              <TouchableOpacity onPress={() => setShowCustomerModal(false)}>
-                <Text className="text-2xl text-gray-600">×</Text>
+            <View className="p-5 border-b border-gray-100 flex-row justify-between items-center">
+              <View>
+                <Text className="text-xl font-bold text-gray-900">Select Customer</Text>
+                <Text className="text-xs text-gray-500 mt-1">Choose a customer for this sale</Text>
+              </View>
+              <TouchableOpacity 
+                onPress={() => setShowCustomerModal(false)}
+                className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center"
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
               </TouchableOpacity>
             </View>
             
-            <ScrollView className="p-4">
+            <ScrollView className="p-4" showsVerticalScrollIndicator={false}>
               <TouchableOpacity
                 onPress={() => {
                   setSelectedCustomer(null);
                   setShowCustomerModal(false);
                 }}
-                className="p-4 border border-gray-300 rounded-lg mb-3 bg-gray-50"
+                className="p-4 rounded-2xl mb-3 bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200"
+                activeOpacity={0.7}
+                style={{
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 4,
+                  elevation: 2,
+                }}
               >
-                <Text className="font-semibold text-gray-900">Walk-in Customer</Text>
-                <Text className="text-sm text-gray-500 mt-1">No customer selected</Text>
+                <View className="flex-row items-center">
+                  <View className="w-12 h-12 rounded-full bg-gray-200 items-center justify-center mr-3">
+                    <Ionicons name="person-outline" size={24} color="#6B7280" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-bold text-gray-900 text-base">Walk-in Customer</Text>
+                    <Text className="text-sm text-gray-500 mt-0.5">No customer information</Text>
+                  </View>
+                  <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                </View>
               </TouchableOpacity>
               
               {customers && customers.length > 0 ? (
@@ -512,20 +575,48 @@ export default function POSScreen() {
                       setSelectedCustomer(customer);
                       setShowCustomerModal(false);
                     }}
-                    className="p-4 border border-gray-300 rounded-lg mb-3"
+                    className="p-4 rounded-2xl mb-3 bg-white border border-gray-200"
+                    activeOpacity={0.7}
+                    style={{
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
                   >
-                    <Text className="font-semibold text-gray-900">{customer.name}</Text>
-                    {customer.phone && (
-                      <Text className="text-sm text-gray-600 mt-1">{customer.phone}</Text>
-                    )}
-                    {customer.balance !== undefined && customer.balance > 0 && (
-                      <Text className="text-sm text-orange-600 mt-1">Balance: ${customer.balance.toFixed(2)}</Text>
-                    )}
+                    <View className="flex-row items-center">
+                      <View className="w-12 h-12 rounded-full bg-blue-100 items-center justify-center mr-3">
+                        <Text className="text-blue-600 font-bold text-lg">
+                          {customer.name.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View className="flex-1">
+                        <Text className="font-bold text-gray-900 text-base">{customer.name}</Text>
+                        {customer.phone && (
+                          <View className="flex-row items-center mt-1">
+                            <Ionicons name="call-outline" size={14} color="#6B7280" />
+                            <Text className="text-sm text-gray-600 ml-1">{customer.phone}</Text>
+                          </View>
+                        )}
+                        {customer.balance !== undefined && customer.balance > 0 && (
+                          <View className="flex-row items-center mt-1">
+                            <Ionicons name="wallet-outline" size={14} color="#F59E0B" />
+                            <Text className="text-sm text-orange-600 ml-1 font-semibold">
+                              Balance: ${customer.balance.toFixed(2)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                    </View>
                   </TouchableOpacity>
                 ))
               ) : (
-                <View className="p-8 items-center">
-                  <Text className="text-gray-400">No customers found</Text>
+                <View className="p-12 items-center">
+                  <Ionicons name="people-outline" size={64} color="#D1D5DB" />
+                  <Text className="text-gray-400 text-base mt-4">No customers found</Text>
+                  <Text className="text-gray-400 text-sm mt-1">Add customers to see them here</Text>
                 </View>
               )}
             </ScrollView>
@@ -674,18 +765,21 @@ export default function POSScreen() {
       {showCart && (
         <Modal
           visible={true}
-          animationType="none"
+          animationType="fade"
           transparent={true}
           onRequestClose={() => setShowCart(false)}
           statusBarTranslucent
         >
           <View className="flex-1 flex-row">
             <TouchableOpacity 
-              className="flex-1 bg-black/50" 
+              className="flex-1 bg-black/40" 
               activeOpacity={1}
               onPress={() => setShowCart(false)}
             />
-            <View style={{ width: cartWidth }} className="bg-white shadow-2xl">
+            <View 
+              style={{ width: cartWidth }} 
+              className="bg-white"
+            >
               <SafeAreaView className="flex-1">
                 <View className="p-4 border-b border-gray-100 flex-row justify-between items-center bg-white">
                   <View>
@@ -770,12 +864,23 @@ export default function POSScreen() {
                   <TouchableOpacity
                     onPress={handleCheckout}
                     disabled={cart.length === 0 || isLoading}
-                    className={`rounded-xl py-3.5 mb-2 ${cart.length === 0 || isLoading ? 'bg-gray-200' : 'bg-blue-600'}`}
+                    className={`rounded-2xl py-4 mb-2 ${cart.length === 0 || isLoading ? 'bg-gray-200' : 'bg-blue-600'}`}
+                    style={cart.length > 0 && !isLoading ? {
+                      shadowColor: '#3B82F6',
+                      shadowOffset: { width: 0, height: 6 },
+                      shadowOpacity: 0.4,
+                      shadowRadius: 12,
+                      elevation: 8,
+                    } : {}}
+                    activeOpacity={0.8}
                   >
                     {isLoading ? (
                       <ActivityIndicator color="white" />
                     ) : (
-                      <Text className="text-white text-center font-semibold">Complete Sale</Text>
+                      <View className="flex-row items-center justify-center">
+                        <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
+                        <Text className="text-white text-center font-bold text-base ml-2">Complete Sale</Text>
+                      </View>
                     )}
                   </TouchableOpacity>
 

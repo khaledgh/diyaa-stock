@@ -44,8 +44,8 @@ export default function ProfileScreen() {
             
             <View className="flex-row justify-around pt-4 border-t border-gray-100">
               <View className="items-center">
-                <Text className="text-gray-900 text-2xl font-bold">{user?.van_id || '-'}</Text>
-                <Text className="text-gray-500 text-xs mt-1">Van ID</Text>
+                <Text className="text-gray-900 text-2xl font-bold">{user?.location_id || '-'}</Text>
+                <Text className="text-gray-500 text-xs mt-1">Location ID</Text>
               </View>
               <View className="w-px h-12 bg-gray-200" />
               <View className="items-center">
@@ -64,10 +64,10 @@ export default function ProfileScreen() {
               <Text className="text-base text-gray-900">{user?.email}</Text>
             </View>
 
-            {user?.van_id && (
+            {user?.location_id && (
               <View className="mb-3 pb-3 border-b border-gray-100">
-                <Text className="text-xs text-gray-500 mb-1">Assigned Van</Text>
-                <Text className="text-base text-gray-900 font-semibold">Van {user.van_id}</Text>
+                <Text className="text-xs text-gray-500 mb-1">Assigned Location</Text>
+                <Text className="text-base text-gray-900 font-semibold">{user.location_name || `Location ${user.location_id}`}</Text>
               </View>
             )}
 

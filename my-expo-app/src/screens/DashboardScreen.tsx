@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -101,10 +100,38 @@ export default function DashboardScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <ActivityIndicator size="large" color="#3B82F6" />
-        <Text className="mt-4 text-gray-600">Loading dashboard...</Text>
-      </View>
+      <SafeAreaView edges={['top']} className="flex-1 bg-gray-50">
+        <View className="px-4 py-3 bg-white border-b border-gray-100">
+          <View className="h-6 bg-gray-200 rounded w-32 mb-1" />
+          <View className="h-4 bg-gray-100 rounded w-40" />
+        </View>
+        
+        <View className="p-4">
+          {/* Large card skeleton */}
+          <View className="bg-gray-200 rounded-2xl p-5 mb-3 h-32" style={{ elevation: 2 }} />
+          
+          {/* Two column skeleton */}
+          <View className="flex-row gap-3 mb-3">
+            <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
+            <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
+          </View>
+          
+          <View className="flex-row gap-3 mb-3">
+            <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
+            <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
+          </View>
+          
+          {/* Chart skeleton */}
+          <View className="bg-white rounded-3xl p-5 h-48" style={{ elevation: 2 }}>
+            <View className="h-5 bg-gray-200 rounded w-32 mb-4" />
+            <View className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <View key={i} className="h-3 bg-gray-100 rounded-full" />
+              ))}
+            </View>
+          </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -131,7 +158,10 @@ export default function DashboardScreen() {
           {/* Sales Stats Grid */}
           <View className="mb-4">
             {/* Today Sales - Large Card */}
-            <View className="bg-blue-600 rounded-2xl p-5 mb-3" style={{ elevation: 4, shadowColor: '#2563EB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}>
+            <View 
+              className="bg-blue-600 rounded-2xl p-5 mb-3" 
+              style={{ elevation: 4, shadowColor: '#2563EB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
+            >
               <View className="flex-row justify-between items-start">
                 <View className="flex-1">
                   <Text className="text-blue-100 text-xs font-semibold mb-2">TODAY&apos;S SALES</Text>
@@ -176,7 +206,10 @@ export default function DashboardScreen() {
           </View>
 
           {/* Simple Bar Chart */}
-          <View className="bg-white rounded-3xl p-5 mb-4" style={{ elevation: 2 }}>
+          <View 
+            className="bg-white rounded-3xl p-5 mb-4" 
+            style={{ elevation: 2 }}
+          >
             <Text className="text-gray-900 text-lg font-bold mb-4">Sales Overview</Text>
             
             <View className="space-y-3">
@@ -222,7 +255,10 @@ export default function DashboardScreen() {
           </View>
 
           {/* Quick Stats */}
-          <View className="bg-white rounded-3xl p-5" style={{ elevation: 2 }}>
+          <View 
+            className="bg-white rounded-3xl p-5" 
+            style={{ elevation: 2 }}
+          >
             <Text className="text-gray-900 text-lg font-bold mb-4">Quick Stats</Text>
             
             <View className="space-y-3">

@@ -72,7 +72,7 @@ class ApiService {
   }
 
   async createSalesInvoice(data: {
-    location_id: number; // Van ID is sent as location_id to backend
+    location_id: number; // Location ID (warehouse, van, branch, etc.)
     customer_id?: number;
     items: Array<{
       product_id: number;
