@@ -29,6 +29,8 @@ import Vendors from './pages/Vendors';
 import Locations from './pages/Locations';
 import Categories from './pages/Categories';
 import ProductTypes from './pages/ProductTypes';
+import CreditNotes from './pages/CreditNotes';
+import PaymentAllocation from './pages/PaymentAllocation';
 
 
 // Layout
@@ -88,6 +90,8 @@ function App() {
             <Route path="vans" element={<Vans />} />
             <Route path="locations" element={<Locations />} />
             <Route path="transfers" element={<Transfers />} />
+            <Route path="credit-notes" element={<CreditNotes />} />
+            <Route path="payment-allocation" element={<PaymentAllocation />} />
             <Route path="invoices" element={<Invoices />} />
             <Route path="invoices/new" element={<InvoiceForm />} />
             <Route path="invoices/purchase/:id" element={<PurchaseInvoiceDetails />} />

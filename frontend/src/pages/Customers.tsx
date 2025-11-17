@@ -41,17 +41,20 @@ export default function Customers() {
         
         console.log('Customer API Response:', response.data);
         
-        // The API returns: { success: true, message: "Success", data: { data: [], pagination: {} } }
-        // So we need response.data.data to get { data: [...], pagination: {...} }
+        // Backend returns PaginationResponse directly: { data: [], total: 46, current_page: 1, per_page: 20, total_pages: 3 }
+        const apiData = response.data;
         
-        const apiData = response.data.data || response.data;
-        
-        // Check if apiData has the nested structure
-        if (apiData?.data && Array.isArray(apiData.data)) {
-          console.log('Correct format detected: nested data array');
+        // Check if it's the pagination response format
+        if (apiData?.data && Array.isArray(apiData.data) && apiData.total !== undefined) {
+          console.log('Pagination format detected');
           return {
             data: apiData.data,
-            pagination: apiData.pagination || null
+            pagination: {
+              total: apiData.total,
+              current_page: apiData.current_page,
+              per_page: apiData.per_page,
+              total_pages: apiData.total_pages
+            }
           };
         }
         

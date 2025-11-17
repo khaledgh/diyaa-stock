@@ -4,10 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import PrinterSettingsScreen from './PrinterSettingsScreen';
+import PrinterDemo from '../../components/PrinterDemo';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
+  const [showPrinterDemo, setShowPrinterDemo] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -93,6 +95,19 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
 
+          {/* Printer Demo Button */}
+          <TouchableOpacity
+            onPress={() => setShowPrinterDemo(true)}
+            className="bg-white rounded-2xl py-4 mb-3 flex-row items-center justify-between px-4"
+            style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 }}
+          >
+            <View className="flex-row items-center">
+              <Ionicons name="print-outline" size={24} color="#10B981" />
+              <Text className="text-gray-900 font-semibold text-base ml-3">Printer Demo</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+
           {/* Logout Button */}
           <TouchableOpacity
             onPress={handleLogout}
@@ -117,6 +132,23 @@ export default function ProfileScreen() {
         presentationStyle="fullScreen"
       >
         <PrinterSettingsScreen onClose={() => setShowPrinterSettings(false)} />
+      </Modal>
+
+      {/* Printer Demo Modal */}
+      <Modal
+        visible={showPrinterDemo}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView edges={['top']} className="flex-1 bg-white">
+          <View className="px-4 py-3 border-b border-gray-100 flex-row items-center">
+            <TouchableOpacity onPress={() => setShowPrinterDemo(false)} className="mr-3">
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text className="text-gray-900 text-xl font-bold">Printer Demo</Text>
+          </View>
+          <PrinterDemo />
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );

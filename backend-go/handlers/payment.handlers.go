@@ -30,7 +30,7 @@ func NewPaymentHandler(ps PaymentService, sis SalesInvoiceService, pis PurchaseI
 func (ph *PaymentHandler) GetAllHandler(c echo.Context) error {
 	invoiceID := c.QueryParam("invoice_id")
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
-	
+
 	payments, err := ph.PaymentServices.GetALL(invoiceID, limit)
 	if err != nil {
 		return ResponseError(c, err)
@@ -40,30 +40,32 @@ func (ph *PaymentHandler) GetAllHandler(c echo.Context) error {
 
 func (ph *PaymentHandler) CreateHandler(c echo.Context) error {
 	var req struct {
-		InvoiceID     uint    `json:"invoice_id"`
-		InvoiceType   string  `json:"invoice_type"`
-		Amount        float64 `json:"amount"`
-		PaymentMethod string  `json:"payment_method"`
+		InvoiceID       uint    `json:"invoice_id"`
+		InvoiceType     string  `json:"invoice_type"`
+		Amount          float64 `json:"amount"`
+		PaymentMethod   string  `json:"payment_method"`
 		ReferenceNumber *string `json:"reference_number"`
-		Notes         *string `json:"notes"`
+		Notes           *string `json:"notes"`
 	}
-	
+
 	if err := c.Bind(&req); err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	if req.Amount <= 0 {
 		return ResponseError(c, errors.New("payment amount must be greater than zero"))
 	}
-	
+
 	user, err := GetUserContext(c)
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	// Get invoice and validate
 	var totalAmount, paidAmount float64
-	
+	var customerID *uint
+	var vendorID *uint
+
 	if req.InvoiceType == "purchase" {
 		invoice, err := ph.PurchaseInvoiceServices.GetID(strconv.Itoa(int(req.InvoiceID)))
 		if err != nil {
@@ -71,6 +73,7 @@ func (ph *PaymentHandler) CreateHandler(c echo.Context) error {
 		}
 		totalAmount = invoice.TotalAmount
 		paidAmount = invoice.PaidAmount
+		vendorID = invoice.VendorID
 	} else {
 		invoice, err := ph.SalesInvoiceServices.GetID(strconv.Itoa(int(req.InvoiceID)))
 		if err != nil {
@@ -78,61 +81,74 @@ func (ph *PaymentHandler) CreateHandler(c echo.Context) error {
 		}
 		totalAmount = invoice.TotalAmount
 		paidAmount = invoice.PaidAmount
+		if invoice.CustomerID != nil {
+			customerID = invoice.CustomerID
+		}
 	}
-	
+
 	// Check if payment exceeds remaining amount
 	remainingAmount := totalAmount - paidAmount
 	if req.Amount > remainingAmount {
 		return ResponseError(c, errors.New("payment amount exceeds remaining balance"))
 	}
-	
+
 	// Create payment
 	payment := models.Payment{
 		InvoiceID:       req.InvoiceID,
+		InvoiceType:     req.InvoiceType,
+		CustomerID:      customerID,
+		VendorID:        vendorID,
 		Amount:          req.Amount,
 		PaymentMethod:   req.PaymentMethod,
 		ReferenceNumber: req.ReferenceNumber,
 		Notes:           req.Notes,
+		AllocationType:  "single",
 		CreatedBy:       user.ID,
 	}
-	
+
 	createdPayment, err := ph.PaymentServices.Create(payment)
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	// Update invoice payment status
 	newPaidAmount := paidAmount + req.Amount
-	
+
 	if req.InvoiceType == "purchase" {
 		// Update purchase invoice
 		invoice, _ := ph.PurchaseInvoiceServices.GetID(strconv.Itoa(int(req.InvoiceID)))
-		invoice.PaidAmount = newPaidAmount
-		
-		if newPaidAmount >= totalAmount {
+
+		// Use tolerance for floating-point comparison (0.01 = 1 cent)
+		if newPaidAmount >= totalAmount-0.01 {
 			invoice.PaymentStatus = "paid"
+			invoice.PaidAmount = totalAmount // Set to exact amount to avoid precision issues
 		} else if newPaidAmount > 0 {
 			invoice.PaymentStatus = "partial"
+			invoice.PaidAmount = newPaidAmount
 		} else {
 			invoice.PaymentStatus = "unpaid"
+			invoice.PaidAmount = newPaidAmount
 		}
-		
+
 		ph.PurchaseInvoiceServices.Update(invoice)
 	} else {
 		// Update sales invoice
 		invoice, _ := ph.SalesInvoiceServices.GetID(strconv.Itoa(int(req.InvoiceID)))
-		invoice.PaidAmount = newPaidAmount
-		
-		if newPaidAmount >= totalAmount {
+
+		// Use tolerance for floating-point comparison (0.01 = 1 cent)
+		if newPaidAmount >= totalAmount-0.01 {
 			invoice.PaymentStatus = "paid"
+			invoice.PaidAmount = totalAmount // Set to exact amount to avoid precision issues
 		} else if newPaidAmount > 0 {
 			invoice.PaymentStatus = "partial"
+			invoice.PaidAmount = newPaidAmount
 		} else {
 			invoice.PaymentStatus = "unpaid"
+			invoice.PaidAmount = newPaidAmount
 		}
-		
+
 		ph.SalesInvoiceServices.Update(invoice)
 	}
-	
+
 	return ResponseSuccess(c, "Payment recorded successfully", createdPayment)
 }

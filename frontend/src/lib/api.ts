@@ -144,9 +144,27 @@ export const userApi = {
 };
 
 export const vendorApi = {
-  getAll: () => api.get('/vendors'),
+  getAll: (params?: any) => api.get('/vendors', { params }),
   getById: (id: number) => api.get(`/vendors/${id}`),
   create: (data: any) => api.post('/vendors', data),
   update: (id: number, data: any) => api.put(`/vendors/${id}`, data),
   delete: (id: number) => api.delete(`/vendors/${id}`),
+};
+
+export const creditNoteApi = {
+  getAll: (params?: any) => api.get('/credit-notes', { params }),
+  getById: (id: number) => api.get(`/credit-notes/${id}`),
+  create: (data: any) => api.post('/credit-notes', data),
+  update: (id: number, data: any) => api.put(`/credit-notes/${id}`, data),
+  approve: (id: number) => api.post(`/credit-notes/${id}/approve`),
+  cancel: (id: number) => api.post(`/credit-notes/${id}/cancel`),
+  delete: (id: number) => api.delete(`/credit-notes/${id}`),
+};
+
+export const paymentAllocationApi = {
+  allocateFIFO: (data: any) => api.post('/payment-allocations/allocate-fifo', data),
+  getPaymentAllocations: (paymentId: number) => api.get(`/payment-allocations/${paymentId}/allocations`),
+  getInvoiceAllocations: (invoiceId: number, invoiceType: string) => 
+    api.get(`/invoices/${invoiceId}/allocations`, { params: { invoice_type: invoiceType } }),
+  getAllocationSummary: (paymentId: number) => api.get(`/payment-allocations/${paymentId}/allocation-summary`),
 };

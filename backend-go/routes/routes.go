@@ -15,10 +15,10 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 
 	// Public routes (no authentication required)
 	e.POST("/api/login", auth.LoginHandler)
-	
+
 	// Protected routes (authentication required)
 	apiGroup := e.Group("/api", auth.JWTMiddleware)
-	
+
 	// Auth routes
 	apiGroup.GET("/me", auth.GetUserHandler)
 
@@ -64,7 +64,7 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.POST("/locations", locationHandler.CreateHandler)
 	apiGroup.PUT("/locations/:id", locationHandler.UpdateHandler)
 	apiGroup.DELETE("/locations/:id", locationHandler.Delete)
-	
+
 	// Stock service for location stock endpoint
 	stockService := services.NewStockService(models.Stock{}, store)
 	stockHandler := handlers.NewStockHandler(stockService)
@@ -107,7 +107,7 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 
 	// Payment service - needed by invoice handler
 	paymentService := services.NewPaymentService(models.Payment{}, store)
-	
+
 	// Invoice routes - matches PHP: /api/invoices
 	salesInvoiceService := services.NewSalesInvoiceService(models.SalesInvoice{}, store)
 	purchaseInvoiceService := services.NewPurchaseInvoiceService(models.PurchaseInvoice{}, store)
@@ -148,6 +148,101 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.POST("/vendors", vendorHandler.CreateHandler)
 	apiGroup.PUT("/vendors/:id", vendorHandler.UpdateHandler)
 	apiGroup.DELETE("/vendors/:id", vendorHandler.Delete)
+
+	// Credit Note routes
+	creditNoteService := services.NewCreditNoteService(store)
+	creditNoteHandler := handlers.NewCreditNoteHandler(creditNoteService)
+	apiGroup.GET("/credit-notes", creditNoteHandler.GetAllHandler)
+	apiGroup.GET("/credit-notes/:id", creditNoteHandler.GetByIDHandler)
+	apiGroup.POST("/credit-notes", creditNoteHandler.CreateHandler)
+	apiGroup.PUT("/credit-notes/:id", creditNoteHandler.UpdateHandler)
+	apiGroup.POST("/credit-notes/:id/approve", creditNoteHandler.ApproveHandler)
+	apiGroup.POST("/credit-notes/:id/cancel", creditNoteHandler.CancelHandler)
+	apiGroup.DELETE("/credit-notes/:id", creditNoteHandler.DeleteHandler)
+
+	// Payment Allocation routes
+	paymentAllocationService := services.NewPaymentAllocationService(store)
+	apiGroup.POST("/payment-allocations/allocate-fifo", func(c echo.Context) error {
+		var req struct {
+			CustomerID      *uint   `json:"customer_id"`
+			VendorID        *uint   `json:"vendor_id"`
+			InvoiceType     string  `json:"invoice_type"`
+			Amount          float64 `json:"amount"`
+			PaymentMethod   string  `json:"payment_method"`
+			PaymentDate     string  `json:"payment_date"`
+			ReferenceNumber *string `json:"reference_number"`
+			Notes           *string `json:"notes"`
+		}
+		if err := c.Bind(&req); err != nil {
+			return handlers.ResponseError(c, err)
+		}
+
+		// Parse payment date
+		paymentDate, err := handlers.ParseDate(req.PaymentDate)
+		if err != nil {
+			return handlers.ResponseError(c, err)
+		}
+
+		// Get user ID from context
+		userID := handlers.GetUserIDFromContext(c)
+
+		payment, allocations, err := paymentAllocationService.AllocatePaymentFIFO(
+			req.CustomerID,
+			req.VendorID,
+			req.InvoiceType,
+			req.Amount,
+			req.PaymentMethod,
+			paymentDate,
+			req.ReferenceNumber,
+			req.Notes,
+			userID,
+		)
+		if err != nil {
+			return handlers.ResponseError(c, err)
+		}
+
+		return handlers.ResponseSuccess(c, "Payment allocated successfully", map[string]interface{}{
+			"payment":     payment,
+			"allocations": allocations,
+		})
+	})
+	apiGroup.GET("/payment-allocations/:id/allocations", func(c echo.Context) error {
+		paymentID := c.Param("id")
+		id, err := handlers.ParseUint(paymentID)
+		if err != nil {
+			return handlers.ResponseError(c, err)
+		}
+		allocations, err := paymentAllocationService.GetPaymentAllocations(id)
+		if err != nil {
+			return handlers.ResponseError(c, err)
+		}
+		return handlers.ResponseOK(c, allocations, "data")
+	})
+	apiGroup.GET("/invoices/:id/allocations", func(c echo.Context) error {
+		invoiceID := c.Param("id")
+		invoiceType := c.QueryParam("invoice_type")
+		id, err := handlers.ParseUint(invoiceID)
+		if err != nil {
+			return handlers.ResponseError(c, err)
+		}
+		allocations, err := paymentAllocationService.GetInvoiceAllocations(id, invoiceType)
+		if err != nil {
+			return handlers.ResponseError(c, err)
+		}
+		return handlers.ResponseOK(c, allocations, "data")
+	})
+	apiGroup.GET("/payment-allocations/:id/allocation-summary", func(c echo.Context) error {
+		paymentID := c.Param("id")
+		id, err := handlers.ParseUint(paymentID)
+		if err != nil {
+			return handlers.ResponseError(c, err)
+		}
+		summary, err := paymentAllocationService.GetAllocationSummary(id)
+		if err != nil {
+			return handlers.ResponseError(c, err)
+		}
+		return handlers.ResponseOK(c, summary, "data")
+	})
 
 	// Role and Permission routes
 	roleService := services.NewRoleService(models.Role{}, store)

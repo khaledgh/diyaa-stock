@@ -9,6 +9,7 @@ import { Plus, Edit, Trash2, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Dialog,
@@ -34,6 +35,7 @@ const vanSchema = z.object({
   owner_type: z.enum(['company', 'rental'], {
     required_error: 'Owner type is required',
   }),
+  is_active: z.boolean().default(true),
 });
 
 type VanFormData = z.infer<typeof vanSchema>;
@@ -121,9 +123,15 @@ export default function Vans() {
       setValue('name', van.name);
       setValue('plate_number', van.plate_number || '');
       setValue('owner_type', van.owner_type as 'company' | 'rental');
+      setValue('is_active', van.is_active);
     } else {
       setEditingVan(null);
-      reset();
+      reset({
+        name: '',
+        plate_number: '',
+        owner_type: 'company',
+        is_active: true,
+      });
     }
     setIsDialogOpen(true);
   };
@@ -312,6 +320,18 @@ export default function Vans() {
               )}
             </div>
 
+            <div className="flex items-center justify-between space-x-2 py-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="is_active">{t('common.status') || 'Status'}</Label>
+                <p className="text-sm text-muted-foreground">
+                  {watch('is_active') ? (t('common.active') || 'Active') : (t('common.inactive') || 'Inactive')}
+                </p>
+              </div>
+              <Switch
+                checked={watch('is_active')}
+                onCheckedChange={(checked: boolean) => setValue('is_active', checked)}
+              />
+            </div>
 
             <DialogFooter className="gap-2 sm:gap-0">
               <Button

@@ -23,6 +23,7 @@ import {
   ChevronRight,
   Tag,
   Layers,
+  FileX,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -52,6 +53,8 @@ const inventoryNavigation = [
 
 const businessNavigation = [
   { name: 'invoices', href: '/invoices', icon: FileText },
+  { name: 'credit-notes', href: '/credit-notes', icon: FileX },
+  { name: 'payment-allocation', href: '/payment-allocation', icon: CreditCard },
   { name: 'payments', href: '/payments', icon: CreditCard },
   { name: 'reports', href: '/reports', icon: BarChart3 },
   { name: 'settings', href: '/settings', icon: Settings },

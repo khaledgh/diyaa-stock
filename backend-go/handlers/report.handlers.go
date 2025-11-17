@@ -247,7 +247,7 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 	// Pending payments (Receivables)
 	var pendingPayments float64
 	rh.db.Raw(`
-		SELECT SUM(total_amount - paid_amount) as total
+		SELECT COALESCE(SUM(total_amount - paid_amount), 0) as total
 		FROM sales_invoices
 		WHERE payment_status IN ('unpaid', 'partial')
 	`).Scan(&pendingPayments)
@@ -256,7 +256,7 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 	// Payables
 	var payables float64
 	rh.db.Raw(`
-		SELECT SUM(total_amount - paid_amount) as total
+		SELECT COALESCE(SUM(total_amount - paid_amount), 0) as total
 		FROM purchase_invoices
 		WHERE payment_status IN ('unpaid', 'partial')
 	`).Scan(&payables)

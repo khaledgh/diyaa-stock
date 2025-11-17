@@ -73,16 +73,14 @@ export function Combobox({
           />
           <CommandEmpty>{emptyText}</CommandEmpty>
           <CommandGroup className="max-h-64 overflow-auto">
-            {options.map((option) => (
+            {options.map((option, index) => (
               <CommandItem
-                key={option.value}
-                value={option.label}
-                onSelect={(currentLabel: string) => {
-                  // Find the option by label to get the actual value
-                  const selectedOption = options.find(opt => opt.label.toLowerCase() === currentLabel.toLowerCase())
-                  if (selectedOption) {
-                    onChange(selectedOption.value === value ? "" : selectedOption.value)
-                  }
+                key={`${option.value}-${index}`}
+                value={`${option.value}::${option.label}`}
+                onSelect={(selectedValue: string) => {
+                  // Extract the actual value from the combined string
+                  const actualValue = selectedValue.split('::')[0];
+                  onChange(actualValue === value ? "" : actualValue)
                   setOpen(false)
                 }}
               >

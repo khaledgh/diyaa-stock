@@ -10,6 +10,9 @@ module.exports = defineConfig([
   {
     rules: {
       'react/display-name': 'off',
+      'import/no-dynamic-require': 'off',
+      '@typescript-eslint/no-var-requires': 'off',
+      'global-require': 'off',
     },
   },
 ]);

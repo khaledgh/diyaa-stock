@@ -60,6 +60,11 @@ func main() {
 		e.Logger.Fatal(err)
 	}
 
+	// Run automatic database migrations
+	if err := database.AutoMigrate(db); err != nil {
+		e.Logger.Fatal("Failed to run migrations:", err)
+	}
+
 	routes.SetupRoutes(e, db)
 	// cron.StartCron(db)
 	e.Logger.Fatal(e.Start(":9001"))

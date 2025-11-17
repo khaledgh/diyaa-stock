@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Pagination } from '@/components/ui/pagination';
 import { vendorApi } from '@/lib/api';
-import { Building2, Plus, Edit, Trash2, Phone, Mail } from 'lucide-react';
+import { Building2, Plus, Edit, Trash2, Phone, Mail, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Vendors() {
@@ -16,6 +17,9 @@ export default function Vendors() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
   const [formData, setFormData] = useState({
     name: '',
     company_name: '',
@@ -27,13 +31,54 @@ export default function Vendors() {
     credit_limit: '',
   });
 
-  const { data: vendors, isLoading } = useQuery({
-    queryKey: ['vendors'],
+  const { data: vendorsResponse, isLoading } = useQuery({
+    queryKey: ['vendors', searchTerm, page],
     queryFn: async () => {
-      const response = await vendorApi.getAll();
-      return response.data.data;
+      try {
+        const response = await vendorApi.getAll({
+          search: searchTerm,
+          page,
+          per_page: perPage
+        });
+        
+        console.log('Vendor API Response:', response.data);
+        
+        // Backend returns PaginationResponse directly: { data: [], total: X, current_page: 1, per_page: 20, total_pages: Y }
+        const apiData = response.data;
+        
+        // Check if it's the pagination response format
+        if (apiData?.data && Array.isArray(apiData.data) && apiData.total !== undefined) {
+          console.log('Pagination format detected');
+          return {
+            data: apiData.data,
+            pagination: {
+              total: apiData.total,
+              current_page: apiData.current_page,
+              per_page: apiData.per_page,
+              total_pages: apiData.total_pages
+            }
+          };
+        }
+        
+        // Fallback: if apiData is directly an array (old format)
+        if (Array.isArray(apiData)) {
+          console.log('Old format: direct array');
+          return { data: apiData, pagination: null };
+        }
+        
+        console.log('Unknown format, returning empty. ApiData:', apiData);
+        return { data: [], pagination: null };
+      } catch (error) {
+        console.error('Failed to fetch vendors:', error);
+        return { data: [], pagination: null };
+      }
     },
   });
+
+  const vendors = Array.isArray(vendorsResponse?.data) ? vendorsResponse.data : [];
+  const pagination = vendorsResponse?.pagination;
+  
+  console.log('Vendors:', vendors, 'Pagination:', pagination);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -256,6 +301,20 @@ export default function Vendors() {
           <CardTitle className="text-xl">{t('vendors.list')}</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Input
+                placeholder="Search vendors by name, company, phone, or email..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(1);
+                }}
+                className="pl-10 h-11"
+              />
+            </div>
+          </div>
           {isLoading ? (
             <div className="text-center py-8">{t('common.loading')}</div>
           ) : (
@@ -331,6 +390,16 @@ export default function Vendors() {
                 )}
               </TableBody>
             </Table>
+          )}
+          
+          {pagination && pagination.total_pages > 1 && (
+            <Pagination
+              currentPage={pagination.current_page}
+              totalPages={pagination.total_pages}
+              onPageChange={setPage}
+              totalItems={pagination.total}
+              itemsPerPage={pagination.per_page}
+            />
           )}
         </CardContent>
       </Card>
