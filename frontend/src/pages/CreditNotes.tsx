@@ -344,7 +344,7 @@ export default function CreditNotes() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
             <FileText className="h-8 w-8 text-orange-600" />
-            Credit Notes
+            {t('creditNotes.title')}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage product returns and credit notes
@@ -352,7 +352,7 @@ export default function CreditNotes() {
         </div>
         <Button onClick={handleOpenDialog} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
-          New Credit Note
+          {t('creditNotes.createCreditNote')}
         </Button>
       </div>
 
@@ -365,7 +365,7 @@ export default function CreditNotes() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <Input
-                placeholder="Search by credit note number..."
+                placeholder={t('creditNotes.searchCreditNotes')}
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -382,10 +382,10 @@ export default function CreditNotes() {
               }}
               className="px-4 py-2 border rounded-md"
             >
-              <option value="all">All Status</option>
-              <option value="draft">Draft</option>
-              <option value="approved">Approved</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="all">{t('common.all')}</option>
+              <option value="draft">{t('creditNotes.draft')}</option>
+              <option value="approved">{t('creditNotes.approved')}</option>
+              <option value="cancelled">{t('creditNotes.cancelled')}</option>
             </select>
           </div>
 

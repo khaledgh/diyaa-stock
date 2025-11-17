@@ -176,10 +176,10 @@ export default function PaymentAllocation() {
   console.log('Entity options for combobox:', entityOptions);
 
   const paymentMethodOptions = [
-    { value: 'cash', label: 'Cash' },
-    { value: 'card', label: 'Card' },
-    { value: 'bank_transfer', label: 'Bank Transfer' },
-    { value: 'check', label: 'Check' },
+    { value: 'cash', label: t('paymentAllocation.cash') },
+    { value: 'card', label: t('paymentAllocation.card') },
+    { value: 'bank_transfer', label: t('paymentAllocation.bankTransfer') },
+    { value: 'check', label: t('paymentAllocation.check') },
   ];
 
   // Allocate payment mutation
@@ -194,9 +194,10 @@ export default function PaymentAllocation() {
       // Check if there's unallocated amount
       const payment = data.payment;
       if (payment && payment.unallocated_amount > 0) {
-        toast.warning(`Payment allocated successfully! Note: $${payment.unallocated_amount.toFixed(2)} was not allocated (no invoices needed it).`);
+        toast.warning(`${t('paymentAllocation.unallocatedWarning')}${payment.unallocated_amount.toFixed(2)}${t('paymentAllocation.notAllocated')}`);
+        toast.success(t('paymentAllocation.paymentAllocated'));
       } else {
-        toast.success('Payment allocated successfully!');
+        toast.success(t('paymentAllocation.paymentAllocated'));
       }
       
       // Reset form
@@ -209,7 +210,7 @@ export default function PaymentAllocation() {
       queryClient.invalidateQueries({ queryKey: ['unpaid-invoices'] });
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to allocate payment');
+      toast.error(error.response?.data?.message || t('paymentAllocation.allocationFailed'));
     },
   });
 
@@ -217,7 +218,7 @@ export default function PaymentAllocation() {
     e.preventDefault();
 
     if (!selectedEntity || !amount) {
-      toast.error('Please fill all required fields');
+      toast.error(t('paymentAllocation.fillRequired'));
       return;
     }
 
@@ -225,12 +226,12 @@ export default function PaymentAllocation() {
 
     // Validate amount doesn't exceed total due
     if (paymentAmount > maxAmount) {
-      toast.error(`Payment amount cannot exceed $${maxAmount.toFixed(2)}`);
+      toast.error(`${t('paymentAllocation.amountTooHigh')}${maxAmount.toFixed(2)}`);
       return;
     }
 
     if (paymentAmount <= 0) {
-      toast.error('Payment amount must be greater than 0');
+      toast.error(t('paymentAllocation.amountTooLow'));
       return;
     }
 
@@ -276,7 +277,7 @@ export default function PaymentAllocation() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
             <DollarSign className="h-8 w-8 text-green-600" />
-            Payment Allocation (FIFO)
+            {t('paymentAllocation.title')}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Allocate payments to multiple invoices automatically (oldest first)
@@ -288,12 +289,12 @@ export default function PaymentAllocation() {
         {/* Payment Form */}
         <Card>
           <CardHeader>
-            <CardTitle>New Payment</CardTitle>
+            <CardTitle>{t('paymentAllocation.newPayment')}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label>Invoice Type *</Label>
+                <Label>{t('paymentAllocation.invoiceType')} *</Label>
                 <select
                   value={invoiceType}
                   onChange={(e) => {
@@ -303,13 +304,13 @@ export default function PaymentAllocation() {
                   }}
                   className="w-full px-3 py-2 border rounded-md"
                 >
-                  <option value="sales">Sales Invoices</option>
-                  <option value="purchase">Purchase Invoices</option>
+                  <option value="sales">{t('paymentAllocation.salesInvoices')}</option>
+                  <option value="purchase">{t('paymentAllocation.purchaseInvoices')}</option>
                 </select>
               </div>
 
               <div>
-                <Label>{invoiceType === 'sales' ? 'Customer' : 'Vendor'} *</Label>
+                <Label>{t(invoiceType === 'sales' ? 'paymentAllocation.customer' : 'paymentAllocation.vendor')} *</Label>
                 <Combobox
                   options={entityOptions}
                   value={selectedEntity}
@@ -330,17 +331,17 @@ export default function PaymentAllocation() {
                       setMaxAmount(0);
                     }
                   }}
-                  placeholder={`Select ${invoiceType === 'sales' ? 'customer' : 'vendor'}`}
-                  searchPlaceholder="Search..."
-                  emptyText="No results found"
+                  placeholder={t(invoiceType === 'sales' ? 'paymentAllocation.selectCustomer' : 'paymentAllocation.selectVendor')}
+                  searchPlaceholder={t('paymentAllocation.search')}
+                  emptyText={t('paymentAllocation.noResults')}
                 />
               </div>
 
               <div>
-                <Label>Payment Amount *</Label>
+                <Label>{t('paymentAllocation.paymentAmount')} *</Label>
                 {maxAmount > 0 && (
                   <p className="text-sm text-muted-foreground mb-1">
-                    Max: ${maxAmount.toFixed(2)}
+                    {t('paymentAllocation.maxAmount')}: ${maxAmount.toFixed(2)}
                   </p>
                 )}
                 <Input
@@ -350,25 +351,25 @@ export default function PaymentAllocation() {
                   max={maxAmount > 0 ? maxAmount : undefined}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
+                  placeholder={t('paymentAllocation.enterPaymentAmount')}
                   required
                 />
               </div>
 
               <div>
-                <Label>Payment Method *</Label>
+                <Label>{t('paymentAllocation.paymentMethod')} *</Label>
                 <Combobox
                   options={paymentMethodOptions}
                   value={paymentMethod}
                   onChange={setPaymentMethod}
-                  placeholder="Select payment method"
-                  searchPlaceholder="Search..."
-                  emptyText="No results found"
+                  placeholder={t('paymentAllocation.selectPaymentMethod')}
+                  searchPlaceholder={t('paymentAllocation.search')}
+                  emptyText={t('paymentAllocation.noResults')}
                 />
               </div>
 
               <div>
-                <Label>Payment Date *</Label>
+                <Label>{t('paymentAllocation.paymentDate')} *</Label>
                 <Input
                   type="date"
                   value={paymentDate}
@@ -378,22 +379,22 @@ export default function PaymentAllocation() {
               </div>
 
               <div>
-                <Label>Reference Number</Label>
+                <Label>{t('paymentAllocation.referenceNumber')}</Label>
                 <Input
                   value={referenceNumber}
                   onChange={(e) => setReferenceNumber(e.target.value)}
-                  placeholder="Optional reference number"
+                  placeholder={t('paymentAllocation.enterReferenceNumber')}
                 />
               </div>
 
               <div>
-                <Label>Notes</Label>
+                <Label>{t('paymentAllocation.notes')}</Label>
                 <textarea
                   className="w-full px-3 py-2 border rounded-md"
                   rows={3}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Optional notes..."
+                  placeholder={t('paymentAllocation.enterNotes')}
                 />
               </div>
 
@@ -403,7 +404,7 @@ export default function PaymentAllocation() {
                   className="flex-1"
                   disabled={allocateMutation.isPending}
                 >
-                  {allocateMutation.isPending ? 'Processing...' : 'Allocate Payment'}
+                  {allocateMutation.isPending ? t('paymentAllocation.processing') : t('paymentAllocation.allocatePayment')}
                 </Button>
                 {allocationPreview && (
                   <Button
