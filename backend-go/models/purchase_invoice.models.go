@@ -23,11 +23,12 @@ type PurchaseInvoice struct {
 }
 
 type PurchaseInvoiceItem struct {
-	ID        uint     `json:"id" gorm:"primaryKey"`
-	InvoiceID uint     `json:"invoice_id" gorm:"not null"`
-	ProductID uint     `json:"product_id" gorm:"not null"`
-	Product   *Product `json:"product,omitempty" gorm:"foreignKey:ProductID"`
-	Quantity  int      `json:"quantity" gorm:"not null"`
-	UnitPrice float64  `json:"unit_price" gorm:"not null"`
-	Total     float64  `json:"total" gorm:"not null"`
+	ID              uint     `json:"id" gorm:"primaryKey"`
+	InvoiceID       uint     `json:"invoice_id" gorm:"not null"`
+	ProductID       uint     `json:"product_id" gorm:"not null"`
+	Product         *Product `json:"product,omitempty" gorm:"foreignKey:ProductID"`
+	Quantity        int      `json:"quantity" gorm:"not null"`
+	UnitPrice       float64  `json:"unit_price" gorm:"not null"`
+	DiscountPercent float64  `json:"discount_percent" gorm:"default:0"`
+	Total           float64  `json:"total" gorm:"not null"`
 }

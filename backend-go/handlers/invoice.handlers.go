@@ -16,6 +16,8 @@ type SalesInvoiceService interface {
 	GetCount() (int64, error)
 	Create(invoice models.SalesInvoice) (models.SalesInvoice, error)
 	Update(invoice models.SalesInvoice) (models.SalesInvoice, error)
+	UpdateItem(itemID uint, productID uint, quantity int, unitPrice, discountPercent float64) error
+	RecalculateTotals(invoiceID uint) error
 }
 
 type PurchaseInvoiceService interface {
@@ -24,6 +26,8 @@ type PurchaseInvoiceService interface {
 	GetCount() (int64, error)
 	Create(invoice models.PurchaseInvoice) (models.PurchaseInvoice, error)
 	Update(invoice models.PurchaseInvoice) (models.PurchaseInvoice, error)
+	UpdateItem(itemID uint, productID uint, quantity int, unitPrice, discountPercent float64) error
+	RecalculateTotals(invoiceID uint) error
 }
 
 type InvoiceHandler struct {
@@ -45,12 +49,12 @@ func NewInvoiceHandler(sis SalesInvoiceService, pis PurchaseInvoiceService, ss S
 func (ih *InvoiceHandler) StatsHandler(c echo.Context) error {
 	salesCount, _ := ih.SalesInvoiceServices.GetCount()
 	purchaseCount, _ := ih.PurchaseInvoiceServices.GetCount()
-	
+
 	stats := map[string]interface{}{
 		"sales_count":    salesCount,
 		"purchase_count": purchaseCount,
 	}
-	
+
 	return ResponseOK(c, stats, "data")
 }
 
@@ -59,14 +63,14 @@ func (ih *InvoiceHandler) GetAllHandler(c echo.Context) error {
 	if invoiceType == "" {
 		invoiceType = "sales"
 	}
-	
+
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	if limit <= 0 {
 		limit = 10
 	}
-	
+
 	offset, _ := strconv.Atoi(c.QueryParam("offset"))
-	
+
 	filters := map[string]string{
 		"search":         c.QueryParam("search"),
 		"payment_status": c.QueryParam("payment_status"),
@@ -76,16 +80,16 @@ func (ih *InvoiceHandler) GetAllHandler(c echo.Context) error {
 		"from_date":      c.QueryParam("from_date"),
 		"to_date":        c.QueryParam("to_date"),
 	}
-	
+
 	if invoiceType == "purchase" {
 		invoices, total, err := ih.PurchaseInvoiceServices.GetALL(filters, limit, offset)
 		if err != nil {
 			return ResponseError(c, err)
 		}
-		
+
 		page := (offset / limit) + 1
 		totalPages := (int(total) + limit - 1) / limit
-		
+
 		response := map[string]interface{}{
 			"data": invoices,
 			"pagination": map[string]interface{}{
@@ -98,16 +102,16 @@ func (ih *InvoiceHandler) GetAllHandler(c echo.Context) error {
 		}
 		return ResponseOK(c, response, "data")
 	}
-	
+
 	// Sales invoices
 	invoices, total, err := ih.SalesInvoiceServices.GetALL(filters, limit, offset)
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	page := (offset / limit) + 1
 	totalPages := (int(total) + limit - 1) / limit
-	
+
 	response := map[string]interface{}{
 		"data": invoices,
 		"pagination": map[string]interface{}{
@@ -127,7 +131,7 @@ func (ih *InvoiceHandler) GetIDHandler(c echo.Context) error {
 	if invoiceType == "" {
 		invoiceType = "sales"
 	}
-	
+
 	if invoiceType == "purchase" {
 		invoice, err := ih.PurchaseInvoiceServices.GetID(id)
 		if err != nil {
@@ -135,7 +139,7 @@ func (ih *InvoiceHandler) GetIDHandler(c echo.Context) error {
 		}
 		return ResponseOK(c, invoice, "data")
 	}
-	
+
 	invoice, err := ih.SalesInvoiceServices.GetID(id)
 	if err != nil {
 		return ResponseError(c, err)
@@ -151,39 +155,43 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 		PaidAmount    float64 `json:"paid_amount"`
 		Notes         *string `json:"notes"`
 		Items         []struct {
-			ProductID uint    `json:"product_id"`
-			Quantity  int     `json:"quantity"`
-			UnitPrice float64 `json:"unit_price"`
+			ProductID       uint    `json:"product_id"`
+			Quantity        int     `json:"quantity"`
+			UnitPrice       float64 `json:"unit_price"`
+			DiscountPercent float64 `json:"discount_percent"`
 		} `json:"items"`
 	}
-	
+
 	if err := c.Bind(&req); err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	if len(req.Items) == 0 {
 		return ResponseError(c, errors.New("invoice must have at least one item"))
 	}
-	
+
 	user, err := GetUserContext(c)
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	// Calculate total
 	var totalAmount float64
 	var items []models.PurchaseInvoiceItem
 	for _, item := range req.Items {
-		total := float64(item.Quantity) * item.UnitPrice
+		subtotal := float64(item.Quantity) * item.UnitPrice
+		discountAmount := subtotal * item.DiscountPercent / 100
+		total := subtotal - discountAmount
 		totalAmount += total
 		items = append(items, models.PurchaseInvoiceItem{
-			ProductID: item.ProductID,
-			Quantity:  item.Quantity,
-			UnitPrice: item.UnitPrice,
-			Total:     total,
+			ProductID:       item.ProductID,
+			Quantity:        item.Quantity,
+			UnitPrice:       item.UnitPrice,
+			DiscountPercent: item.DiscountPercent,
+			Total:           total,
 		})
 	}
-	
+
 	// Determine payment status
 	paymentStatus := "unpaid"
 	if req.PaidAmount >= totalAmount {
@@ -191,7 +199,7 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 	} else if req.PaidAmount > 0 {
 		paymentStatus = "partial"
 	}
-	
+
 	invoice := models.PurchaseInvoice{
 		VendorID:      req.VendorID,
 		LocationID:    req.LocationID,
@@ -203,22 +211,22 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 		CreatedBy:     user.ID,
 		Items:         items,
 	}
-	
+
 	createdInvoice, err := ih.PurchaseInvoiceServices.Create(invoice)
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	// Get correct location type and ID
 	locationType, locationID := ih.StockServices.GetLocationTypeAndID(req.LocationID)
-	
+
 	// Update stock (add to location)
 	for _, item := range req.Items {
 		if err := ih.StockServices.UpdateStock(item.ProductID, locationType, locationID, item.Quantity); err != nil {
 			log.Printf("[PURCHASE INVOICE] Error adding stock: %v", err)
 			return ResponseError(c, err)
 		}
-		
+
 		// Create stock movement record
 		notes := fmt.Sprintf("Purchase Invoice #%d", createdInvoice.ID)
 		if err := ih.StockServices.CreateMovement(
@@ -236,7 +244,7 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 			// Don't fail the invoice if movement recording fails
 		}
 	}
-	
+
 	// Create payment record if there's a paid amount
 	if req.PaidAmount > 0 && req.PaymentMethod != nil {
 		payment := models.Payment{
@@ -245,7 +253,7 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 			PaymentMethod: *req.PaymentMethod,
 			CreatedBy:     user.ID,
 		}
-		
+
 		if _, err := ih.PaymentServices.Create(payment); err != nil {
 			log.Printf("[PURCHASE INVOICE] Error creating payment record: %v", err)
 			// Don't fail the invoice if payment recording fails
@@ -253,7 +261,7 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 			log.Printf("[PURCHASE INVOICE] Payment record created for invoice #%d, amount: %.2f", createdInvoice.ID, req.PaidAmount)
 		}
 	}
-	
+
 	log.Printf("[PURCHASE INVOICE] Invoice #%d created successfully with %d items", createdInvoice.ID, len(req.Items))
 	return ResponseSuccess(c, "Purchase invoice created successfully", createdInvoice)
 }
@@ -266,39 +274,43 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 		PaidAmount    float64 `json:"paid_amount"`
 		Notes         *string `json:"notes"`
 		Items         []struct {
-			ProductID uint    `json:"product_id"`
-			Quantity  int     `json:"quantity"`
-			UnitPrice float64 `json:"unit_price"`
+			ProductID       uint    `json:"product_id"`
+			Quantity        int     `json:"quantity"`
+			UnitPrice       float64 `json:"unit_price"`
+			DiscountPercent float64 `json:"discount_percent"`
 		} `json:"items"`
 	}
-	
+
 	if err := c.Bind(&req); err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	if len(req.Items) == 0 {
 		return ResponseError(c, errors.New("invoice must have at least one item"))
 	}
-	
+
 	user, err := GetUserContext(c)
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	// Calculate total
 	var totalAmount float64
 	var items []models.SalesInvoiceItem
 	for _, item := range req.Items {
-		total := float64(item.Quantity) * item.UnitPrice
+		subtotal := float64(item.Quantity) * item.UnitPrice
+		discountAmount := subtotal * item.DiscountPercent / 100
+		total := subtotal - discountAmount
 		totalAmount += total
 		items = append(items, models.SalesInvoiceItem{
-			ProductID: item.ProductID,
-			Quantity:  item.Quantity,
-			UnitPrice: item.UnitPrice,
-			Total:     total,
+			ProductID:       item.ProductID,
+			Quantity:        item.Quantity,
+			UnitPrice:       item.UnitPrice,
+			DiscountPercent: item.DiscountPercent,
+			Total:           total,
 		})
 	}
-	
+
 	// Determine payment status
 	paymentStatus := "unpaid"
 	if req.PaidAmount >= totalAmount {
@@ -306,7 +318,7 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 	} else if req.PaidAmount > 0 {
 		paymentStatus = "partial"
 	}
-	
+
 	invoice := models.SalesInvoice{
 		CustomerID:    req.CustomerID,
 		LocationID:    req.LocationID,
@@ -318,22 +330,22 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 		CreatedBy:     user.ID,
 		Items:         items,
 	}
-	
+
 	createdInvoice, err := ih.SalesInvoiceServices.Create(invoice)
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	// Get correct location type and ID
 	locationType, locationID := ih.StockServices.GetLocationTypeAndID(req.LocationID)
-	
+
 	// Update stock (reduce from location)
 	for _, item := range req.Items {
 		if err := ih.StockServices.UpdateStock(item.ProductID, locationType, locationID, -item.Quantity); err != nil {
 			log.Printf("[SALES INVOICE] Error reducing stock: %v", err)
 			return ResponseError(c, err)
 		}
-		
+
 		// Create stock movement record
 		notes := fmt.Sprintf("Sales Invoice #%d", createdInvoice.ID)
 		if err := ih.StockServices.CreateMovement(
@@ -351,7 +363,7 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 			// Don't fail the invoice if movement recording fails
 		}
 	}
-	
+
 	// Create payment record if there's a paid amount
 	if req.PaidAmount > 0 && req.PaymentMethod != nil {
 		payment := models.Payment{
@@ -360,7 +372,7 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 			PaymentMethod: *req.PaymentMethod,
 			CreatedBy:     user.ID,
 		}
-		
+
 		if _, err := ih.PaymentServices.Create(payment); err != nil {
 			log.Printf("[SALES INVOICE] Error creating payment record: %v", err)
 			// Don't fail the invoice if payment recording fails
@@ -368,7 +380,225 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 			log.Printf("[SALES INVOICE] Payment record created for invoice #%d, amount: %.2f", createdInvoice.ID, req.PaidAmount)
 		}
 	}
-	
+
 	log.Printf("[SALES INVOICE] Invoice #%d created successfully with %d items", createdInvoice.ID, len(req.Items))
 	return ResponseSuccess(c, "Sales invoice created successfully", createdInvoice)
+}
+
+// UpdateSalesInvoiceItem updates a single item in a sales invoice
+func (ih *InvoiceHandler) UpdateSalesInvoiceItem(c echo.Context) error {
+	id := c.Param("id")
+	itemID := c.Param("item_id")
+
+	var req struct {
+		ProductID       uint    `json:"product_id"`
+		Quantity        int     `json:"quantity"`
+		UnitPrice       float64 `json:"unit_price"`
+		DiscountPercent float64 `json:"discount_percent"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return ResponseError(c, err)
+	}
+
+	user, err := GetUserContext(c)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Get the invoice and item
+	invoice, err := ih.SalesInvoiceServices.GetID(id)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	var itemToUpdate *models.SalesInvoiceItem
+	for i := range invoice.Items {
+		if fmt.Sprintf("%d", invoice.Items[i].ID) == itemID {
+			itemToUpdate = &invoice.Items[i]
+			break
+		}
+	}
+
+	if itemToUpdate == nil {
+		return ResponseError(c, errors.New("item not found"))
+	}
+
+	// Calculate quantity difference BEFORE updating the item
+	oldQuantity := itemToUpdate.Quantity
+	oldProductID := itemToUpdate.ProductID
+	quantityDiff := req.Quantity - oldQuantity
+	productChanged := req.ProductID != oldProductID
+
+	// Update the item using the service method
+	if err := ih.SalesInvoiceServices.UpdateItem(itemToUpdate.ID, req.ProductID, req.Quantity, req.UnitPrice, req.DiscountPercent); err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Recalculate invoice totals
+	if err := ih.SalesInvoiceServices.RecalculateTotals(invoice.ID); err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Get updated invoice
+	updatedInvoice, err := ih.SalesInvoiceServices.GetID(fmt.Sprintf("%d", invoice.ID))
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Adjust stock based on quantity and product changes
+	if quantityDiff != 0 || productChanged {
+		locationType, locationID := ih.StockServices.GetLocationTypeAndID(invoice.LocationID)
+
+		if productChanged {
+			// If product changed, adjust both old and new products
+			// Return old quantity to old product
+			if err := ih.StockServices.UpdateStock(oldProductID, locationType, locationID, oldQuantity); err != nil {
+				log.Printf("[UPDATE SALES ITEM] Error returning stock to old product: %v", err)
+			}
+			// Remove new quantity from new product
+			if err := ih.StockServices.UpdateStock(req.ProductID, locationType, locationID, -req.Quantity); err != nil {
+				log.Printf("[UPDATE SALES ITEM] Error adjusting stock for new product: %v", err)
+			}
+		} else {
+			// Same product, just adjust quantity difference
+			if err := ih.StockServices.UpdateStock(req.ProductID, locationType, locationID, -quantityDiff); err != nil {
+				log.Printf("[UPDATE SALES ITEM] Error adjusting stock: %v", err)
+			}
+		}
+
+		// Create stock movement record
+		notes := fmt.Sprintf("Updated sales invoice #%s item", invoice.ID)
+		var movementQuantity int
+		if productChanged {
+			movementQuantity = req.Quantity
+		} else {
+			movementQuantity = quantityDiff
+		}
+		if err := ih.StockServices.CreateMovement(
+			req.ProductID,
+			"sale",
+			movementQuantity,
+			locationType,
+			locationID,
+			"", // No destination for sales
+			0,  // No destination ID for sales
+			notes,
+			user.ID,
+		); err != nil {
+			log.Printf("[UPDATE SALES ITEM] Error creating movement record: %v", err)
+		}
+	}
+
+	log.Printf("[UPDATE SALES ITEM] Item %s updated in invoice #%s, quantity changed from %d to %d", itemID, id, oldQuantity, req.Quantity)
+	return ResponseSuccess(c, "Sales invoice item updated successfully", updatedInvoice)
+}
+
+// UpdatePurchaseInvoiceItem updates a single item in a purchase invoice
+func (ih *InvoiceHandler) UpdatePurchaseInvoiceItem(c echo.Context) error {
+	id := c.Param("id")
+	itemID := c.Param("item_id")
+
+	var req struct {
+		ProductID       uint    `json:"product_id"`
+		Quantity        int     `json:"quantity"`
+		UnitPrice       float64 `json:"unit_price"`
+		DiscountPercent float64 `json:"discount_percent"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return ResponseError(c, err)
+	}
+
+	user, err := GetUserContext(c)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Get the invoice and item
+	invoice, err := ih.PurchaseInvoiceServices.GetID(id)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	var itemToUpdate *models.PurchaseInvoiceItem
+	for i := range invoice.Items {
+		if fmt.Sprintf("%d", invoice.Items[i].ID) == itemID {
+			itemToUpdate = &invoice.Items[i]
+			break
+		}
+	}
+
+	if itemToUpdate == nil {
+		return ResponseError(c, errors.New("item not found"))
+	}
+
+	// Calculate quantity difference BEFORE updating the item
+	oldQuantity := itemToUpdate.Quantity
+	oldProductID := itemToUpdate.ProductID
+	quantityDiff := req.Quantity - oldQuantity
+	productChanged := req.ProductID != oldProductID
+
+	// Update the item using the service method
+	if err := ih.PurchaseInvoiceServices.UpdateItem(itemToUpdate.ID, req.ProductID, req.Quantity, req.UnitPrice, req.DiscountPercent); err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Recalculate invoice totals
+	if err := ih.PurchaseInvoiceServices.RecalculateTotals(invoice.ID); err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Get updated invoice
+	updatedInvoice, err := ih.PurchaseInvoiceServices.GetID(fmt.Sprintf("%d", invoice.ID))
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Adjust stock based on quantity and product changes
+	if quantityDiff != 0 || productChanged {
+		locationType, locationID := ih.StockServices.GetLocationTypeAndID(invoice.LocationID)
+
+		if productChanged {
+			// If product changed, adjust both old and new products
+			// Remove old quantity from old product
+			if err := ih.StockServices.UpdateStock(oldProductID, locationType, locationID, -oldQuantity); err != nil {
+				log.Printf("[UPDATE PURCHASE ITEM] Error removing stock from old product: %v", err)
+			}
+			// Add new quantity to new product
+			if err := ih.StockServices.UpdateStock(req.ProductID, locationType, locationID, req.Quantity); err != nil {
+				log.Printf("[UPDATE PURCHASE ITEM] Error adding stock to new product: %v", err)
+			}
+		} else {
+			// Same product, just adjust quantity difference
+			if err := ih.StockServices.UpdateStock(req.ProductID, locationType, locationID, quantityDiff); err != nil {
+				log.Printf("[UPDATE PURCHASE ITEM] Error adjusting stock: %v", err)
+			}
+		}
+
+		// Create stock movement record
+		notes := fmt.Sprintf("Updated purchase invoice #%s item", invoice.ID)
+		var movementQuantity int
+		if productChanged {
+			movementQuantity = req.Quantity
+		} else {
+			movementQuantity = quantityDiff
+		}
+		if err := ih.StockServices.CreateMovement(
+			req.ProductID,
+			"purchase",
+			movementQuantity,
+			"", // No source for purchases
+			0,  // No source ID for purchases
+			locationType,
+			locationID,
+			notes,
+			user.ID,
+		); err != nil {
+			log.Printf("[UPDATE PURCHASE ITEM] Error creating movement record: %v", err)
+		}
+	}
+
+	log.Printf("[UPDATE PURCHASE ITEM] Item %s updated in invoice #%s, quantity changed from %d to %d", itemID, id, oldQuantity, req.Quantity)
+	return ResponseSuccess(c, "Purchase invoice item updated successfully", updatedInvoice)
 }

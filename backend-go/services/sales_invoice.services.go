@@ -37,19 +37,19 @@ func (s *SalesInvoiceService) GetALL(filters map[string]string, limit, offset in
 	if search, ok := filters["search"]; ok && search != "" {
 		query = query.Where("invoice_number LIKE ?", "%"+search+"%")
 	}
-	
+
 	if paymentStatus, ok := filters["payment_status"]; ok && paymentStatus != "" {
 		query = query.Where("payment_status = ?", paymentStatus)
 	}
-	
+
 	if customerID, ok := filters["customer_id"]; ok && customerID != "" {
 		query = query.Where("customer_id = ?", customerID)
 	}
-	
+
 	if locationID, ok := filters["location_id"]; ok && locationID != "" {
 		query = query.Where("location_id = ?", locationID)
 	}
-	
+
 	if fromDate, ok := filters["from_date"]; ok && fromDate != "" {
 		if toDate, ok := filters["to_date"]; ok && toDate != "" {
 			query = query.Where("DATE(created_at) BETWEEN ? AND ?", fromDate, toDate)
@@ -91,7 +91,7 @@ func (s *SalesInvoiceService) GetCount() (int64, error) {
 func (s *SalesInvoiceService) Create(invoice models.SalesInvoice) (models.SalesInvoice, error) {
 	// Generate invoice number
 	invoice.InvoiceNumber = s.generateInvoiceNumber()
-	
+
 	if err := s.db.Create(&invoice).Error; err != nil {
 		return invoice, err
 	}
@@ -105,14 +105,60 @@ func (s *SalesInvoiceService) Update(invoice models.SalesInvoice) (models.SalesI
 	return s.GetID(fmt.Sprintf("%d", invoice.ID))
 }
 
+func (s *SalesInvoiceService) UpdateItem(itemID uint, productID uint, quantity int, unitPrice, discountPercent float64) error {
+	var item models.SalesInvoiceItem
+	if err := s.db.First(&item, itemID).Error; err != nil {
+		return err
+	}
+
+	// Calculate new total
+	subtotal := float64(quantity) * unitPrice
+	discountAmount := subtotal * discountPercent / 100
+	newTotal := subtotal - discountAmount
+
+	// Update item
+	item.ProductID = productID
+	item.Quantity = quantity
+	item.UnitPrice = unitPrice
+	item.DiscountPercent = discountPercent
+	item.Total = newTotal
+
+	return s.db.Save(&item).Error
+}
+
+func (s *SalesInvoiceService) RecalculateTotals(invoiceID uint) error {
+	var invoice models.SalesInvoice
+	if err := s.db.Preload("Items").First(&invoice, invoiceID).Error; err != nil {
+		return err
+	}
+
+	// Recalculate total
+	var totalAmount float64
+	for _, item := range invoice.Items {
+		totalAmount += item.Total
+	}
+	invoice.TotalAmount = totalAmount
+
+	// Update payment status
+	if invoice.PaidAmount >= totalAmount {
+		invoice.PaymentStatus = "paid"
+	} else if invoice.PaidAmount > 0 {
+		invoice.PaymentStatus = "partial"
+	} else {
+		invoice.PaymentStatus = "unpaid"
+	}
+
+	return s.db.Save(&invoice).Error
+}
+
 func (s *SalesInvoiceService) UpdatePaymentStatus(id uint, paidAmount float64) error {
 	var invoice models.SalesInvoice
 	if err := s.db.First(&invoice, id).Error; err != nil {
 		return err
 	}
-	
+
 	invoice.PaidAmount = paidAmount
-	
+
 	if paidAmount >= invoice.TotalAmount {
 		invoice.PaymentStatus = "paid"
 	} else if paidAmount > 0 {
@@ -120,7 +166,7 @@ func (s *SalesInvoiceService) UpdatePaymentStatus(id uint, paidAmount float64) e
 	} else {
 		invoice.PaymentStatus = "unpaid"
 	}
-	
+
 	return s.db.Save(&invoice).Error
 }
 

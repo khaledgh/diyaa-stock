@@ -37,15 +37,15 @@ func (s *PurchaseInvoiceService) GetALL(filters map[string]string, limit, offset
 	if search, ok := filters["search"]; ok && search != "" {
 		query = query.Where("invoice_number LIKE ?", "%"+search+"%")
 	}
-	
+
 	if paymentStatus, ok := filters["payment_status"]; ok && paymentStatus != "" {
 		query = query.Where("payment_status = ?", paymentStatus)
 	}
-	
+
 	if vendorID, ok := filters["vendor_id"]; ok && vendorID != "" {
 		query = query.Where("vendor_id = ?", vendorID)
 	}
-	
+
 	if fromDate, ok := filters["from_date"]; ok && fromDate != "" {
 		if toDate, ok := filters["to_date"]; ok && toDate != "" {
 			query = query.Where("DATE(created_at) BETWEEN ? AND ?", fromDate, toDate)
@@ -87,7 +87,7 @@ func (s *PurchaseInvoiceService) GetCount() (int64, error) {
 func (s *PurchaseInvoiceService) Create(invoice models.PurchaseInvoice) (models.PurchaseInvoice, error) {
 	// Generate invoice number
 	invoice.InvoiceNumber = s.generateInvoiceNumber()
-	
+
 	if err := s.db.Create(&invoice).Error; err != nil {
 		return invoice, err
 	}
@@ -101,14 +101,60 @@ func (s *PurchaseInvoiceService) Update(invoice models.PurchaseInvoice) (models.
 	return s.GetID(fmt.Sprintf("%d", invoice.ID))
 }
 
+func (s *PurchaseInvoiceService) UpdateItem(itemID uint, productID uint, quantity int, unitPrice, discountPercent float64) error {
+	var item models.PurchaseInvoiceItem
+	if err := s.db.First(&item, itemID).Error; err != nil {
+		return err
+	}
+
+	// Calculate new total
+	subtotal := float64(quantity) * unitPrice
+	discountAmount := subtotal * discountPercent / 100
+	newTotal := subtotal - discountAmount
+
+	// Update item
+	item.ProductID = productID
+	item.Quantity = quantity
+	item.UnitPrice = unitPrice
+	item.DiscountPercent = discountPercent
+	item.Total = newTotal
+
+	return s.db.Save(&item).Error
+}
+
+func (s *PurchaseInvoiceService) RecalculateTotals(invoiceID uint) error {
+	var invoice models.PurchaseInvoice
+	if err := s.db.Preload("Items").First(&invoice, invoiceID).Error; err != nil {
+		return err
+	}
+
+	// Recalculate total
+	var totalAmount float64
+	for _, item := range invoice.Items {
+		totalAmount += item.Total
+	}
+	invoice.TotalAmount = totalAmount
+
+	// Update payment status
+	if invoice.PaidAmount >= totalAmount {
+		invoice.PaymentStatus = "paid"
+	} else if invoice.PaidAmount > 0 {
+		invoice.PaymentStatus = "partial"
+	} else {
+		invoice.PaymentStatus = "unpaid"
+	}
+
+	return s.db.Save(&invoice).Error
+}
+
 func (s *PurchaseInvoiceService) UpdatePaymentStatus(id uint, paidAmount float64) error {
 	var invoice models.PurchaseInvoice
 	if err := s.db.First(&invoice, id).Error; err != nil {
 		return err
 	}
-	
+
 	invoice.PaidAmount = paidAmount
-	
+
 	if paidAmount >= invoice.TotalAmount {
 		invoice.PaymentStatus = "paid"
 	} else if paidAmount > 0 {
@@ -116,7 +162,7 @@ func (s *PurchaseInvoiceService) UpdatePaymentStatus(id uint, paidAmount float64
 	} else {
 		invoice.PaymentStatus = "unpaid"
 	}
-	
+
 	return s.db.Save(&invoice).Error
 }
 

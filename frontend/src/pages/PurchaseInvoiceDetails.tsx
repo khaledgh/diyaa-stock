@@ -2,14 +2,15 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Printer, Package, MapPin, User, Calendar, DollarSign, Plus } from 'lucide-react';
+import { ArrowLeft, Printer, Package, MapPin, User, Calendar, DollarSign, Plus, Edit2, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { invoiceApi, paymentApi } from '@/lib/api';
+import { Combobox } from '@/components/ui/combobox';
+import { invoiceApi, paymentApi, productApi } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 
 export default function PurchaseInvoiceDetails() {
@@ -22,6 +23,13 @@ export default function PurchaseInvoiceDetails() {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
 
+  // Item editing state
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editProductId, setEditProductId] = useState('');
+  const [editQuantity, setEditQuantity] = useState('');
+  const [editUnitPrice, setEditUnitPrice] = useState('');
+  const [editDiscount, setEditDiscount] = useState('');
+
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['purchase-invoice', id],
     queryFn: async () => {
@@ -30,6 +38,15 @@ export default function PurchaseInvoiceDetails() {
       return response.data.data;
     },
     enabled: !!id,
+  });
+
+  const { data: products } = useQuery({
+    queryKey: ['products'],
+    queryFn: async () => {
+      const response = await productApi.getAll();
+      const apiData = response.data.data || response.data;
+      return Array.isArray(apiData) ? apiData : (apiData.data || []);
+    },
   });
 
   // Payment mutation
@@ -45,6 +62,20 @@ export default function PurchaseInvoiceDetails() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to record payment');
+    },
+  });
+
+  // Item update mutation
+  const updateItemMutation = useMutation({
+    mutationFn: ({ itemId, data }: { itemId: number; data: any }) =>
+      invoiceApi.updatePurchaseItem(Number(id), itemId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-invoice', id] });
+      toast.success('Item updated successfully');
+      cancelEdit();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to update item');
     },
   });
 
@@ -73,6 +104,40 @@ export default function PurchaseInvoiceDetails() {
     });
   };
 
+  // Item editing functions
+  const startEdit = (item: any) => {
+    setEditingItemId(item.id);
+    setEditProductId(item.product_id.toString());
+    setEditQuantity(item.quantity.toString());
+    setEditUnitPrice(item.unit_price.toString());
+    setEditDiscount((item.discount_percent || 0).toString());
+  };
+
+  const cancelEdit = () => {
+    setEditingItemId(null);
+    setEditProductId('');
+    setEditQuantity('');
+    setEditUnitPrice('');
+    setEditDiscount('');
+  };
+
+  const saveEdit = () => {
+    if (!editingItemId || !editProductId || !editQuantity || !editUnitPrice) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+
+    updateItemMutation.mutate({
+      itemId: editingItemId,
+      data: {
+        product_id: Number(editProductId),
+        quantity: Number(editQuantity),
+        unit_price: Number(editUnitPrice),
+        discount_percent: Number(editDiscount) || 0,
+      },
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -98,6 +163,11 @@ export default function PurchaseInvoiceDetails() {
   }
 
   const remaining = invoice.total_amount - invoice.paid_amount;
+
+  const productOptions = products?.map((product: any) => ({
+    value: product.id.toString(),
+    label: `${product.name_ar || product.name_en || product.name || 'Unknown Product'}`,
+  })) || [];
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -226,24 +296,109 @@ export default function PurchaseInvoiceDetails() {
                   <TableHead className="text-right">Unit Price</TableHead>
                   <TableHead className="text-center">Discount</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {invoice.items?.map((item: any, index: number) => (
                   <TableRow key={index}>
                     <TableCell>
-                      <div>
-                        <p className="font-medium">{item.product?.name_en || item.product_name || item.name_en || '-'}</p>
-                        {(item.product?.sku || item.sku) && (
-                          <p className="text-xs text-muted-foreground">SKU: {item.product?.sku || item.sku}</p>
-                        )}
-                      </div>
+                      {editingItemId === item.id ? (
+                        <Combobox
+                          options={[
+                            { value: '', label: 'Select product...' },
+                            ...productOptions,
+                          ]}
+                          value={editProductId}
+                          onChange={setEditProductId}
+                          placeholder="Select product"
+                          searchPlaceholder="Search products..."
+                          emptyText="No products found"
+                        />
+                      ) : (
+                        <div>
+                          <p className="font-medium">{item.product?.name_ar || item.product?.name_en || item.product_name || item.name_en || '-'}</p>
+                          {(item.product?.sku || item.sku) && (
+                            <p className="text-xs text-muted-foreground">SKU: {item.product?.sku || item.sku}</p>
+                          )}
+                        </div>
+                      )}
                     </TableCell>
-                    <TableCell className="text-center">{item.quantity}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                    <TableCell className="text-center">{item.discount_percent || 0}%</TableCell>
+                    <TableCell className="text-center">
+                      {editingItemId === item.id ? (
+                        <Input
+                          type="number"
+                          min="1"
+                          value={editQuantity}
+                          onChange={(e) => setEditQuantity(e.target.value)}
+                          className="w-20 text-center"
+                        />
+                      ) : (
+                        item.quantity
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {editingItemId === item.id ? (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editUnitPrice}
+                          onChange={(e) => setEditUnitPrice(e.target.value)}
+                          className="w-24 text-right"
+                        />
+                      ) : (
+                        formatCurrency(item.unit_price)
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {editingItemId === item.id ? (
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={editDiscount}
+                          onChange={(e) => setEditDiscount(e.target.value)}
+                          className="w-20 text-center"
+                        />
+                      ) : (
+                        `${item.discount_percent || 0}%`
+                      )}
+                    </TableCell>
                     <TableCell className="text-right font-medium">
-                      {formatCurrency(item.total)}
+                      {editingItemId === item.id ? (
+                        <span>{formatCurrency((Number(editQuantity) || 0) * (Number(editUnitPrice) || 0) * (1 - (Number(editDiscount) || 0) / 100))}</span>
+                      ) : (
+                        formatCurrency(item.total)
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {editingItemId === item.id ? (
+                        <div className="flex items-center gap-2 justify-center">
+                          <Button
+                            size="sm"
+                            onClick={saveEdit}
+                            disabled={updateItemMutation.isPending}
+                          >
+                            <Save className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={cancelEdit}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => startEdit(item)}
+                        >
+                          <Edit2 className="h-3 w-3" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

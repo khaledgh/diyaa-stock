@@ -120,6 +120,8 @@ export const invoiceApi = {
   getById: (id: number, type?: string) => api.get(`/invoices/${id}`, { params: { invoice_type: type } }),
   createPurchase: (data: any) => api.post('/invoices/purchase', data),
   createSales: (data: any) => api.post('/invoices/sales', data),
+  updateSalesItem: (invoiceId: number, itemId: number, data: any) => api.put(`/invoices/sales/${invoiceId}/items/${itemId}`, data),
+  updatePurchaseItem: (invoiceId: number, itemId: number, data: any) => api.put(`/invoices/purchase/${invoiceId}/items/${itemId}`, data),
 };
 
 export const paymentApi = {

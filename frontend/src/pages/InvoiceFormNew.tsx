@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Plus, Trash2, ShoppingCart, Package, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, ShoppingCart, Package, AlertCircle, Edit2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,6 +42,13 @@ export default function InvoiceFormNew() {
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [productSearch, setProductSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Item editing state
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+  const [editProductId, setEditProductId] = useState('');
+  const [editQuantity, setEditQuantity] = useState('');
+  const [editUnitPrice, setEditUnitPrice] = useState('');
+  const [editDiscount, setEditDiscount] = useState('');
 
   // Debounce search
   useEffect(() => {
@@ -167,6 +174,67 @@ export default function InvoiceFormNew() {
 
   const handleRemoveItem = (index: number) => {
     setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
+  };
+
+  // Item editing functions
+  const startEdit = (index: number) => {
+    const item = invoiceItems[index];
+    setEditingItemIndex(index);
+    setEditProductId(item.product_id.toString());
+    setEditQuantity(item.quantity.toString());
+    setEditUnitPrice(item.unit_price.toString());
+    setEditDiscount((item.discount_percent || 0).toString());
+  };
+
+  const cancelEdit = () => {
+    setEditingItemIndex(null);
+    setEditProductId('');
+    setEditQuantity('');
+    setEditUnitPrice('');
+    setEditDiscount('');
+  };
+
+  const saveEdit = () => {
+    if (editingItemIndex === null) return;
+
+    if (!editProductId || !editQuantity || !editUnitPrice) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+
+    if (!selectedLocation) {
+      toast.error('Please select a location first');
+      return;
+    }
+
+    const product = products?.find((p: any) => p.id === Number(editProductId));
+    
+    // Check stock for sales
+    if (invoiceType === 'sales') {
+      const stock = locationStock?.find((s: any) => s.product_id === Number(editProductId));
+      if (!stock || stock.quantity < Number(editQuantity)) {
+        toast.error('Insufficient stock in selected location');
+        return;
+      }
+    }
+
+    const itemTotal = Number(editQuantity) * Number(editUnitPrice);
+    const discountAmount = itemTotal * (Number(editDiscount) || 0) / 100;
+    const finalTotal = itemTotal - discountAmount;
+
+    const updatedItem: InvoiceItem = {
+      product_id: Number(editProductId),
+      product_name: product?.name_ar || product?.name_en || product?.name || 'Unknown Product',
+      quantity: Number(editQuantity),
+      unit_price: Number(editUnitPrice),
+      discount_percent: Number(editDiscount) || 0,
+      total: finalTotal,
+    };
+
+    const newItems = [...invoiceItems];
+    newItems[editingItemIndex] = updatedItem;
+    setInvoiceItems(newItems);
+    cancelEdit();
   };
 
   const calculateTotal = () => {
@@ -300,6 +368,7 @@ export default function InvoiceFormNew() {
                           setSelectedLocation(value);
                           setErrors({...errors, location: ''});
                           setInvoiceItems([]); // Clear items when changing location
+                          cancelEdit(); // Cancel any ongoing edits
                         }}
                         placeholder="Select location"
                         searchPlaceholder="Search locations..."
@@ -438,26 +507,118 @@ export default function InvoiceFormNew() {
                           <TableHead>Unit Price</TableHead>
                           <TableHead>Discount</TableHead>
                           <TableHead>Total</TableHead>
-                          <TableHead></TableHead>
+                          <TableHead className="text-center">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {invoiceItems.map((item, index) => (
                           <TableRow key={index}>
-                            <TableCell>{item.product_name}</TableCell>
-                            <TableCell>{item.quantity}</TableCell>
-                            <TableCell>{formatCurrency(item.unit_price)}</TableCell>
-                            <TableCell>{item.discount_percent}%</TableCell>
-                            <TableCell className="font-semibold">{formatCurrency(item.total || 0)}</TableCell>
                             <TableCell>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleRemoveItem(index)}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
+                              {editingItemIndex === index ? (
+                                <Combobox
+                                  options={[
+                                    { value: '', label: 'Select product...' },
+                                    ...productOptions,
+                                  ]}
+                                  value={editProductId}
+                                  onChange={setEditProductId}
+                                  placeholder="Select product"
+                                  searchPlaceholder="Search products..."
+                                  emptyText="No products found"
+                                />
+                              ) : (
+                                item.product_name
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {editingItemIndex === index ? (
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={editQuantity}
+                                  onChange={(e) => setEditQuantity(e.target.value)}
+                                  className="w-20"
+                                />
+                              ) : (
+                                item.quantity
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {editingItemIndex === index ? (
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={editUnitPrice}
+                                  onChange={(e) => setEditUnitPrice(e.target.value)}
+                                  className="w-24"
+                                />
+                              ) : (
+                                formatCurrency(item.unit_price)
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {editingItemIndex === index ? (
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={editDiscount}
+                                  onChange={(e) => setEditDiscount(e.target.value)}
+                                  className="w-20"
+                                />
+                              ) : (
+                                `${item.discount_percent}%`
+                              )}
+                            </TableCell>
+                            <TableCell className="font-semibold">
+                              {editingItemIndex === index ? (
+                                formatCurrency((Number(editQuantity) || 0) * (Number(editUnitPrice) || 0) * (1 - (Number(editDiscount) || 0) / 100))
+                              ) : (
+                                formatCurrency(item.total || 0)
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2 justify-center">
+                                {editingItemIndex === index ? (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      onClick={saveEdit}
+                                    >
+                                      <Save className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={cancelEdit}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => startEdit(index)}
+                                    >
+                                      <Edit2 className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleRemoveItem(index)}
+                                    >
+                                      <Trash2 className="h-3 w-3 text-red-600" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
