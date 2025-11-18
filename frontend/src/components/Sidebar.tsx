@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard,
@@ -56,8 +56,12 @@ const businessNavigation = [
   { name: 'credit-notes', href: '/credit-notes', icon: FileX },
   { name: 'payment-allocation', href: '/payment-allocation', icon: CreditCard },
   { name: 'payments', href: '/payments', icon: CreditCard },
-  { name: 'reports', href: '/reports', icon: BarChart3 },
   { name: 'settings', href: '/settings', icon: Settings },
+];
+
+const reportsNavigation = [
+  { name: 'general-reports', href: '/reports', icon: BarChart3 },
+  { name: 'location-sales', href: '/reports/location-sales', icon: MapPin },
 ];
 
 interface SidebarProps {
@@ -68,15 +72,26 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { t } = useTranslation();
   const { canView } = usePermissions();
-  const [isProductsOpen, setIsProductsOpen] = useState(true);
-  const [isInventoryOpen, setIsInventoryOpen] = useState(true);
-  const [isBusinessOpen, setIsBusinessOpen] = useState(true);
+  const location = useLocation();
+  const [isProductsOpen, setIsProductsOpen] = useState(false);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [isBusinessOpen, setIsBusinessOpen] = useState(false);
+  const [isReportsOpen, setIsReportsOpen] = useState(false);
 
   // Filter navigation based on user permissions
   const filteredMainNav = mainNavigation.filter(item => canView(item.name));
   const filteredProductsNav = productsNavigation.filter(item => canView(item.name));
   const filteredInventoryNav = inventoryNavigation.filter(item => canView(item.name));
   const filteredBusinessNav = businessNavigation.filter(item => canView(item.name));
+  const filteredReportsNav = reportsNavigation.filter(item => canView(item.name));
+
+  // Auto-expand sections based on current path
+  useEffect(() => {
+    const currentPath = window.location.pathname;
+    if (currentPath.startsWith('/reports/')) {
+      setIsReportsOpen(true);
+    }
+  }, []);
 
   return (
     <>
@@ -222,7 +237,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     onClick={() => setIsBusinessOpen(!isBusinessOpen)}
                     className="w-full flex items-center justify-between px-2 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200"
                   >
-                    <span>{t('nav.business')}</span>
+                    <div className="flex items-center">
+                      <Building2 className="mr-2 h-4 w-4" />
+                      <span>{t('nav.business')}</span>
+                    </div>
                     {isBusinessOpen ? (
                       <ChevronDown className="h-4 w-4" />
                     ) : (
@@ -249,6 +267,49 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                           {t(`nav.${item.name}`)}
                         </NavLink>
                       ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Reports Section */}
+              {filteredReportsNav.length > 0 && (
+                <div className="pt-4">
+                  <button
+                    onClick={() => setIsReportsOpen(!isReportsOpen)}
+                    className="w-full flex items-center justify-between px-2 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200"
+                  >
+                    <div className="flex items-center">
+                      <BarChart3 className="mr-2 h-4 w-4" />
+                      <span>{t('nav.reports')}</span>
+                    </div>
+                    {isReportsOpen ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </button>
+                  {isReportsOpen && (
+                    <div className="mt-1 space-y-1">
+                      {filteredReportsNav.map((item) => {
+                        const isActive = location.pathname === item.href;
+                        return (
+                          <NavLink
+                            key={item.name}
+                            to={item.href}
+                            onClick={onClose}
+                            className={cn(
+                              'group flex items-center px-2 py-2 pl-8 text-sm font-medium rounded-md transition-colors',
+                              isActive
+                                ? 'bg-primary text-white'
+                                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            )}
+                          >
+                            <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                            {t(`nav.${item.name}`)}
+                          </NavLink>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

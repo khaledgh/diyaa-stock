@@ -23,6 +23,7 @@ import Payments from './pages/Payments';
 import Transactions from './pages/Transactions';
 import Reports from './pages/Reports';
 import ReportsNew from './pages/ReportsNew';
+import LocationSalesReport from './pages/LocationSalesReport';
 import LowStock from './pages/LowStock';
 import Inventory from './pages/Inventory';
 import Vendors from './pages/Vendors';
@@ -99,6 +100,7 @@ function App() {
             <Route path="payments" element={<Payments />} />
             <Route path="transactions" element={<Transactions />} />
             <Route path="reports" element={<ReportsNew />} />
+            <Route path="reports/location-sales" element={<LocationSalesReport />} />
             <Route path="reports-old" element={<Reports />} />
             <Route path="low-stock" element={<LowStock />} />
             <Route path="pos" element={<POS />} />

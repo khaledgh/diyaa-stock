@@ -133,6 +133,7 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.GET("/reports/stock-movements", reportHandler.StockMovementsReportHandler)
 	apiGroup.GET("/reports/receivables", reportHandler.ReceivablesReportHandler)
 	apiGroup.GET("/reports/product-performance", reportHandler.ProductPerformanceReportHandler)
+	apiGroup.GET("/reports/location-sales", reportHandler.LocationSalesReportHandler)
 	apiGroup.GET("/reports/dashboard", reportHandler.DashboardReportHandler)
 
 	// User routes - matches PHP: /api/users

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Package, DollarSign, AlertCircle, Truck, TrendingDown, TrendingUp, Bell, X } from 'lucide-react';
+import { Package, DollarSign, AlertCircle, Truck, TrendingDown, TrendingUp, Bell, X, Receipt, BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { reportApi, productApi } from '@/lib/api';
@@ -51,7 +51,7 @@ export default function Dashboard() {
     },
     {
       title: t('dashboard.warehouseValue'),
-      value: formatCurrency(dashboardData?.warehouse_value || 0),
+      value: formatCurrency(dashboardData?.inventory_value || 0),
       icon: DollarSign,
       color: 'text-green-600',
       bgColor: 'bg-green-100 dark:bg-green-900',
@@ -89,10 +89,26 @@ export default function Dashboard() {
     },
     {
       title: t('dashboard.activeVans'),
-      value: dashboardData?.active_vans || 0,
+      value: dashboardData?.active_locations || 0,
       icon: Truck,
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-100 dark:bg-indigo-900',
+    },
+    {
+      title: 'Credit Notes',
+      value: dashboardData?.credit_notes_total || 0,
+      subtitle: `${dashboardData?.credit_notes_pending || 0} pending`,
+      icon: Receipt,
+      color: 'text-teal-600',
+      bgColor: 'bg-teal-100 dark:bg-teal-900',
+    },
+    {
+      title: 'Product Revenue',
+      value: formatCurrency(dashboardData?.product_revenue || 0),
+      subtitle: `This month from ${dashboardData?.top_products_count || 0} products`,
+      icon: BarChart3,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-100 dark:bg-emerald-900',
     },
   ];
 
@@ -149,7 +165,7 @@ export default function Dashboard() {
       )}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat, index) => (
           <Card key={index} className="hover:shadow-xl transition-all duration-300 border-0 bg-white dark:bg-gray-800 overflow-hidden group">
             <CardContent className="p-6">

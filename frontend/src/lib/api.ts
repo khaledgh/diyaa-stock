@@ -137,6 +137,7 @@ export const reportApi = {
   stockMovements: (params?: any) => api.get('/reports/stock-movements', { params }),
   receivables: () => api.get('/reports/receivables'),
   productPerformance: (params?: any) => api.get('/reports/product-performance', { params }),
+  locationSales: (params?: any) => api.get('/reports/location-sales', { params }),
 };
 
 export const userApi = {

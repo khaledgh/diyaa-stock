@@ -214,6 +214,77 @@ func (rh *ReportHandler) ProductPerformanceReportHandler(c echo.Context) error {
 	return ResponseOK(c, products, "data")
 }
 
+func (rh *ReportHandler) LocationSalesReportHandler(c echo.Context) error {
+	fromDate := c.QueryParam("from_date")
+	toDate := c.QueryParam("to_date")
+
+	if fromDate == "" {
+		fromDate = time.Now().Format("2006-01-02")
+	}
+	if toDate == "" {
+		toDate = time.Now().Format("2006-01-02")
+	}
+
+	query := `
+		SELECT
+			l.id as location_id,
+			l.name as location_name,
+			COUNT(DISTINCT i.id) as invoice_count,
+			SUM(i.total_amount) as total_sales,
+			SUM(i.paid_amount) as total_paid,
+			SUM(i.total_amount - i.paid_amount) as total_unpaid,
+			COUNT(DISTINCT ii.product_id) as products_sold
+		FROM locations l
+		LEFT JOIN sales_invoices i ON l.id = i.location_id
+			AND DATE(i.created_at) BETWEEN ? AND ?
+		LEFT JOIN sales_invoice_items ii ON i.id = ii.invoice_id
+		WHERE l.is_active = true
+		GROUP BY l.id, l.name
+		ORDER BY total_sales DESC
+	`
+
+	var locationSales []map[string]interface{}
+	if err := rh.db.Raw(query, fromDate, toDate).Scan(&locationSales).Error; err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Calculate summary
+	var totalLocations, totalInvoices int64
+	var totalSales, totalPaid, totalUnpaid float64
+	for _, location := range locationSales {
+		totalLocations++
+		if count, ok := location["invoice_count"].(int64); ok {
+			totalInvoices += count
+		}
+		if sales, ok := location["total_sales"].(float64); ok {
+			totalSales += sales
+		}
+		if paid, ok := location["total_paid"].(float64); ok {
+			totalPaid += paid
+		}
+		if unpaid, ok := location["total_unpaid"].(float64); ok {
+			totalUnpaid += unpaid
+		}
+	}
+
+	summary := map[string]interface{}{
+		"total_locations": totalLocations,
+		"total_invoices":  totalInvoices,
+		"total_sales":     totalSales,
+		"total_paid":      totalPaid,
+		"total_unpaid":    totalUnpaid,
+		"date_from":       fromDate,
+		"date_to":         toDate,
+	}
+
+	result := map[string]interface{}{
+		"locations": locationSales,
+		"summary":   summary,
+	}
+
+	return ResponseOK(c, result, "data")
+}
+
 func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 	dashboard := make(map[string]interface{})
 
@@ -276,6 +347,43 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 	var activeLocations int64
 	rh.db.Table("locations").Where("is_active = ?", true).Count(&activeLocations)
 	dashboard["active_locations"] = activeLocations
+
+	// Credit notes statistics
+	var creditNotes struct {
+		TotalCount    int64   `json:"total_count"`
+		PendingCount  int64   `json:"pending_count"`
+		ApprovedCount int64   `json:"approved_count"`
+		TotalAmount   float64 `json:"total_amount"`
+	}
+	rh.db.Raw(`
+		SELECT
+			COUNT(*) as total_count,
+			COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count,
+			COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_count,
+			COALESCE(SUM(total_amount), 0) as total_amount
+		FROM credit_notes
+	`).Scan(&creditNotes)
+	dashboard["credit_notes_total"] = creditNotes.TotalCount
+	dashboard["credit_notes_pending"] = creditNotes.PendingCount
+	dashboard["credit_notes_approved"] = creditNotes.ApprovedCount
+	dashboard["credit_notes_amount"] = creditNotes.TotalAmount
+
+	// Product revenue (top products revenue for current month)
+	var productRevenue struct {
+		TotalRevenue float64 `json:"total_revenue"`
+		TopProducts  int64   `json:"top_products"`
+	}
+	rh.db.Raw(`
+		SELECT
+			COALESCE(SUM(ii.total), 0) as total_revenue,
+			COUNT(DISTINCT ii.product_id) as top_products
+		FROM sales_invoice_items ii
+		JOIN sales_invoices i ON ii.invoice_id = i.id
+		WHERE MONTH(i.created_at) = MONTH(CURDATE())
+		AND YEAR(i.created_at) = YEAR(CURDATE())
+	`).Scan(&productRevenue)
+	dashboard["product_revenue"] = productRevenue.TotalRevenue
+	dashboard["top_products_count"] = productRevenue.TopProducts
 
 	// Recent sales chart (last 7 days)
 	var salesChart []map[string]interface{}
