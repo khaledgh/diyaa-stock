@@ -62,7 +62,7 @@ export default function InvoiceFormNew() {
   const { data: products } = useQuery({
     queryKey: ['products', debouncedSearch],
     queryFn: async () => {
-      const response = await productApi.getAll({ search: debouncedSearch });
+      const response = await productApi.getAll({ searchTerm: debouncedSearch });
       const apiData = response.data.data || response.data;
       return Array.isArray(apiData) ? apiData : (apiData.data || []);
     },
@@ -151,7 +151,7 @@ export default function InvoiceFormNew() {
 
     const newItem: InvoiceItem = {
       product_id: Number(selectedProduct),
-      product_name: product?.name_en,
+      product_name: product?.name_ar || product?.name_en || product?.name || 'Unknown Product',
       quantity: Number(quantity),
       unit_price: Number(unitPrice),
       discount_percent: Number(discount) || 0,
@@ -250,7 +250,7 @@ export default function InvoiceFormNew() {
     const stockInfo = selectedLocation ? ` (Stock: ${stock?.quantity || 0})` : '';
     return {
       value: product.id.toString(),
-      label: `${product.name_en}${stockInfo}`,
+      label: `${product.name_ar || product.name_en || product.name || 'Unknown Product'}${stockInfo}`,
     };
   }) || [];
 
