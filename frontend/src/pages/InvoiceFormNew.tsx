@@ -435,7 +435,19 @@ export default function InvoiceFormNew() {
                         ...productOptions,
                       ]}
                       value={selectedProduct}
-                      onChange={setSelectedProduct}
+                      onChange={(value) => {
+                        setSelectedProduct(value);
+                        // Auto-populate unit price based on invoice type
+                        if (value) {
+                          const selectedProduct = products?.find((p: any) => p.id.toString() === value);
+                          if (selectedProduct) {
+                            const price = invoiceType === 'sales' ? selectedProduct.unit_price : selectedProduct.cost_price;
+                            setUnitPrice(price?.toString() || '');
+                          }
+                        } else {
+                          setUnitPrice('');
+                        }
+                      }}
                       onSearchChange={setProductSearch}
                       placeholder="Select product"
                       searchPlaceholder="Search products..."
@@ -521,7 +533,19 @@ export default function InvoiceFormNew() {
                                     ...productOptions,
                                   ]}
                                   value={editProductId}
-                                  onChange={setEditProductId}
+                                  onChange={(value) => {
+                                    setEditProductId(value);
+                                    // Auto-populate unit price based on invoice type
+                                    if (value) {
+                                      const selectedProduct = products?.find((p: any) => p.id.toString() === value);
+                                      if (selectedProduct) {
+                                        const price = invoiceType === 'sales' ? selectedProduct.unit_price : selectedProduct.cost_price;
+                                        setEditUnitPrice(price?.toString() || '');
+                                      }
+                                    } else {
+                                      setEditUnitPrice('');
+                                    }
+                                  }}
                                   placeholder="Select product"
                                   searchPlaceholder="Search products..."
                                   emptyText="No products found"

@@ -119,6 +119,8 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.POST("/invoices/sales", invoiceHandler.CreateSalesHandler)
 	apiGroup.PUT("/invoices/sales/:id/items/:item_id", invoiceHandler.UpdateSalesInvoiceItem)
 	apiGroup.PUT("/invoices/purchase/:id/items/:item_id", invoiceHandler.UpdatePurchaseInvoiceItem)
+	apiGroup.POST("/invoices/sales/:id/items", invoiceHandler.AddSalesInvoiceItem)
+	apiGroup.POST("/invoices/purchase/:id/items", invoiceHandler.AddPurchaseInvoiceItem)
 
 	// Payment routes - matches PHP: /api/payments
 	paymentHandler := handlers.NewPaymentHandler(paymentService, salesInvoiceService, purchaseInvoiceService)

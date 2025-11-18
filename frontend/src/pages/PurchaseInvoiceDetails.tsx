@@ -30,6 +30,13 @@ export default function PurchaseInvoiceDetails() {
   const [editUnitPrice, setEditUnitPrice] = useState('');
   const [editDiscount, setEditDiscount] = useState('');
 
+  // Add item state
+  const [showAddItemForm, setShowAddItemForm] = useState(false);
+  const [newProductId, setNewProductId] = useState('');
+  const [newQuantity, setNewQuantity] = useState('');
+  const [newUnitPrice, setNewUnitPrice] = useState('');
+  const [newDiscount, setNewDiscount] = useState('');
+
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['purchase-invoice', id],
     queryFn: async () => {
@@ -76,6 +83,19 @@ export default function PurchaseInvoiceDetails() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to update item');
+    },
+  });
+
+  // Add item mutation
+  const addItemMutation = useMutation({
+    mutationFn: (data: any) => invoiceApi.addPurchaseItem(Number(id), data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-invoice', id] });
+      toast.success('Item added successfully');
+      cancelAddItem();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to add item');
     },
   });
 
@@ -135,6 +155,29 @@ export default function PurchaseInvoiceDetails() {
         unit_price: Number(editUnitPrice),
         discount_percent: Number(editDiscount) || 0,
       },
+    });
+  };
+
+  // Add item functions
+  const cancelAddItem = () => {
+    setShowAddItemForm(false);
+    setNewProductId('');
+    setNewQuantity('');
+    setNewUnitPrice('');
+    setNewDiscount('');
+  };
+
+  const handleAddItem = () => {
+    if (!newProductId || !newQuantity || !newUnitPrice) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+
+    addItemMutation.mutate({
+      product_id: Number(newProductId),
+      quantity: Number(newQuantity),
+      unit_price: Number(newUnitPrice),
+      discount_percent: Number(newDiscount) || 0,
     });
   };
 
@@ -284,9 +327,111 @@ export default function PurchaseInvoiceDetails() {
       {/* Items Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Items</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Items</CardTitle>
+            <Button
+              onClick={() => setShowAddItemForm(!showAddItemForm)}
+              variant="outline"
+              size="sm"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Item
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
+          {showAddItemForm && (
+            <div className="mb-6 p-4 border rounded-lg bg-gray-50 dark:bg-gray-900">
+              <h4 className="font-medium mb-4">Add New Item</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-product">Product</Label>
+                  <Combobox
+                    options={[
+                      { value: '', label: 'Select product...' },
+                      ...productOptions,
+                    ]}
+                    value={newProductId}
+                    onChange={(value) => {
+                      setNewProductId(value);
+                      // Auto-populate unit price for purchase invoices (using cost price)
+                      if (value) {
+                        const selectedProduct = products?.find((p: any) => p.id.toString() === value);
+                        if (selectedProduct) {
+                          setNewUnitPrice(selectedProduct.cost_price?.toString() || '');
+                        }
+                      } else {
+                        setNewUnitPrice('');
+                      }
+                    }}
+                    placeholder="Select product"
+                    searchPlaceholder="Search products..."
+                    emptyText="No products found"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="new-quantity">Quantity</Label>
+                  <Input
+                    id="new-quantity"
+                    type="number"
+                    min="1"
+                    value={newQuantity}
+                    onChange={(e) => setNewQuantity(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="new-unit-price">Unit Price</Label>
+                  <Input
+                    id="new-unit-price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={newUnitPrice}
+                    onChange={(e) => setNewUnitPrice(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="new-discount">Discount %</Label>
+                  <Input
+                    id="new-discount"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={newDiscount}
+                    onChange={(e) => setNewDiscount(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Total: {formatCurrency((Number(newQuantity) || 0) * (Number(newUnitPrice) || 0) * (1 - (Number(newDiscount) || 0) / 100))}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={cancelAddItem}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleAddItem}
+                    disabled={addItemMutation.isPending}
+                  >
+                    {addItemMutation.isPending ? 'Adding...' : 'Add Item'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -310,7 +455,18 @@ export default function PurchaseInvoiceDetails() {
                             ...productOptions,
                           ]}
                           value={editProductId}
-                          onChange={setEditProductId}
+                          onChange={(value) => {
+                            setEditProductId(value);
+                            // Auto-populate unit price for purchase invoices (using cost price)
+                            if (value) {
+                              const selectedProduct = products?.find((p: any) => p.id.toString() === value);
+                              if (selectedProduct) {
+                                setEditUnitPrice(selectedProduct.cost_price?.toString() || '');
+                              }
+                            } else {
+                              setEditUnitPrice('');
+                            }
+                          }}
                           placeholder="Select product"
                           searchPlaceholder="Search products..."
                           emptyText="No products found"

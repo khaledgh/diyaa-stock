@@ -122,6 +122,25 @@ func (s *PurchaseInvoiceService) UpdateItem(itemID uint, productID uint, quantit
 	return s.db.Save(&item).Error
 }
 
+func (s *PurchaseInvoiceService) AddItem(invoiceID uint, productID uint, quantity int, unitPrice, discountPercent float64) error {
+	// Calculate total for the new item
+	subtotal := float64(quantity) * unitPrice
+	discountAmount := subtotal * discountPercent / 100
+	newTotal := subtotal - discountAmount
+
+	// Create new item
+	newItem := models.PurchaseInvoiceItem{
+		InvoiceID:       invoiceID,
+		ProductID:       productID,
+		Quantity:        quantity,
+		UnitPrice:       unitPrice,
+		DiscountPercent: discountPercent,
+		Total:           newTotal,
+	}
+
+	return s.db.Create(&newItem).Error
+}
+
 func (s *PurchaseInvoiceService) RecalculateTotals(invoiceID uint) error {
 	var invoice models.PurchaseInvoice
 	if err := s.db.Preload("Items").First(&invoice, invoiceID).Error; err != nil {
