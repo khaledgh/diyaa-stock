@@ -105,14 +105,14 @@ func (s *SalesInvoiceService) Update(invoice models.SalesInvoice) (models.SalesI
 	return s.GetID(fmt.Sprintf("%d", invoice.ID))
 }
 
-func (s *SalesInvoiceService) UpdateItem(itemID uint, productID uint, quantity int, unitPrice, discountPercent float64) error {
+func (s *SalesInvoiceService) UpdateItem(itemID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error {
 	var item models.SalesInvoiceItem
 	if err := s.db.First(&item, itemID).Error; err != nil {
 		return err
 	}
 
 	// Calculate new total
-	subtotal := float64(quantity) * unitPrice
+	subtotal := quantity * unitPrice
 	discountAmount := subtotal * discountPercent / 100
 	newTotal := subtotal - discountAmount
 
@@ -126,9 +126,9 @@ func (s *SalesInvoiceService) UpdateItem(itemID uint, productID uint, quantity i
 	return s.db.Save(&item).Error
 }
 
-func (s *SalesInvoiceService) AddItem(invoiceID uint, productID uint, quantity int, unitPrice, discountPercent float64) error {
+func (s *SalesInvoiceService) AddItem(invoiceID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error {
 	// Calculate total for the new item
-	subtotal := float64(quantity) * unitPrice
+	subtotal := quantity * unitPrice
 	discountAmount := subtotal * discountPercent / 100
 	newTotal := subtotal - discountAmount
 
@@ -214,4 +214,12 @@ func (s *SalesInvoiceService) GetPaginated(limit, page int, orderBy, sortBy stri
 		PerPage:     limit,
 		TotalPages:  totalPages,
 	}, nil
+}
+
+func (s *SalesInvoiceService) Delete(id string) error {
+	// Soft delete the invoice
+	if err := s.db.Delete(&models.SalesInvoice{}, id).Error; err != nil {
+		return err
+	}
+	return nil
 }

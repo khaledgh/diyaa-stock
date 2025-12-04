@@ -85,7 +85,7 @@ export default function Inventory() {
     addStockMutation.mutate({
       product_id: parseInt(selectedProduct),
       location_id: parseInt(selectedLocation),
-      quantity: parseInt(quantity),
+      quantity: parseFloat(quantity),
     });
   };
 
@@ -101,16 +101,26 @@ export default function Inventory() {
     item.category_name_en?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const lowStockItems = warehouseStock?.filter((item: any) => item.quantity <= item.min_stock_level) || [];
+  const lowStockItems = warehouseStock?.filter((item: any) => (item.quantity || 0) <= (item.min_stock_level || 0)) || [];
   const totalWarehouseItems = warehouseStock?.length || 0;
-  const totalWarehouseQuantity = warehouseStock?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
+  const totalWarehouseQuantity = warehouseStock?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0;
 
   const parseLocationQuantities = (locationQuantitiesStr: string) => {
     if (!locationQuantitiesStr) return [];
     return locationQuantitiesStr.split('|').map(item => {
       const [name, qty] = item.split(':');
-      return { name, quantity: parseInt(qty) || 0 };
+      return { name, quantity: parseFloat(qty) || 0 };
     }).filter(item => item.name); // Filter out any empty entries
+  };
+
+  const formatQuantity = (quantity: number | null | undefined) => {
+    if (quantity === null || quantity === undefined) {
+      return '0';
+    }
+    if (quantity === Math.floor(quantity)) {
+      return quantity.toString(); // Show as integer if no decimal part
+    }
+    return quantity.toFixed(2); // Show 2 decimal places if has decimals
   };
 
   return (
@@ -173,6 +183,7 @@ export default function Inventory() {
                 <Input
                   type="number"
                   min="0"
+                  step="0.01"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                   placeholder={t('inventory.enterQuantity')}
@@ -250,7 +261,7 @@ export default function Inventory() {
                                     {locationQtys.map((loc: any, idx: number) => (
                                       <div key={idx} className="text-sm">
                                         <span className="text-gray-600 dark:text-gray-400">{loc.name}:</span>{' '}
-                                        <span className="font-medium">{loc.quantity}</span>
+                                        <span className="font-medium">{formatQuantity(loc.quantity)}</span>
                                       </div>
                                     ))}
                                   </div>
@@ -260,7 +271,7 @@ export default function Inventory() {
                               </TableCell>
                               <TableCell className="text-right">
                                 <span className="font-bold text-blue-600 dark:text-blue-400">
-                                  {item.total_quantity} {item.unit}
+                                  {formatQuantity(item.total_quantity)} {item.unit}
                                 </span>
                               </TableCell>
                             </TableRow>
@@ -298,7 +309,7 @@ export default function Inventory() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Quantity</p>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{totalWarehouseQuantity}</p>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{formatQuantity(totalWarehouseQuantity)}</p>
                   </div>
                   <div className="p-4 bg-green-100 dark:bg-green-900 rounded-2xl">
                     <Warehouse className="h-7 w-7 text-green-600" />
@@ -372,7 +383,7 @@ export default function Inventory() {
                             <TableCell>{item.category_name_en || '-'}</TableCell>
                             <TableCell className="text-right">
                               <span className={`font-semibold ${isLowStock ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                                {item.quantity} {item.unit}
+                                {formatQuantity(item.quantity)} {item.unit}
                               </span>
                             </TableCell>
                             <TableCell className="text-right text-gray-600 dark:text-gray-400">{item.min_stock_level}</TableCell>

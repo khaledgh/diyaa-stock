@@ -11,6 +11,7 @@ import (
 type PaymentService interface {
 	GetALL(invoiceID string, limit int) ([]models.Payment, error)
 	Create(payment models.Payment) (models.Payment, error)
+	DeleteByInvoiceID(invoiceID uint) error
 }
 
 type PaymentHandler struct {

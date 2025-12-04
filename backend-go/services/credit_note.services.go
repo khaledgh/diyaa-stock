@@ -93,6 +93,25 @@ func (s *CreditNoteService) GetByID(id string) (models.CreditNote, error) {
 
 // Create creates a new credit note
 func (s *CreditNoteService) Create(creditNote models.CreditNote) (models.CreditNote, error) {
+	// Validate required fields
+	if creditNote.PurchaseInvoiceID == nil {
+		return creditNote, errors.New("purchase invoice is required")
+	}
+
+	// Use transaction to prevent race conditions
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Validate quantities against original invoice within transaction
+	if err := s.validateQuantitiesAgainstInvoice(creditNote, nil, tx); err != nil {
+		tx.Rollback()
+		return creditNote, err
+	}
+
 	// Generate credit note number
 	creditNote.CreditNoteNumber = s.generateCreditNoteNumber()
 	creditNote.Status = "draft"
@@ -105,8 +124,14 @@ func (s *CreditNoteService) Create(creditNote models.CreditNote) (models.CreditN
 	}
 	creditNote.TotalAmount = totalAmount
 
-	// Create credit note with items
-	if err := s.db.Create(&creditNote).Error; err != nil {
+	// Create credit note with items within transaction
+	if err := tx.Create(&creditNote).Error; err != nil {
+		tx.Rollback()
+		return creditNote, err
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
 		return creditNote, err
 	}
 
@@ -124,6 +149,22 @@ func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (mod
 		return creditNote, errors.New("only draft credit notes can be updated")
 	}
 
+	// Use transaction to prevent race conditions
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Validate quantities against original invoice within transaction (exclude current credit note)
+	if creditNote.PurchaseInvoiceID != nil {
+		if err := s.validateQuantitiesAgainstInvoice(creditNote, &existing.ID, tx); err != nil {
+			tx.Rollback()
+			return creditNote, err
+		}
+	}
+
 	// Update basic fields
 	existing.VendorID = creditNote.VendorID
 	existing.LocationID = creditNote.LocationID
@@ -131,12 +172,13 @@ func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (mod
 	existing.Notes = creditNote.Notes
 	existing.PurchaseInvoiceID = creditNote.PurchaseInvoiceID
 
-	// Delete existing items
-	if err := s.db.Where("credit_note_id = ?", existing.ID).Delete(&models.CreditNoteItem{}).Error; err != nil {
+	// Delete existing items within transaction
+	if err := tx.Where("credit_note_id = ?", existing.ID).Delete(&models.CreditNoteItem{}).Error; err != nil {
+		tx.Rollback()
 		return creditNote, err
 	}
 
-	// Add new items and calculate total
+	// Add new items and calculate total within transaction
 	var totalAmount float64
 	for i := range creditNote.Items {
 		creditNote.Items[i].CreditNoteID = existing.ID
@@ -146,7 +188,13 @@ func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (mod
 	existing.TotalAmount = totalAmount
 	existing.Items = creditNote.Items
 
-	if err := s.db.Save(&existing).Error; err != nil {
+	if err := tx.Save(&existing).Error; err != nil {
+		tx.Rollback()
+		return creditNote, err
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
 		return creditNote, err
 	}
 
@@ -185,7 +233,7 @@ func (s *CreditNoteService) Approve(id string, approvedBy uint) (models.CreditNo
 		// Check if sufficient quantity
 		if stock.Quantity < item.Quantity {
 			tx.Rollback()
-			return creditNote, fmt.Errorf("insufficient stock for product %d. Available: %d, Required: %d",
+			return creditNote, fmt.Errorf("insufficient stock for product %d. Available: %.2f, Required: %.2f",
 				item.ProductID, stock.Quantity, item.Quantity)
 		}
 
@@ -266,6 +314,66 @@ func (s *CreditNoteService) Delete(id string) error {
 	}
 
 	return s.db.Delete(&creditNote).Error
+}
+
+// validateQuantitiesAgainstInvoice checks if credit note quantities exceed invoice quantities
+func (s *CreditNoteService) validateQuantitiesAgainstInvoice(creditNote models.CreditNote, excludeCreditNoteID *uint, tx *gorm.DB) error {
+	// Use transaction if provided, otherwise use main DB
+	db := s.db
+	if tx != nil {
+		db = tx
+	}
+
+	// Get the original purchase invoice with items
+	var invoice models.PurchaseInvoice
+	if err := db.Preload("Items").First(&invoice, *creditNote.PurchaseInvoiceID).Error; err != nil {
+		return fmt.Errorf("purchase invoice not found: %v", err)
+	}
+
+	// Get existing approved credit notes for this invoice to calculate already credited quantities
+	query := db.Preload("Items").Where("purchase_invoice_id = ? AND status = ? AND deleted_at IS NULL", *creditNote.PurchaseInvoiceID, "approved")
+
+	// Exclude current credit note if updating (to avoid counting its own items)
+	if excludeCreditNoteID != nil {
+		query = query.Where("id != ?", *excludeCreditNoteID)
+	}
+
+	var existingCreditNotes []models.CreditNote
+	if err := query.Find(&existingCreditNotes).Error; err != nil {
+		return fmt.Errorf("failed to check existing credit notes: %v", err)
+	}
+
+	// Create a map of product -> total credited quantity from existing approved credit notes
+	existingCreditedQty := make(map[uint]float64)
+	for _, existingCN := range existingCreditNotes {
+		for _, existingItem := range existingCN.Items {
+			existingCreditedQty[existingItem.ProductID] += existingItem.Quantity
+		}
+	}
+
+	// Create a map of product -> invoice quantity
+	invoiceQty := make(map[uint]float64)
+	for _, invoiceItem := range invoice.Items {
+		invoiceQty[invoiceItem.ProductID] = invoiceItem.Quantity
+	}
+
+	// Validate each credit note item
+	for _, cnItem := range creditNote.Items {
+		invoiceQuantity, exists := invoiceQty[cnItem.ProductID]
+		if !exists {
+			return fmt.Errorf("product %d not found in original invoice", cnItem.ProductID)
+		}
+
+		// Calculate total quantity that would be credited after this credit note
+		totalCreditedQty := existingCreditedQty[cnItem.ProductID] + cnItem.Quantity
+
+		if totalCreditedQty > invoiceQuantity {
+			return fmt.Errorf("total credit note quantity (%.2f) for product %d exceeds invoice quantity (%.2f). Already credited: %.2f, Requested: %.2f",
+				totalCreditedQty, cnItem.ProductID, invoiceQuantity, existingCreditedQty[cnItem.ProductID], cnItem.Quantity)
+		}
+	}
+
+	return nil
 }
 
 // generateCreditNoteNumber generates a unique credit note number

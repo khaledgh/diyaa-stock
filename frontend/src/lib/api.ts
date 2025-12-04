@@ -124,6 +124,7 @@ export const invoiceApi = {
   updatePurchaseItem: (invoiceId: number, itemId: number, data: any) => api.put(`/invoices/purchase/${invoiceId}/items/${itemId}`, data),
   addSalesItem: (invoiceId: number, data: any) => api.post(`/invoices/sales/${invoiceId}/items`, data),
   addPurchaseItem: (invoiceId: number, data: any) => api.post(`/invoices/purchase/${invoiceId}/items`, data),
+  delete: (id: number, type?: string) => api.delete(`/invoices/${id}`, { params: { invoice_type: type } }),
 };
 
 export const paymentApi = {

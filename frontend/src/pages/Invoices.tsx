@@ -63,6 +63,7 @@ export default function Invoices() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
 
@@ -255,6 +256,25 @@ export default function Invoices() {
     },
   });
 
+  const deleteInvoiceMutation = useMutation({
+    mutationFn: (id: number) => invoiceApi.delete(id, invoiceType),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["van-stock"] });
+      toast.success(
+        `${
+          invoiceType === "purchase" ? "Purchase" : "Sales"
+        } invoice deleted successfully`
+      );
+      setIsDeleteDialogOpen(false);
+      setSelectedInvoice(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to delete invoice");
+    },
+  });
+
   const handleAddItem = () => {
     if (!selectedProduct || !quantity || !unitPrice) {
       toast.error("Please fill all item fields");
@@ -402,6 +422,16 @@ export default function Invoices() {
       payment_method: paymentDialogMethod,
       reference_number: paymentDialogReference || undefined,
     });
+  };
+
+  const handleDeleteInvoice = (invoice: any) => {
+    setSelectedInvoice(invoice);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteInvoice = () => {
+    if (!selectedInvoice) return;
+    deleteInvoiceMutation.mutate(selectedInvoice.id);
   };
 
   const handlePrintInvoice = () => {
@@ -1036,13 +1066,24 @@ export default function Invoices() {
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewDetails(invoice.id)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-1 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewDetails(invoice.id)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteInvoice(invoice)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              DELETE
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1253,7 +1294,8 @@ export default function Invoices() {
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
                     placeholder="0"
-                    min="1"
+                    min="0.01"
+                    step="0.01"
                   />
                 </div>
                 <div>
@@ -1713,6 +1755,63 @@ export default function Invoices() {
               {createPaymentMutation.isPending
                 ? "Processing..."
                 : "Add Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete this {invoiceType} invoice?
+            </p>
+            {selectedInvoice && (
+              <div className="mt-2 p-3 bg-muted rounded-md">
+                <p className="font-medium">{selectedInvoice.invoice_number}</p>
+                <p className="text-sm text-muted-foreground">
+                  Total: {formatCurrency(selectedInvoice.total_amount)}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Status: {selectedInvoice.payment_status}
+                </p>
+              </div>
+            )}
+            <div className="mt-4 text-sm text-yellow-600 dark:text-yellow-400">
+              <p className="font-medium">This action will:</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>Soft delete the invoice record</li>
+                <li>Restore stock quantities</li>
+                <li>Remove associated payments</li>
+                <li>Create stock movement records for audit</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setSelectedInvoice(null);
+              }}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmDeleteInvoice}
+              disabled={deleteInvoiceMutation.isPending}
+              variant="destructive"
+              className="w-full sm:w-auto"
+            >
+              {deleteInvoiceMutation.isPending
+                ? "Deleting..."
+                : "Delete Invoice"}
             </Button>
           </DialogFooter>
         </DialogContent>

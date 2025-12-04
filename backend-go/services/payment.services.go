@@ -23,24 +23,24 @@ func NewPaymentService(model models.Payment, db *gorm.DB) *PaymentService {
 
 func (s *PaymentService) GetALL(invoiceID string, limit int) ([]models.Payment, error) {
 	var payments []models.Payment
-	
+
 	query := s.db.Model(&models.Payment{})
-	
+
 	if invoiceID != "" {
 		query = query.Where("invoice_id = ?", invoiceID)
 	}
-	
+
 	if limit > 0 {
 		query = query.Limit(limit)
 	} else {
 		query = query.Limit(100)
 	}
-	
+
 	err := query.Order("created_at DESC").Find(&payments).Error
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return payments, nil
 }
 
@@ -88,4 +88,12 @@ func (s *PaymentService) GetPaginated(limit, page int, orderBy, sortBy, invoiceI
 		PerPage:     limit,
 		TotalPages:  totalPages,
 	}, nil
+}
+
+func (s *PaymentService) DeleteByInvoiceID(invoiceID uint) error {
+	// Delete all payments for the given invoice
+	if err := s.db.Where("invoice_id = ?", invoiceID).Delete(&models.Payment{}).Error; err != nil {
+		return err
+	}
+	return nil
 }

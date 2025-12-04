@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Eye, Plus, Search, ChevronLeft, ChevronRight, ShoppingCart, Package } from 'lucide-react';
+import { FileText, Eye, Plus, Search, ChevronLeft, ChevronRight, ShoppingCart, Package, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { invoiceApi } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
+import { toast } from 'sonner';
 
 export default function InvoicesNew() {
   const { t } = useTranslation();
@@ -17,6 +19,10 @@ export default function InvoicesNew() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+
+  const queryClient = useQueryClient();
 
   const { data: invoicesData, isLoading } = useQuery({
     queryKey: ['invoices', invoiceType, searchQuery, currentPage, pageSize],
@@ -78,6 +84,23 @@ export default function InvoicesNew() {
     },
   });
 
+  const deleteInvoiceMutation = useMutation({
+    mutationFn: (id: number) => invoiceApi.delete(id, invoiceType),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      toast.success(
+        `${
+          invoiceType === "purchase" ? "Purchase" : "Sales"
+        } invoice deleted successfully`
+      );
+      setIsDeleteDialogOpen(false);
+      setSelectedInvoice(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to delete invoice");
+    },
+  });
+
   const invoices = invoicesData?.data || [];
   const pagination = invoicesData?.pagination || { total: 0, pages: 1, page: 1 };
 
@@ -88,6 +111,16 @@ export default function InvoicesNew() {
     } else {
       navigate(`/invoices/sales/${invoiceId}`);
     }
+  };
+
+  const handleDeleteInvoice = (invoice: any) => {
+    setSelectedInvoice(invoice);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteInvoice = () => {
+    if (!selectedInvoice) return;
+    deleteInvoiceMutation.mutate(selectedInvoice.id);
   };
 
   return (
@@ -248,6 +281,15 @@ export default function InvoicesNew() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteInvoice(invoice)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              DELETE
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))
@@ -291,6 +333,52 @@ export default function InvoicesNew() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete this {invoiceType} invoice?
+            </p>
+            {selectedInvoice && (
+              <div className="mt-2 p-3 bg-muted rounded-md">
+                <p className="font-medium">{selectedInvoice.invoice_number}</p>
+                <p className="text-sm text-muted-foreground">
+                  Total: {formatCurrency(selectedInvoice.total_amount)}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Status: {selectedInvoice.payment_status}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setSelectedInvoice(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmDeleteInvoice}
+              disabled={deleteInvoiceMutation.isPending}
+              variant="destructive"
+            >
+              {deleteInvoiceMutation.isPending
+                ? "Deleting..."
+                : "Delete Invoice"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

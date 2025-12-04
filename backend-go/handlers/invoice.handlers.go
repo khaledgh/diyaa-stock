@@ -8,6 +8,7 @@ import (
 
 	"github.com/gonext-tech/invoicing-system/backend/models"
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 type SalesInvoiceService interface {
@@ -16,9 +17,10 @@ type SalesInvoiceService interface {
 	GetCount() (int64, error)
 	Create(invoice models.SalesInvoice) (models.SalesInvoice, error)
 	Update(invoice models.SalesInvoice) (models.SalesInvoice, error)
-	UpdateItem(itemID uint, productID uint, quantity int, unitPrice, discountPercent float64) error
-	AddItem(invoiceID uint, productID uint, quantity int, unitPrice, discountPercent float64) error
+	UpdateItem(itemID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error
+	AddItem(invoiceID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error
 	RecalculateTotals(invoiceID uint) error
+	Delete(id string) error
 }
 
 type PurchaseInvoiceService interface {
@@ -27,9 +29,10 @@ type PurchaseInvoiceService interface {
 	GetCount() (int64, error)
 	Create(invoice models.PurchaseInvoice) (models.PurchaseInvoice, error)
 	Update(invoice models.PurchaseInvoice) (models.PurchaseInvoice, error)
-	UpdateItem(itemID uint, productID uint, quantity int, unitPrice, discountPercent float64) error
-	AddItem(invoiceID uint, productID uint, quantity int, unitPrice, discountPercent float64) error
+	UpdateItem(itemID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error
+	AddItem(invoiceID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error
 	RecalculateTotals(invoiceID uint) error
+	Delete(id string) error
 }
 
 type InvoiceHandler struct {
@@ -158,7 +161,7 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 		Notes         *string `json:"notes"`
 		Items         []struct {
 			ProductID       uint    `json:"product_id"`
-			Quantity        int     `json:"quantity"`
+			Quantity        float64 `json:"quantity"`
 			UnitPrice       float64 `json:"unit_price"`
 			DiscountPercent float64 `json:"discount_percent"`
 		} `json:"items"`
@@ -277,7 +280,7 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 		Notes         *string `json:"notes"`
 		Items         []struct {
 			ProductID       uint    `json:"product_id"`
-			Quantity        int     `json:"quantity"`
+			Quantity        float64 `json:"quantity"`
 			UnitPrice       float64 `json:"unit_price"`
 			DiscountPercent float64 `json:"discount_percent"`
 		} `json:"items"`
@@ -341,6 +344,22 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 	// Get correct location type and ID
 	locationType, locationID := ih.StockServices.GetLocationTypeAndID(req.LocationID)
 
+	// Validate stock availability before creating sales invoice
+	for _, item := range req.Items {
+		currentStock, err := ih.StockServices.GetProductStock(item.ProductID, locationType, locationID)
+		if err != nil {
+			// Handle case where no stock record exists
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ResponseError(c, fmt.Errorf("insufficient stock for product ID %d: no stock available", item.ProductID))
+			}
+			return ResponseError(c, err)
+		}
+
+		if currentStock.Quantity < item.Quantity {
+			return ResponseError(c, fmt.Errorf("insufficient stock for product ID %d: available %.2f, required %.2f", item.ProductID, currentStock.Quantity, item.Quantity))
+		}
+	}
+
 	// Update stock (reduce from location)
 	for _, item := range req.Items {
 		if err := ih.StockServices.UpdateStock(item.ProductID, locationType, locationID, -item.Quantity); err != nil {
@@ -394,7 +413,7 @@ func (ih *InvoiceHandler) UpdateSalesInvoiceItem(c echo.Context) error {
 
 	var req struct {
 		ProductID       uint    `json:"product_id"`
-		Quantity        int     `json:"quantity"`
+		Quantity        float64 `json:"quantity"`
 		UnitPrice       float64 `json:"unit_price"`
 		DiscountPercent float64 `json:"discount_percent"`
 	}
@@ -452,6 +471,37 @@ func (ih *InvoiceHandler) UpdateSalesInvoiceItem(c echo.Context) error {
 	if quantityDiff != 0 || productChanged {
 		locationType, locationID := ih.StockServices.GetLocationTypeAndID(invoice.LocationID)
 
+		// Validate stock availability before making changes
+		if productChanged {
+			// For new product, check if we have enough stock
+			currentStock, err := ih.StockServices.GetProductStock(req.ProductID, locationType, locationID)
+			if err != nil {
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return ResponseError(c, err)
+				}
+				// No stock record exists, so no stock available
+				return ResponseError(c, fmt.Errorf("insufficient stock for product ID %d: no stock available", req.ProductID))
+			}
+
+			if currentStock.Quantity < req.Quantity {
+				return ResponseError(c, fmt.Errorf("insufficient stock for product ID %d: available %.2f, required %.2f", req.ProductID, currentStock.Quantity, req.Quantity))
+			}
+		} else if quantityDiff > 0 {
+			// For same product with increased quantity, check if we have enough additional stock
+			currentStock, err := ih.StockServices.GetProductStock(req.ProductID, locationType, locationID)
+			if err != nil {
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return ResponseError(c, err)
+				}
+				// No stock record exists, so no stock available
+				return ResponseError(c, fmt.Errorf("insufficient stock for product ID %d: no stock available", req.ProductID))
+			}
+
+			if currentStock.Quantity < quantityDiff {
+				return ResponseError(c, fmt.Errorf("insufficient stock for product ID %d: available %.2f, additional required %.2f", req.ProductID, currentStock.Quantity, quantityDiff))
+			}
+		}
+
 		if productChanged {
 			// If product changed, adjust both old and new products
 			// Return old quantity to old product
@@ -471,7 +521,7 @@ func (ih *InvoiceHandler) UpdateSalesInvoiceItem(c echo.Context) error {
 
 		// Create stock movement record
 		notes := fmt.Sprintf("Updated sales invoice #%s item", invoice.ID)
-		var movementQuantity int
+		var movementQuantity float64
 		if productChanged {
 			movementQuantity = req.Quantity
 		} else {
@@ -492,7 +542,7 @@ func (ih *InvoiceHandler) UpdateSalesInvoiceItem(c echo.Context) error {
 		}
 	}
 
-	log.Printf("[UPDATE SALES ITEM] Item %s updated in invoice #%s, quantity changed from %d to %d", itemID, id, oldQuantity, req.Quantity)
+	log.Printf("[UPDATE SALES ITEM] Item %s updated in invoice #%s, quantity changed from %.2f to %.2f", itemID, id, oldQuantity, req.Quantity)
 	return ResponseSuccess(c, "Sales invoice item updated successfully", updatedInvoice)
 }
 
@@ -503,7 +553,7 @@ func (ih *InvoiceHandler) UpdatePurchaseInvoiceItem(c echo.Context) error {
 
 	var req struct {
 		ProductID       uint    `json:"product_id"`
-		Quantity        int     `json:"quantity"`
+		Quantity        float64 `json:"quantity"`
 		UnitPrice       float64 `json:"unit_price"`
 		DiscountPercent float64 `json:"discount_percent"`
 	}
@@ -580,7 +630,7 @@ func (ih *InvoiceHandler) UpdatePurchaseInvoiceItem(c echo.Context) error {
 
 		// Create stock movement record
 		notes := fmt.Sprintf("Updated purchase invoice #%s item", invoice.ID)
-		var movementQuantity int
+		var movementQuantity float64
 		if productChanged {
 			movementQuantity = req.Quantity
 		} else {
@@ -601,7 +651,7 @@ func (ih *InvoiceHandler) UpdatePurchaseInvoiceItem(c echo.Context) error {
 		}
 	}
 
-	log.Printf("[UPDATE PURCHASE ITEM] Item %s updated in invoice #%s, quantity changed from %d to %d", itemID, id, oldQuantity, req.Quantity)
+	log.Printf("[UPDATE PURCHASE ITEM] Item %s updated in invoice #%s, quantity changed from %.2f to %.2f", itemID, id, oldQuantity, req.Quantity)
 	return ResponseSuccess(c, "Purchase invoice item updated successfully", updatedInvoice)
 }
 
@@ -611,7 +661,7 @@ func (ih *InvoiceHandler) AddSalesInvoiceItem(c echo.Context) error {
 
 	var req struct {
 		ProductID       uint    `json:"product_id"`
-		Quantity        int     `json:"quantity"`
+		Quantity        float64 `json:"quantity"`
 		UnitPrice       float64 `json:"unit_price"`
 		DiscountPercent float64 `json:"discount_percent"`
 	}
@@ -679,7 +729,7 @@ func (ih *InvoiceHandler) AddPurchaseInvoiceItem(c echo.Context) error {
 
 	var req struct {
 		ProductID       uint    `json:"product_id"`
-		Quantity        int     `json:"quantity"`
+		Quantity        float64 `json:"quantity"`
 		UnitPrice       float64 `json:"unit_price"`
 		DiscountPercent float64 `json:"discount_percent"`
 	}
@@ -739,4 +789,166 @@ func (ih *InvoiceHandler) AddPurchaseInvoiceItem(c echo.Context) error {
 
 	log.Printf("[ADD PURCHASE ITEM] New item added to invoice #%s", id)
 	return ResponseSuccess(c, "Purchase invoice item added successfully", updatedInvoice)
+}
+
+func (ih *InvoiceHandler) DeleteInvoiceHandler(c echo.Context) error {
+	id := c.Param("id")
+	invoiceType := c.QueryParam("invoice_type")
+	if invoiceType == "" {
+		invoiceType = "sales"
+	}
+
+	user, err := GetUserContext(c)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Start transaction
+	tx := ih.StockServices.GetDB().Begin()
+	if tx.Error != nil {
+		return ResponseError(c, tx.Error)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Get the invoice to delete
+	var invoiceTypeStr string
+	var locationID uint
+	var items []interface{}
+
+	if invoiceType == "purchase" {
+		invoice, err := ih.PurchaseInvoiceServices.GetID(id)
+		if err != nil {
+			tx.Rollback()
+			return ResponseError(c, err)
+		}
+		locationID = invoice.LocationID
+		invoiceTypeStr = "purchase"
+		for _, item := range invoice.Items {
+			items = append(items, item)
+		}
+	} else {
+		invoice, err := ih.SalesInvoiceServices.GetID(id)
+		if err != nil {
+			tx.Rollback()
+			return ResponseError(c, err)
+		}
+		locationID = invoice.LocationID
+		invoiceTypeStr = "sales"
+		for _, item := range invoice.Items {
+			items = append(items, item)
+		}
+	}
+
+	// Convert ID to uint for payment deletion
+	invoiceIDUint, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		tx.Rollback()
+		return ResponseError(c, errors.New("invalid invoice ID"))
+	}
+
+	// Delete associated payments
+	if err := ih.PaymentServices.DeleteByInvoiceID(uint(invoiceIDUint)); err != nil {
+		tx.Rollback()
+		log.Printf("[DELETE INVOICE] Error deleting payments: %v", err)
+		return ResponseError(c, err)
+	}
+
+	// Restore stock quantities
+	locationType, locationIDFinal := ih.StockServices.GetLocationTypeAndID(locationID)
+
+	for _, itemInterface := range items {
+		var productID uint
+		var quantity float64
+
+		if invoiceTypeStr == "purchase" {
+			if item, ok := itemInterface.(models.PurchaseInvoiceItem); ok {
+				productID = item.ProductID
+				quantity = item.Quantity
+
+				// Validate stock availability before allowing purchase invoice deletion
+				currentStock, err := ih.StockServices.GetProductStock(productID, locationType, locationIDFinal)
+				if err != nil {
+					if !errors.Is(err, gorm.ErrRecordNotFound) {
+						tx.Rollback()
+						return ResponseError(c, err)
+					}
+					// No stock record exists, so cannot delete purchase invoice
+					tx.Rollback()
+					return ResponseError(c, fmt.Errorf("cannot delete purchase invoice: no stock record found for product ID %d", productID))
+				}
+
+				if currentStock.Quantity < quantity {
+					tx.Rollback()
+					return ResponseError(c, fmt.Errorf("cannot delete purchase invoice: insufficient stock for product ID %d (available: %.2f, required: %.2f)", productID, currentStock.Quantity, quantity))
+				}
+
+				// For purchase invoices, we need to subtract the added stock
+				if err := ih.StockServices.UpdateStock(productID, locationType, locationIDFinal, -quantity); err != nil {
+					tx.Rollback()
+					log.Printf("[DELETE PURCHASE INVOICE] Error restoring stock: %v", err)
+					return ResponseError(c, err)
+				}
+			}
+		} else {
+			if item, ok := itemInterface.(models.SalesInvoiceItem); ok {
+				productID = item.ProductID
+				quantity = item.Quantity
+				// For sales invoices, we need to add back the removed stock
+				if err := ih.StockServices.UpdateStock(productID, locationType, locationIDFinal, quantity); err != nil {
+					tx.Rollback()
+					log.Printf("[DELETE SALES INVOICE] Error restoring stock: %v", err)
+					return ResponseError(c, err)
+				}
+			}
+		}
+
+		// Create stock movement record for restoration
+		notes := fmt.Sprintf("Deleted %s invoice #%s - stock restored", invoiceTypeStr, id)
+		var movementQuantity float64
+		if invoiceTypeStr == "purchase" {
+			movementQuantity = -quantity // Negative to show stock removal
+		} else {
+			movementQuantity = quantity // Positive to show stock addition
+		}
+
+		if err := ih.StockServices.CreateMovement(
+			productID,
+			invoiceTypeStr+"_delete", // movement type
+			movementQuantity,
+			locationType,
+			locationIDFinal,
+			"", // No source/destination for deletions
+			0,  // No source/destination ID for deletions
+			notes,
+			user.ID,
+		); err != nil {
+			log.Printf("[DELETE INVOICE] Error creating movement record: %v", err)
+			// Don't fail the deletion if movement recording fails
+		}
+	}
+
+	// Delete the invoice (soft delete)
+	if invoiceType == "purchase" {
+		if err := ih.PurchaseInvoiceServices.Delete(id); err != nil {
+			tx.Rollback()
+			return ResponseError(c, err)
+		}
+	} else {
+		if err := ih.SalesInvoiceServices.Delete(id); err != nil {
+			tx.Rollback()
+			return ResponseError(c, err)
+		}
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		return ResponseError(c, err)
+	}
+
+	log.Printf("[DELETE INVOICE] %s invoice #%s deleted successfully", invoiceTypeStr, id)
+	return ResponseSuccess(c, fmt.Sprintf("%s invoice deleted successfully", invoiceTypeStr), nil)
 }

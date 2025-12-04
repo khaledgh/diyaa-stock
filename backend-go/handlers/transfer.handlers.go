@@ -55,8 +55,8 @@ func (th *TransferHandler) CreateHandler(c echo.Context) error {
 		ToLocationID     uint   `json:"to_location_id"`
 		Notes            string `json:"notes"`
 		Items            []struct {
-			ProductID uint `json:"product_id"`
-			Quantity  int  `json:"quantity"`
+			ProductID uint    `json:"product_id"`
+			Quantity  float64 `json:"quantity"`
 		} `json:"items"`
 	}
 
@@ -112,13 +112,13 @@ func (th *TransferHandler) CreateHandler(c echo.Context) error {
 				item.ProductID, req.FromLocationType, req.FromLocationID))
 		}
 
-		log.Printf("[TRANSFER] Found stock - Product ID: %d, Available Quantity: %d, Required: %d",
+		log.Printf("[TRANSFER] Found stock - Product ID: %d, Available Quantity: %.2f, Required: %.2f",
 			item.ProductID, stock.Quantity, item.Quantity)
 
 		if stock.Quantity < item.Quantity {
-			log.Printf("[TRANSFER] Insufficient quantity - Product ID: %d, Available: %d, Required: %d",
+			log.Printf("[TRANSFER] Insufficient quantity - Product ID: %d, Available: %.2f, Required: %.2f",
 				item.ProductID, stock.Quantity, item.Quantity)
-			return ResponseError(c, fmt.Errorf("insufficient stock for product ID %d at %s (ID: %d): available %d, required %d",
+			return ResponseError(c, fmt.Errorf("insufficient stock for product ID %d at %s (ID: %d): available %.2f, required %.2f",
 				item.ProductID, req.FromLocationType, req.FromLocationID, stock.Quantity, item.Quantity))
 		}
 	}
@@ -161,7 +161,7 @@ func (th *TransferHandler) CreateHandler(c echo.Context) error {
 			log.Printf("[TRANSFER] Error adding stock: %v", err)
 			return ResponseError(c, err)
 		}
-		
+
 		// Create stock movement record
 		notes := fmt.Sprintf("Transfer #%d", createdTransfer.ID)
 		if err := th.StockServices.CreateMovement(
