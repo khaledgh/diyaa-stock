@@ -46,14 +46,14 @@ func (s *AuthService) CheckEmail(email string) (models.User, error) {
 	if result := s.DB.Preload("Location").Where("email = ?", email).Find(&user); result.Error != nil {
 		return models.User{}, errors.New("credentials not match")
 	}
-	
+
 	// Populate computed fields
 	user.FullName = user.FirstName + " " + user.LastName
 	user.IsActive = user.Status == "ACTIVE"
 	if user.Location != nil {
 		user.LocationName = user.Location.Name
 	}
-	
+
 	return user, nil
 }
 
@@ -109,7 +109,7 @@ func (s *AuthService) GetUser(tokenString string) (*models.User, error) {
 	if result.Error != nil {
 		return nil, result.Error
 	}
-	
+
 	// Populate computed fields
 	user.FullName = user.FirstName + " " + user.LastName
 	user.IsActive = user.Status == "ACTIVE"
@@ -141,9 +141,9 @@ func (as *AuthService) GenerateCookie(name, value, action string) *http.Cookie {
 			Value:    value,
 			Path:     "/",
 			Expires:  time.Now().Add(24 * time.Hour), // Token expires in 24 hours
-			Domain:   "localhost",                    // Available only on anotherdomain.com
+			Domain:   ".linksbridge.top",             // Available only on anotherdomain.com
 			HttpOnly: true,
-			Secure:   false, // Set to true in production with HTTPS
+			Secure:   true, // Set to true in production with HTTPS
 			//SameSite: http.SameSiteNoneMode, // For cross-origin requests
 
 		}
@@ -154,9 +154,9 @@ func (as *AuthService) GenerateCookie(name, value, action string) *http.Cookie {
 			Path:    "/",
 			Expires: time.Now().Add(-time.Hour), // Set expiry in the past to expire immediately
 			//Domain:   "gonext.tech",
-			Domain:   "localhost",
+			Domain:   ".linksbridge.top",
 			HttpOnly: true,
-			Secure:   false, // Set to true in production with HTTPS
+			Secure:   true, // Set to true in production with HTTPS
 			//SameSite: http.SameSiteNoneMode, // For cross-origin requests
 		}
 	}
