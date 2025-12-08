@@ -9,6 +9,7 @@ type PurchaseInvoice struct {
 	Vendor        *Vendor               `json:"vendor,omitempty" gorm:"foreignKey:VendorID"`
 	LocationID    uint                  `json:"location_id" gorm:"not null"`
 	Location      *Location             `json:"location,omitempty" gorm:"foreignKey:LocationID"`
+	InvoiceDate   time.Time             `json:"invoice_date" gorm:"not null"`
 	TotalAmount   float64               `json:"total_amount" gorm:"not null"`
 	PaidAmount    float64               `json:"paid_amount" gorm:"default:0"`
 	PaymentStatus string                `json:"payment_status" gorm:"size:20;default:unpaid"` // unpaid, partial, paid

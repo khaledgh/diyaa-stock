@@ -115,6 +115,7 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.GET("/invoices/stats", invoiceHandler.StatsHandler)
 	apiGroup.GET("/invoices", invoiceHandler.GetAllHandler)
 	apiGroup.GET("/invoices/:id", invoiceHandler.GetIDHandler)
+	apiGroup.PUT("/invoices/:id", invoiceHandler.UpdateHandler)
 	apiGroup.POST("/invoices/purchase", invoiceHandler.CreatePurchaseHandler)
 	apiGroup.POST("/invoices/sales", invoiceHandler.CreateSalesHandler)
 	apiGroup.PUT("/invoices/sales/:id/items/:item_id", invoiceHandler.UpdateSalesInvoiceItem)

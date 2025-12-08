@@ -96,6 +96,48 @@ func AutoMigrate(db *gorm.DB) error {
 	}
 
 	log.Println("Database migration completed successfully!")
+
+	// Run custom SQL migrations after GORM migration
+	log.Println("Running custom SQL migrations...")
+
+	// Check if invoice_date column exists
+	var columnExists int64
+	checkColumnSQL := `
+		SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+		WHERE TABLE_SCHEMA = DATABASE() 
+		AND TABLE_NAME = 'purchase_invoices' 
+		AND COLUMN_NAME = 'invoice_date'
+	`
+	db.Raw(checkColumnSQL).Scan(&columnExists)
+
+	if columnExists == 0 {
+		// Add the column if it doesn't exist
+		addColumnSQL := `ALTER TABLE purchase_invoices ADD COLUMN invoice_date DATE NULL`
+		result = db.Exec(addColumnSQL)
+		if result.Error != nil {
+			log.Printf("Warning: Could not add invoice_date column: %v", result.Error)
+		} else {
+			log.Println("Added invoice_date column")
+		}
+	} else {
+		log.Println("invoice_date column already exists")
+	}
+
+	// Update existing records to use created_at as invoice_date if invoice_date is null or zero
+	updateSQL := `
+		UPDATE purchase_invoices
+		SET invoice_date = DATE(created_at)
+		WHERE invoice_date IS NULL OR invoice_date = '0000-00-00' OR invoice_date = ''
+	`
+	result = db.Exec(updateSQL)
+	if result.Error != nil {
+		log.Printf("Warning: Could not update invoice_date for existing records: %v", result.Error)
+	} else {
+		log.Printf("Updated invoice_date for %d existing records", result.RowsAffected)
+	}
+
+	log.Println("Invoice date migration completed successfully!")
+
 	return nil
 }
 

@@ -75,6 +75,13 @@ func (s *PurchaseInvoiceService) GetID(id string) (models.PurchaseInvoice, error
 		}
 		return invoice, err
 	}
+
+	// Fix invoice_date if it's zero - use created_at as fallback
+	if invoice.InvoiceDate.IsZero() {
+		invoice.InvoiceDate = invoice.CreatedAt
+		s.db.Model(&invoice).Update("invoice_date", invoice.InvoiceDate)
+	}
+
 	return invoice, nil
 }
 
@@ -87,6 +94,11 @@ func (s *PurchaseInvoiceService) GetCount() (int64, error) {
 func (s *PurchaseInvoiceService) Create(invoice models.PurchaseInvoice) (models.PurchaseInvoice, error) {
 	// Generate invoice number
 	invoice.InvoiceNumber = s.generateInvoiceNumber()
+
+	// Set invoice date to current time if not provided
+	if invoice.InvoiceDate.IsZero() {
+		invoice.InvoiceDate = time.Now()
+	}
 
 	if err := s.db.Create(&invoice).Error; err != nil {
 		return invoice, err

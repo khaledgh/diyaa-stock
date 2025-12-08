@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { stockApi, productApi, locationApi } from '@/lib/api';
-import { Package, Search, Plus, Warehouse, AlertTriangle } from 'lucide-react';
+import { Package, Search, Plus, Warehouse, AlertTriangle, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,6 +21,15 @@ export default function Inventory() {
   const [selectedProduct, setSelectedProduct] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [quantity, setQuantity] = useState('');
+
+  // Edit stock state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editProductId, setEditProductId] = useState<number | null>(null);
+  const [editProductName, setEditProductName] = useState('');
+  const [editLocationId, setEditLocationId] = useState<number | null>(null);
+  const [editLocationName, setEditLocationName] = useState('');
+  const [editCurrentQuantity, setEditCurrentQuantity] = useState(0);
+  const [editNewQuantity, setEditNewQuantity] = useState('');
 
   const { data: inventory, isLoading } = useQuery({
     queryKey: ['all-stock'],
@@ -70,10 +79,66 @@ export default function Inventory() {
     },
   });
 
+  const adjustStockMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await stockApi.adjustStock(data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-stock'] });
+      queryClient.invalidateQueries({ queryKey: ['warehouse-stock'] });
+      toast.success('Stock updated successfully');
+      closeEditDialog();
+    },
+    onError: () => {
+      toast.error('Failed to update stock');
+    },
+  });
+
   const resetForm = () => {
     setSelectedProduct('');
     setSelectedLocation('');
     setQuantity('');
+  };
+
+  const openEditDialog = (productId: number, productName: string, locationId: number, locationName: string, currentQty: number) => {
+    setEditProductId(productId);
+    setEditProductName(productName);
+    setEditLocationId(locationId);
+    setEditLocationName(locationName);
+    setEditCurrentQuantity(currentQty);
+    setEditNewQuantity(currentQty.toString());
+    setIsEditDialogOpen(true);
+  };
+
+  const closeEditDialog = () => {
+    setIsEditDialogOpen(false);
+    setEditProductId(null);
+    setEditProductName('');
+    setEditLocationId(null);
+    setEditLocationName('');
+    setEditCurrentQuantity(0);
+    setEditNewQuantity('');
+  };
+
+  const handleEditStock = () => {
+    if (editProductId === null || editLocationId === null || editNewQuantity === '') {
+      toast.error('Please enter a valid quantity');
+      return;
+    }
+
+    const newQty = parseFloat(editNewQuantity);
+    if (newQty < 0) {
+      toast.error('Quantity cannot be negative');
+      return;
+    }
+
+    // adjustStock API sets the stock to the exact quantity provided
+    adjustStockMutation.mutate({
+      product_id: editProductId,
+      location_id: editLocationId,
+      quantity: newQty,
+      reason: 'Manual stock adjustment',
+    });
   };
 
   const handleAddStock = () => {
@@ -108,9 +173,24 @@ export default function Inventory() {
   const parseLocationQuantities = (locationQuantitiesStr: string) => {
     if (!locationQuantitiesStr) return [];
     return locationQuantitiesStr.split('|').map(item => {
-      const [name, qty] = item.split(':');
-      return { name, quantity: parseFloat(qty) || 0 };
-    }).filter(item => item.name); // Filter out any empty entries
+      const parts = item.split(':');
+      if (parts.length >= 3) {
+        // New format: id:name:quantity
+        return { 
+          id: parseInt(parts[0]) || 0,
+          name: parts[1], 
+          quantity: parseFloat(parts[2]) || 0 
+        };
+      } else if (parts.length === 2) {
+        // Old format: name:quantity (fallback)
+        return { 
+          id: 0,
+          name: parts[0], 
+          quantity: parseFloat(parts[1]) || 0 
+        };
+      }
+      return null;
+    }).filter(item => item && item.name); // Filter out any empty entries
   };
 
   const formatQuantity = (quantity: number | null | undefined) => {
@@ -200,6 +280,60 @@ export default function Inventory() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Edit Stock Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Stock Quantity</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div>
+                <Label>Product</Label>
+                <Input value={editProductName} disabled className="bg-gray-100" />
+              </div>
+
+              <div>
+                <Label>Location</Label>
+                <Input value={editLocationName} disabled className="bg-gray-100" />
+              </div>
+
+              <div>
+                <Label>Current Quantity</Label>
+                <Input value={formatQuantity(editCurrentQuantity)} disabled className="bg-gray-100" />
+              </div>
+
+              <div>
+                <Label>New Quantity</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editNewQuantity}
+                  onChange={(e) => setEditNewQuantity(e.target.value)}
+                  placeholder="Enter new quantity"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleEditStock} 
+                  className="flex-1"
+                  disabled={adjustStockMutation.isPending}
+                >
+                  {adjustStockMutation.isPending ? 'Saving...' : 'Update Stock'}
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={closeEditDialog}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Tabs defaultValue="all" className="w-full">
@@ -259,9 +393,19 @@ export default function Inventory() {
                                 {locationQtys.length > 0 ? (
                                   <div className="space-y-1">
                                     {locationQtys.map((loc: any, idx: number) => (
-                                      <div key={idx} className="text-sm">
+                                      <div key={idx} className="text-sm flex items-center gap-2">
                                         <span className="text-gray-600 dark:text-gray-400">{loc.name}:</span>{' '}
                                         <span className="font-medium">{formatQuantity(loc.quantity)}</span>
+                                        {loc.id > 0 && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-5 w-5 p-0"
+                                            onClick={() => openEditDialog(item.product_id, item.name_en, loc.id, loc.name, loc.quantity)}
+                                          >
+                                            <Edit2 className="h-3 w-3" />
+                                          </Button>
+                                        )}
                                       </div>
                                     ))}
                                   </div>

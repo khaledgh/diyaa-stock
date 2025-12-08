@@ -134,7 +134,7 @@ func (s *StockService) GetInventorySummary() ([]map[string]interface{}, error) {
 			SUM(s.quantity) as total_quantity,
 			GROUP_CONCAT(
 				CONCAT(
-					l.name, ':', 
+					l.id, ':', l.name, ':', 
 					s.quantity
 				) SEPARATOR '|'
 			) as location_quantities

@@ -696,9 +696,10 @@ export default function CreditNotes() {
                   <div className="col-span-2">
                     <Input
                       type="number"
-                      min="1"
+                      min="0.01"
+                      step="0.01"
                       value={item.quantity}
-                      onChange={(e) => handleItemChange(index, 'quantity', parseInt(e.target.value))}
+                      onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value))}
                       placeholder="Qty"
                     />
                   </div>

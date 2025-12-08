@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/gonext-tech/invoicing-system/backend/models"
 	"github.com/labstack/echo/v4"
@@ -152,10 +153,87 @@ func (ih *InvoiceHandler) GetIDHandler(c echo.Context) error {
 	return ResponseOK(c, invoice, "data")
 }
 
+func (ih *InvoiceHandler) UpdateHandler(c echo.Context) error {
+	id := c.Param("id")
+	invoiceType := c.QueryParam("invoice_type")
+	if invoiceType == "" {
+		invoiceType = "sales"
+	}
+
+	if invoiceType == "purchase" {
+		var req struct {
+			InvoiceDate *string `json:"invoice_date"`
+			Notes       *string `json:"notes"`
+		}
+
+		if err := c.Bind(&req); err != nil {
+			return ResponseError(c, err)
+		}
+
+		// Get existing invoice
+		invoice, err := ih.PurchaseInvoiceServices.GetID(id)
+		if err != nil {
+			return ResponseError(c, err)
+		}
+
+		// Update only provided fields
+		if req.InvoiceDate != nil && *req.InvoiceDate != "" {
+			// Try parsing as date-only first (YYYY-MM-DD)
+			parsedDate, err := time.Parse("2006-01-02", *req.InvoiceDate)
+			if err != nil {
+				// Try parsing as full timestamp
+				parsedDate, err = time.Parse(time.RFC3339, *req.InvoiceDate)
+				if err != nil {
+					return ResponseError(c, fmt.Errorf("invalid date format: %s", *req.InvoiceDate))
+				}
+			}
+			invoice.InvoiceDate = parsedDate
+		}
+		if req.Notes != nil {
+			invoice.Notes = req.Notes
+		}
+
+		updatedInvoice, err := ih.PurchaseInvoiceServices.Update(invoice)
+		if err != nil {
+			return ResponseError(c, err)
+		}
+
+		return ResponseSuccess(c, "Purchase invoice updated successfully", updatedInvoice)
+	}
+
+	// Sales invoice update (similar pattern)
+	var req struct {
+		Notes *string `json:"notes"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Get existing invoice
+	invoice, err := ih.SalesInvoiceServices.GetID(id)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Update only provided fields
+	if req.Notes != nil {
+		invoice.Notes = req.Notes
+	}
+
+	updatedInvoice, err := ih.SalesInvoiceServices.Update(invoice)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	return ResponseSuccess(c, "Sales invoice updated successfully", updatedInvoice)
+}
+
 func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 	var req struct {
 		LocationID    uint    `json:"location_id"`
 		VendorID      *uint   `json:"vendor_id"`
+		InvoiceDate   string  `json:"invoice_date"`
 		PaymentMethod *string `json:"payment_method"`
 		PaidAmount    float64 `json:"paid_amount"`
 		Notes         *string `json:"notes"`
@@ -169,6 +247,24 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 
 	if err := c.Bind(&req); err != nil {
 		return ResponseError(c, err)
+	}
+
+	// Parse invoice date
+	var invoiceDate time.Time
+	if req.InvoiceDate != "" {
+		var err error
+		// Try parsing as date-only first (YYYY-MM-DD)
+		invoiceDate, err = time.Parse("2006-01-02", req.InvoiceDate)
+		if err != nil {
+			// Try parsing as full timestamp
+			invoiceDate, err = time.Parse(time.RFC3339, req.InvoiceDate)
+			if err != nil {
+				// Default to current time if parsing fails
+				invoiceDate = time.Now()
+			}
+		}
+	} else {
+		invoiceDate = time.Now()
 	}
 
 	if len(req.Items) == 0 {
@@ -208,6 +304,7 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 	invoice := models.PurchaseInvoice{
 		VendorID:      req.VendorID,
 		LocationID:    req.LocationID,
+		InvoiceDate:   invoiceDate,
 		TotalAmount:   totalAmount,
 		PaidAmount:    req.PaidAmount,
 		PaymentStatus: paymentStatus,

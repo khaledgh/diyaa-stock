@@ -37,6 +37,10 @@ export default function PurchaseInvoiceDetails() {
   const [newUnitPrice, setNewUnitPrice] = useState('');
   const [newDiscount, setNewDiscount] = useState('');
 
+  // Invoice date editing state
+  const [isEditingInvoiceDate, setIsEditingInvoiceDate] = useState(false);
+  const [editInvoiceDate, setEditInvoiceDate] = useState('');
+
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['purchase-invoice', id],
     queryFn: async () => {
@@ -99,6 +103,21 @@ export default function PurchaseInvoiceDetails() {
     },
   });
 
+  // Invoice date update mutation
+  const updateInvoiceDateMutation = useMutation({
+    mutationFn: (invoiceDate: string) => {
+      return invoiceApi.update(Number(id), { invoice_date: invoiceDate }, 'purchase');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-invoice', id] });
+      toast.success('Invoice date updated successfully');
+      setIsEditingInvoiceDate(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to update invoice date');
+    },
+  });
+
   const handlePrint = () => {
     window.print();
   };
@@ -139,6 +158,28 @@ export default function PurchaseInvoiceDetails() {
     setEditQuantity('');
     setEditUnitPrice('');
     setEditDiscount('');
+  };
+
+  // Invoice date editing functions
+  const startEditInvoiceDate = () => {
+    if (invoice) {
+      const date = invoice.invoice_date || invoice.created_at;
+      setEditInvoiceDate(new Date(date).toISOString().split('T')[0]);
+      setIsEditingInvoiceDate(true);
+    }
+  };
+
+  const cancelEditInvoiceDate = () => {
+    setIsEditingInvoiceDate(false);
+    setEditInvoiceDate('');
+  };
+
+  const saveInvoiceDate = () => {
+    if (!editInvoiceDate) {
+      toast.error('Please select a valid date');
+      return;
+    }
+    updateInvoiceDateMutation.mutate(editInvoiceDate);
   };
 
   const saveEdit = () => {
@@ -253,11 +294,48 @@ export default function PurchaseInvoiceDetails() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                <span className="text-sm">Date</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  <span className="text-sm">Invoice Date</span>
+                </div>
+                {!isEditingInvoiceDate && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={startEditInvoiceDate}
+                    className="h-6 w-6 p-0"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
-              <p className="font-medium">{formatDateTime(invoice.created_at)}</p>
+              {isEditingInvoiceDate ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={editInvoiceDate}
+                    onChange={(e) => setEditInvoiceDate(e.target.value)}
+                    className="flex-1 h-8"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={saveInvoiceDate}
+                    disabled={updateInvoiceDateMutation.isPending}
+                  >
+                    <Save className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={cancelEditInvoiceDate}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <p className="font-medium">{formatDateTime(invoice.invoice_date || invoice.created_at)}</p>
+              )}
             </div>
 
             {invoice.location_name && (

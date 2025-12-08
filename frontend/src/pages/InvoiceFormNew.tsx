@@ -39,6 +39,7 @@ export default function InvoiceFormNew() {
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [productSearch, setProductSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -274,6 +275,7 @@ export default function InvoiceFormNew() {
 
     const invoiceData: any = {
       location_id: Number(selectedLocation),
+      invoice_date: invoiceDate,
       items: invoiceItems.map(item => ({
         product_id: item.product_id,
         quantity: item.quantity,
@@ -382,6 +384,19 @@ export default function InvoiceFormNew() {
                       )}
                     </div>
 
+                    {invoiceType === 'purchase' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="invoiceDate">Invoice Date *</Label>
+                        <Input
+                          id="invoiceDate"
+                          type="date"
+                          value={invoiceDate}
+                          onChange={(e) => setInvoiceDate(e.target.value)}
+                          className="h-11"
+                        />
+                      </div>
+                    )}
+
                     {invoiceType === 'sales' && (
                       <div className="space-y-2">
                         <Label htmlFor="customer">Customer</Label>
@@ -412,6 +427,19 @@ export default function InvoiceFormNew() {
                           placeholder="Select vendor"
                           searchPlaceholder="Search vendors..."
                           emptyText="No vendors found"
+                        />
+                      </div>
+                    )}
+
+                    {invoiceType === 'sales' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="invoiceDate">Invoice Date *</Label>
+                        <Input
+                          id="invoiceDate"
+                          type="date"
+                          value={invoiceDate}
+                          onChange={(e) => setInvoiceDate(e.target.value)}
+                          className="h-11"
                         />
                       </div>
                     )}
