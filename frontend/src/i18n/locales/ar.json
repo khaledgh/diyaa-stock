@@ -27,6 +27,8 @@
     "stock": "المخزون",
     "transfers": "التحويلات",
     "invoices": "الفواتير",
+    "sales-invoices": "فواتير المبيعات",
+    "purchase-invoices": "فواتير المشتريات",
     "payments": "المدفوعات",
     "credit-notes": "إشعارات الائتمان",
     "payment-allocation": "توزيع المدفوعات",

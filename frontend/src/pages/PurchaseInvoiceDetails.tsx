@@ -286,8 +286,8 @@ export default function PurchaseInvoiceDetails() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <p className="text-xl font-semibold">Invoice not found</p>
-          <Button onClick={() => navigate('/invoices')} className="mt-4">
-            Back to Invoices
+          <Button onClick={() => navigate('/invoices/purchase')} className="mt-4">
+            Back to Purchase Invoices
           </Button>
         </div>
       </div>
@@ -309,7 +309,7 @@ export default function PurchaseInvoiceDetails() {
       {/* Header */}
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/invoices')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/invoices/purchase')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>

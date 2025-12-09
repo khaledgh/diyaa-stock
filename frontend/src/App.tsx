@@ -93,7 +93,9 @@ function App() {
             <Route path="transfers" element={<Transfers />} />
             <Route path="credit-notes" element={<CreditNotes />} />
             <Route path="payment-allocation" element={<PaymentAllocation />} />
-            <Route path="invoices" element={<Invoices />} />
+            <Route path="invoices" element={<Navigate to="/invoices/sales" />} />
+            <Route path="invoices/sales" element={<Invoices />} />
+            <Route path="invoices/purchase" element={<Invoices />} />
             <Route path="invoices/new" element={<InvoiceForm />} />
             <Route path="invoices/purchase/:id" element={<PurchaseInvoiceDetails />} />
             <Route path="invoices/sales/:id" element={<SalesInvoiceDetails />} />

@@ -114,7 +114,7 @@ export default function InvoiceFormNew() {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['location-stock'] });
       toast.success(`${invoiceType === 'purchase' ? 'Purchase' : 'Sales'} invoice created successfully`);
-      navigate('/invoices');
+      navigate(`/invoices/${invoiceType}`);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to create invoice');
@@ -327,7 +327,7 @@ export default function InvoiceFormNew() {
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/invoices')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate(`/invoices/${invoiceType}`)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
@@ -786,7 +786,7 @@ export default function InvoiceFormNew() {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => navigate('/invoices')}
+                    onClick={() => navigate(`/invoices/${invoiceType}`)}
                     size="lg"
                     className="w-full"
                   >

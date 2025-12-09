@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Pagination } from '@/components/ui/pagination';
 import { Combobox } from '@/components/ui/combobox';
 import { creditNoteApi, vendorApi, locationApi, productApi, api, invoiceApi } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 
 interface CreditNoteItem {
   product_id: number;
@@ -39,6 +40,9 @@ export default function CreditNotes() {
     notes: '',
     items: [] as CreditNoteItem[],
   });
+
+  // State for invoice search
+  const [invoiceSearchTerm, setInvoiceSearchTerm] = useState('');
 
   // Fetch credit notes
   const { data: creditNotesResponse, isLoading } = useQuery({
@@ -99,13 +103,18 @@ export default function CreditNotes() {
     },
   });
 
-  // Fetch purchase invoices for credit note selection
-  const { data: purchaseInvoicesData } = useQuery({
-    queryKey: ['purchase-invoices'],
+  // Fetch purchase invoices for credit note selection with server-side search
+  const { data: purchaseInvoicesData, isLoading: isLoadingInvoices } = useQuery({
+    queryKey: ['purchase-invoices-search', invoiceSearchTerm],
     queryFn: async () => {
-      const response = await invoiceApi.getAll({ invoice_type: 'purchase' });
+      const response = await invoiceApi.getAll({ 
+        invoice_type: 'purchase',
+        search: invoiceSearchTerm || undefined,
+        limit: 50
+      });
       return response.data.data.data || response.data.data || response.data || [];
     },
+    enabled: isDialogOpen, // Only fetch when dialog is open
   });
 
   // Fetch products
@@ -173,7 +182,7 @@ export default function CreditNotes() {
   
   const purchaseInvoiceOptions = purchaseInvoices.map((p: any) => ({
     value: p.id?.toString() || '',
-    label: `${p.invoice_number} - ${p.vendor?.company_name || p.vendor?.name || 'Unknown Vendor'} (${p.total_amount})`
+    label: `${p.invoice_number} - ${p.vendor?.company_name || p.vendor?.name || 'Unknown Vendor'} (${formatCurrency(p.total_amount || 0)})`
   }));
   
   // Filter products to only show those with stock in selected location
@@ -254,6 +263,7 @@ export default function CreditNotes() {
 
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
+    setInvoiceSearchTerm(''); // Reset search when closing dialog
   };
 
   const handlePurchaseInvoiceChange = async (purchaseInvoiceId: string) => {
@@ -561,7 +571,7 @@ export default function CreditNotes() {
                           <TableCell>{new Date(cn.credit_note_date).toLocaleDateString()}</TableCell>
                           <TableCell>{cn.vendor?.company_name || cn.vendor?.name || '-'}</TableCell>
                           <TableCell>{cn.location?.name || '-'}</TableCell>
-                          <TableCell className="text-right">${cn.total_amount?.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(cn.total_amount || 0)}</TableCell>
                           <TableCell>
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(cn.status)}`}>
                               {cn.status}
@@ -623,8 +633,9 @@ export default function CreditNotes() {
                   value={formData.purchase_invoice_id}
                   onChange={handlePurchaseInvoiceChange}
                   placeholder="Select purchase invoice"
-                  searchPlaceholder="Search purchase invoices..."
-                  emptyText="No purchase invoices found"
+                  searchPlaceholder="Search by invoice number..."
+                  emptyText={isLoadingInvoices ? "Loading..." : "No purchase invoices found"}
+                  onSearchChange={setInvoiceSearchTerm}
                 />
               </div>
               <div>
@@ -735,7 +746,7 @@ export default function CreditNotes() {
             </div>
 
             <div className="text-right text-lg font-bold">
-              Total: ${totalAmount.toFixed(2)}
+              Total: {formatCurrency(totalAmount)}
             </div>
           </div>
           <DialogFooter>
@@ -782,7 +793,7 @@ export default function CreditNotes() {
                 </div>
                 <div>
                   <Label>Total Amount</Label>
-                  <p className="font-bold">${selectedCreditNote.total_amount?.toFixed(2)}</p>
+                  <p className="font-bold">{formatCurrency(selectedCreditNote.total_amount || 0)}</p>
                 </div>
               </div>
 
@@ -809,9 +820,9 @@ export default function CreditNotes() {
                     {selectedCreditNote.items?.map((item: any) => (
                       <TableRow key={item.id}>
                         <TableCell>{item.product?.name_en || item.product?.name_ar || 'Unknown Product'}</TableCell>
-                        <TableCell>{item.quantity}</TableCell>
-                        <TableCell>${item.unit_price?.toFixed(2)}</TableCell>
-                        <TableCell>${item.total?.toFixed(2)}</TableCell>
+                        <TableCell>{Number(item.quantity).toFixed(2)}</TableCell>
+                        <TableCell>{formatCurrency(item.unit_price || 0)}</TableCell>
+                        <TableCell>{formatCurrency(item.total || 0)}</TableCell>
                         <TableCell>{item.reason || '-'}</TableCell>
                       </TableRow>
                     ))}

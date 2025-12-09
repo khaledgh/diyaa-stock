@@ -9,7 +9,6 @@ import {
   Truck,
   Warehouse,
   ArrowRightLeft,
-  FileText,
   CreditCard,
   BarChart3,
   ShoppingCart,
@@ -52,7 +51,8 @@ const inventoryNavigation = [
 ];
 
 const businessNavigation = [
-  { name: 'invoices', href: '/invoices', icon: FileText },
+  { name: 'sales-invoices', href: '/invoices/sales', icon: ShoppingCart },
+  { name: 'purchase-invoices', href: '/invoices/purchase', icon: Package },
   { name: 'credit-notes', href: '/credit-notes', icon: FileX },
   { name: 'payment-allocation', href: '/payment-allocation', icon: CreditCard },
   { name: 'payments', href: '/payments', icon: CreditCard },

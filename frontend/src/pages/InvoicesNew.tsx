@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FileText, Eye, Plus, Search, ChevronLeft, ChevronRight, ShoppingCart, Package, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,15 @@ import { toast } from 'sonner';
 export default function InvoicesNew() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [invoiceType, setInvoiceType] = useState<'purchase' | 'sales'>('sales');
+  const location = useLocation();
+  
+  // Determine invoice type from URL path
+  const getInvoiceTypeFromPath = () => {
+    if (location.pathname.includes('/invoices/purchase')) return 'purchase';
+    return 'sales';
+  };
+  
+  const [invoiceType, setInvoiceType] = useState<'purchase' | 'sales'>(getInvoiceTypeFromPath());
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
@@ -23,6 +31,21 @@ export default function InvoicesNew() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
 
   const queryClient = useQueryClient();
+
+  // Sync invoice type with URL when path changes
+  useEffect(() => {
+    const typeFromPath = getInvoiceTypeFromPath();
+    if (typeFromPath !== invoiceType) {
+      setInvoiceType(typeFromPath);
+      setCurrentPage(1);
+      setSearchQuery('');
+    }
+  }, [location.pathname]);
+
+  // Navigate to the correct URL when switching invoice type
+  const handleInvoiceTypeChange = (type: 'purchase' | 'sales') => {
+    navigate(`/invoices/${type}`);
+  };
 
   const { data: invoicesData, isLoading } = useQuery({
     queryKey: ['invoices', invoiceType, searchQuery, currentPage, pageSize],
@@ -144,11 +167,7 @@ export default function InvoicesNew() {
       <div className="grid grid-cols-2 gap-4">
         <Card 
           className={`cursor-pointer transition-all ${invoiceType === 'purchase' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950' : 'hover:bg-muted'}`}
-          onClick={() => {
-            setInvoiceType('purchase');
-            setCurrentPage(1);
-            setSearchQuery('');
-          }}
+          onClick={() => handleInvoiceTypeChange('purchase')}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -168,11 +187,7 @@ export default function InvoicesNew() {
 
         <Card 
           className={`cursor-pointer transition-all ${invoiceType === 'sales' ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950' : 'hover:bg-muted'}`}
-          onClick={() => {
-            setInvoiceType('sales');
-            setCurrentPage(1);
-            setSearchQuery('');
-          }}
+          onClick={() => handleInvoiceTypeChange('sales')}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -224,6 +239,12 @@ export default function InvoicesNew() {
                       </TableHead>
                       <TableHead className="hidden xl:table-cell">Location</TableHead>
                       <TableHead className="text-right">Total</TableHead>
+                      {invoiceType === 'purchase' && (
+                        <TableHead className="hidden md:table-cell text-right text-orange-600">Credit Notes</TableHead>
+                      )}
+                      {invoiceType === 'purchase' && (
+                        <TableHead className="hidden lg:table-cell text-right">Net Amount</TableHead>
+                      )}
                       <TableHead className="hidden sm:table-cell text-right">Paid</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -232,7 +253,7 @@ export default function InvoicesNew() {
                   <TableBody>
                     {invoices?.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={invoiceType === 'purchase' ? 10 : 8} className="text-center py-8 text-muted-foreground">
                           No invoices found
                         </TableCell>
                       </TableRow>
@@ -246,11 +267,11 @@ export default function InvoicesNew() {
                             </div>
                           </TableCell>
                           <TableCell className="hidden md:table-cell">
-                            {formatDateTime(invoice.created_at)}
+                            {formatDateTime(invoice.invoice_date || invoice.created_at)}
                           </TableCell>
                           <TableCell className="hidden lg:table-cell">
                             {invoiceType === 'purchase' 
-                              ? (invoice.vendor?.name || invoice.vendor?.company || '-')
+                              ? (invoice.vendor?.company_name || invoice.vendor?.name || '-')
                               : (invoice.customer?.name || '-')}
                           </TableCell>
                           <TableCell className="hidden xl:table-cell">
@@ -259,6 +280,21 @@ export default function InvoicesNew() {
                           <TableCell className="text-right font-medium">
                             {formatCurrency(invoice.total_amount)}
                           </TableCell>
+                          {invoiceType === 'purchase' && (
+                            <TableCell className="hidden md:table-cell text-right text-orange-600">
+                              {invoice.credit_notes && invoice.credit_notes.length > 0
+                                ? `-${formatCurrency(invoice.credit_notes.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0))}`
+                                : '-'}
+                            </TableCell>
+                          )}
+                          {invoiceType === 'purchase' && (
+                            <TableCell className="hidden lg:table-cell text-right font-medium">
+                              {formatCurrency(
+                                invoice.total_amount - 
+                                (invoice.credit_notes?.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0) || 0)
+                              )}
+                            </TableCell>
+                          )}
                           <TableCell className="hidden sm:table-cell text-right">
                             {formatCurrency(invoice.paid_amount)}
                           </TableCell>

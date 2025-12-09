@@ -27,6 +27,8 @@
     "stock": "Stock",
     "transfers": "Transfers",
     "invoices": "Invoices",
+    "sales-invoices": "Sales Invoices",
+    "purchase-invoices": "Purchase Invoices",
     "payments": "Payments",
     "credit-notes": "Credit Notes",
     "payment-allocation": "Payment Allocation",
