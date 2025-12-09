@@ -164,6 +164,7 @@ func (ih *InvoiceHandler) UpdateHandler(c echo.Context) error {
 		var req struct {
 			InvoiceDate *string `json:"invoice_date"`
 			Notes       *string `json:"notes"`
+			VendorID    *uint   `json:"vendor_id"`
 		}
 
 		if err := c.Bind(&req); err != nil {
@@ -192,6 +193,8 @@ func (ih *InvoiceHandler) UpdateHandler(c echo.Context) error {
 		if req.Notes != nil {
 			invoice.Notes = req.Notes
 		}
+		// VendorID can be set to null (to remove vendor) or to a valid vendor ID
+		invoice.VendorID = req.VendorID
 
 		updatedInvoice, err := ih.PurchaseInvoiceServices.Update(invoice)
 		if err != nil {
