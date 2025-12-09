@@ -196,10 +196,12 @@ export default function CreditNotes() {
   const productOptions = availableProducts.map((p: any) => {
     const stockItem = locationStock.find((s: any) => s.product_id === p.id);
     const quantity = stockItem?.quantity || 0;
+    // Format quantity to avoid floating-point precision issues
+    const formattedQuantity = Number(quantity).toFixed(2);
     
     return {
       value: p.id?.toString() || '', 
-      label: `${p.name_en || p.name || p.name_ar || 'Unknown Product'} (Stock: ${quantity})`
+      label: `${p.name_en || p.name || p.name_ar || 'Unknown Product'} (Stock: ${formattedQuantity})`
     };
   });
 
