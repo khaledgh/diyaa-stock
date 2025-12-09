@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Combobox } from '@/components/ui/combobox';
-import { invoiceApi, paymentApi, productApi } from '@/lib/api';
+import { invoiceApi, paymentApi, productApi, vendorApi } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 
 export default function PurchaseInvoiceDetails() {
@@ -41,6 +41,10 @@ export default function PurchaseInvoiceDetails() {
   const [isEditingInvoiceDate, setIsEditingInvoiceDate] = useState(false);
   const [editInvoiceDate, setEditInvoiceDate] = useState('');
 
+  // Vendor editing state
+  const [isEditingVendor, setIsEditingVendor] = useState(false);
+  const [editVendorId, setEditVendorId] = useState('');
+
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['purchase-invoice', id],
     queryFn: async () => {
@@ -55,6 +59,15 @@ export default function PurchaseInvoiceDetails() {
     queryKey: ['products'],
     queryFn: async () => {
       const response = await productApi.getAll();
+      const apiData = response.data.data || response.data;
+      return Array.isArray(apiData) ? apiData : (apiData.data || []);
+    },
+  });
+
+  const { data: vendors } = useQuery({
+    queryKey: ['vendors'],
+    queryFn: async () => {
+      const response = await vendorApi.getAll();
       const apiData = response.data.data || response.data;
       return Array.isArray(apiData) ? apiData : (apiData.data || []);
     },
@@ -115,6 +128,21 @@ export default function PurchaseInvoiceDetails() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to update invoice date');
+    },
+  });
+
+  // Vendor update mutation
+  const updateVendorMutation = useMutation({
+    mutationFn: (vendorId: number | null) => {
+      return invoiceApi.update(Number(id), { vendor_id: vendorId }, 'purchase');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-invoice', id] });
+      toast.success('Vendor updated successfully');
+      setIsEditingVendor(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to update vendor');
     },
   });
 
@@ -180,6 +208,24 @@ export default function PurchaseInvoiceDetails() {
       return;
     }
     updateInvoiceDateMutation.mutate(editInvoiceDate);
+  };
+
+  // Vendor editing functions
+  const startEditVendor = () => {
+    if (invoice) {
+      setEditVendorId(invoice.vendor_id?.toString() || '');
+      setIsEditingVendor(true);
+    }
+  };
+
+  const cancelEditVendor = () => {
+    setIsEditingVendor(false);
+    setEditVendorId('');
+  };
+
+  const saveVendor = () => {
+    const vendorId = editVendorId ? Number(editVendorId) : null;
+    updateVendorMutation.mutate(vendorId);
   };
 
   const saveEdit = () => {
@@ -353,18 +399,63 @@ export default function PurchaseInvoiceDetails() {
               </div>
             )}
 
-            {invoice.vendor_name && (
-              <div className="space-y-1">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <User className="h-4 w-4" />
                   <span className="text-sm">Vendor</span>
                 </div>
-                <p className="font-medium">{invoice.vendor_name}</p>
-                {invoice.vendor_company && (
-                  <p className="text-sm text-muted-foreground">{invoice.vendor_company}</p>
+                {!isEditingVendor && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={startEditVendor}
+                    className="h-6 w-6 p-0"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
                 )}
               </div>
-            )}
+              {isEditingVendor ? (
+                <div className="flex items-center gap-2">
+                  <Combobox
+                    options={[
+                      { value: '', label: 'No vendor (optional)' },
+                      ...(vendors?.map((v: any) => ({
+                        value: v.id.toString(),
+                        label: v.company_name || v.name || 'Unknown Vendor',
+                      })) || []),
+                    ]}
+                    value={editVendorId}
+                    onChange={setEditVendorId}
+                    placeholder="Select vendor"
+                    searchPlaceholder="Search vendors..."
+                    emptyText="No vendors found"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={saveVendor}
+                    disabled={updateVendorMutation.isPending}
+                  >
+                    <Save className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={cancelEditVendor}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <p className="font-medium">{invoice.vendor_name || 'No vendor'}</p>
+                  {invoice.vendor_company && (
+                    <p className="text-sm text-muted-foreground">{invoice.vendor_company}</p>
+                  )}
+                </>
+              )}
+            </div>
 
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-muted-foreground">

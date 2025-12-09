@@ -6,7 +6,7 @@ type CreditNote struct {
 	ID                uint       `json:"id" gorm:"primaryKey"`
 	CreditNoteNumber  string     `json:"credit_note_number" gorm:"size:50;uniqueIndex;not null"`
 	PurchaseInvoiceID *uint      `json:"purchase_invoice_id" gorm:"index"`
-	VendorID          uint       `json:"vendor_id" gorm:"not null;index"`
+	VendorID          *uint      `json:"vendor_id" gorm:"index"`
 	LocationID        uint       `json:"location_id" gorm:"not null;index"`
 	CreditNoteDate    time.Time  `json:"credit_note_date" gorm:"not null"`
 	TotalAmount       float64    `json:"total_amount" gorm:"type:decimal(15,2);not null"`

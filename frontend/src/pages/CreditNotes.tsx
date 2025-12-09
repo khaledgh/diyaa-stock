@@ -415,7 +415,7 @@ export default function CreditNotes() {
   };
 
   const handleSubmit = () => {
-    if (!formData.vendor_id || !formData.location_id || formData.items.length === 0) {
+    if (!formData.location_id || formData.items.length === 0) {
       toast.error('Please fill all required fields and add at least one item');
       return;
     }
@@ -424,7 +424,7 @@ export default function CreditNotes() {
     const dateWithTime = `${formData.credit_note_date}T00:00:00Z`;
 
     const data = {
-      vendor_id: parseInt(formData.vendor_id),
+      vendor_id: formData.vendor_id ? parseInt(formData.vendor_id) : null,
       location_id: parseInt(formData.location_id),
       credit_note_date: dateWithTime,
       purchase_invoice_id: formData.purchase_invoice_id ? parseInt(formData.purchase_invoice_id) : null,
@@ -628,7 +628,7 @@ export default function CreditNotes() {
                 />
               </div>
               <div>
-                <Label>Vendor *</Label>
+                <Label>Vendor</Label>
                 <Combobox
                   options={vendorOptions}
                   value={formData.vendor_id}

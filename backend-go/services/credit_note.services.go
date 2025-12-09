@@ -251,12 +251,14 @@ func (s *CreditNoteService) Approve(id string, approvedBy uint) (models.CreditNo
 			FromLocationType: "location",
 			FromLocationID:   creditNote.LocationID,
 			ToLocationType:   "vendor",
-			ToLocationID:     creditNote.VendorID,
 			MovementType:     "credit_note_return",
 			Quantity:         item.Quantity,
 			ReferenceID:      &creditNote.ID,
 			Notes:            &notes,
 			CreatedBy:        &approvedBy,
+		}
+		if creditNote.VendorID != nil {
+			movement.ToLocationID = *creditNote.VendorID
 		}
 		if err := tx.Create(&movement).Error; err != nil {
 			tx.Rollback()
