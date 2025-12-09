@@ -156,7 +156,9 @@ export default function PurchaseInvoiceDetails() {
       return;
     }
 
-    const remaining = invoice.total_amount - invoice.paid_amount;
+    // Calculate remaining with credit notes
+    const cnTotal = invoice.credit_notes?.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0) || 0;
+    const remaining = invoice.total_amount - cnTotal - invoice.paid_amount;
     if (Number(paymentAmount) > remaining) {
       toast.error('Payment amount exceeds remaining balance');
       return;
@@ -292,7 +294,10 @@ export default function PurchaseInvoiceDetails() {
     );
   }
 
-  const remaining = invoice.total_amount - invoice.paid_amount;
+  // Calculate credit notes total
+  const creditNotesTotal = invoice.credit_notes?.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0) || 0;
+  // Remaining = Total - Credit Notes - Paid
+  const remaining = invoice.total_amount - creditNotesTotal - invoice.paid_amount;
 
   const productOptions = products?.map((product: any) => ({
     value: product.id.toString(),
@@ -449,9 +454,13 @@ export default function PurchaseInvoiceDetails() {
                 </div>
               ) : (
                 <>
-                  <p className="font-medium">{invoice.vendor_name || 'No vendor'}</p>
-                  {invoice.vendor_company && (
-                    <p className="text-sm text-muted-foreground">{invoice.vendor_company}</p>
+                  <p className="font-medium">
+                    {invoice.vendor?.company_name || invoice.vendor?.name || invoice.vendor_name || 'No vendor'}
+                  </p>
+                  {(invoice.vendor?.name || invoice.vendor_company) && invoice.vendor?.company_name && (
+                    <p className="text-sm text-muted-foreground">
+                      {invoice.vendor?.name || invoice.vendor_company}
+                    </p>
                   )}
                 </>
               )}
@@ -733,6 +742,49 @@ export default function PurchaseInvoiceDetails() {
         </CardContent>
       </Card>
 
+      {/* Credit Notes Card */}
+      {invoice.credit_notes && invoice.credit_notes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-orange-600">Credit Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Credit Note #</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invoice.credit_notes.map((cn: any) => (
+                    <TableRow key={cn.id}>
+                      <TableCell className="font-medium">{cn.credit_note_number}</TableCell>
+                      <TableCell>{formatDateTime(cn.credit_note_date)}</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          cn.status === 'approved' 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                        }`}>
+                          {cn.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-orange-600">
+                        -{formatCurrency(cn.total_amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Totals Card */}
       <Card>
         <CardContent className="pt-6">
@@ -760,6 +812,24 @@ export default function PurchaseInvoiceDetails() {
               <span>Total:</span>
               <span>{formatCurrency(invoice.total_amount)}</span>
             </div>
+
+            {/* Credit Notes Total */}
+            {creditNotesTotal > 0 && (
+              <div className="flex justify-between text-lg">
+                <span className="text-orange-600">Credit Notes:</span>
+                <span className="font-medium text-orange-600">
+                  -{formatCurrency(creditNotesTotal)}
+                </span>
+              </div>
+            )}
+
+            {/* Adjusted Total (after credit notes) */}
+            {creditNotesTotal > 0 && (
+              <div className="flex justify-between text-lg font-bold">
+                <span>Net Amount:</span>
+                <span>{formatCurrency(invoice.total_amount - creditNotesTotal)}</span>
+              </div>
+            )}
 
             <div className="flex justify-between text-lg border-t pt-3">
               <span className="text-green-600">Paid:</span>

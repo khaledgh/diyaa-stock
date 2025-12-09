@@ -14,7 +14,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { invoiceApi, productApi, locationApi, customerApi, stockApi } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatQuantity } from '@/lib/utils';
 import { Combobox } from '@/components/ui/combobox';
 import { InvoicePrint } from '@/components/InvoicePrint';
 
@@ -274,7 +274,7 @@ export default function POS() {
     const stock = locationStock?.find((s: any) => s.product_id === product.id);
     return {
       value: product.id.toString(),
-      label: `${product.name_en} - ${product.sku} (Stock: ${stock?.quantity || 0})`,
+      label: `${product.name_en} - ${product.sku} (Stock: ${formatQuantity(stock?.quantity || 0)})`,
       disabled: !stock || stock.quantity === 0,
     };
   }) || [];
@@ -388,7 +388,7 @@ export default function POS() {
                       <div className="text-xs text-gray-500 mb-2">{product.sku}</div>
                       <div className="flex items-center justify-between">
                         <span className="text-lg font-bold text-green-600">{formatCurrency(product.unit_price)}</span>
-                        <span className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">Stock: {stock.quantity}</span>
+                        <span className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">Stock: {formatQuantity(stock.quantity)}</span>
                       </div>
                     </button>
                   );

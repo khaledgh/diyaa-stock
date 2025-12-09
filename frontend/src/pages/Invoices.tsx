@@ -43,7 +43,7 @@ import {
   paymentApi,
   stockApi,
 } from "@/lib/api";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/utils";
 import { Combobox } from "@/components/ui/combobox";
 
 interface InvoiceItem {
@@ -874,12 +874,12 @@ export default function Invoices() {
       let stockInfo = "";
       if (invoiceType === "sales" && selectedVan) {
         const stock = vanStock?.find((s: any) => s.product_id === product.id);
-        stockInfo = ` (Stock: ${stock?.quantity || 0})`;
+        stockInfo = ` (Stock: ${formatQuantity(stock?.quantity || 0)})`;
       } else if (invoiceType === "purchase") {
         const stock = warehouseStock?.find(
           (s: any) => s.product_id === product.id
         );
-        stockInfo = ` (Stock: ${stock?.quantity || 0})`;
+        stockInfo = ` (Stock: ${formatQuantity(stock?.quantity || 0)})`;
       }
       return {
         value: product.id.toString(),
@@ -1011,6 +1011,16 @@ export default function Invoices() {
                       <TableHead className="text-right">
                         {t("common.total") || "Total"}
                       </TableHead>
+                      {invoiceType === "purchase" && (
+                        <TableHead className="hidden md:table-cell text-right text-orange-600">
+                          Credit Notes
+                        </TableHead>
+                      )}
+                      {invoiceType === "purchase" && (
+                        <TableHead className="hidden lg:table-cell text-right">
+                          Net Amount
+                        </TableHead>
+                      )}
                       <TableHead className="hidden sm:table-cell">
                         {t("invoices.paid") || "Paid"}
                       </TableHead>
@@ -1049,6 +1059,21 @@ export default function Invoices() {
                         <TableCell className="text-right font-medium">
                           {formatCurrency(invoice.total_amount)}
                         </TableCell>
+                        {invoiceType === "purchase" && (
+                          <TableCell className="hidden md:table-cell text-right text-orange-600">
+                            {invoice.credit_notes && invoice.credit_notes.length > 0
+                              ? `-${formatCurrency(invoice.credit_notes.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0))}`
+                              : "-"}
+                          </TableCell>
+                        )}
+                        {invoiceType === "purchase" && (
+                          <TableCell className="hidden lg:table-cell text-right font-medium">
+                            {formatCurrency(
+                              invoice.total_amount - 
+                              (invoice.credit_notes?.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0) || 0)
+                            )}
+                          </TableCell>
+                        )}
                         <TableCell className="hidden sm:table-cell text-right">
                           {formatCurrency(invoice.paid_amount)}
                         </TableCell>

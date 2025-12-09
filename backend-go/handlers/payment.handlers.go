@@ -14,17 +14,23 @@ type PaymentService interface {
 	DeleteByInvoiceID(invoiceID uint) error
 }
 
+type CreditNoteServiceForPayment interface {
+	GetApprovedCreditNoteTotal(purchaseInvoiceID uint) (float64, error)
+}
+
 type PaymentHandler struct {
 	PaymentServices         PaymentService
 	SalesInvoiceServices    SalesInvoiceService
 	PurchaseInvoiceServices PurchaseInvoiceService
+	CreditNoteServices      CreditNoteServiceForPayment
 }
 
-func NewPaymentHandler(ps PaymentService, sis SalesInvoiceService, pis PurchaseInvoiceService) *PaymentHandler {
+func NewPaymentHandler(ps PaymentService, sis SalesInvoiceService, pis PurchaseInvoiceService, cns CreditNoteServiceForPayment) *PaymentHandler {
 	return &PaymentHandler{
 		PaymentServices:         ps,
 		SalesInvoiceServices:    sis,
 		PurchaseInvoiceServices: pis,
+		CreditNoteServices:      cns,
 	}
 }
 
@@ -75,6 +81,12 @@ func (ph *PaymentHandler) CreateHandler(c echo.Context) error {
 		totalAmount = invoice.TotalAmount
 		paidAmount = invoice.PaidAmount
 		vendorID = invoice.VendorID
+
+		// Subtract approved credit notes from total amount
+		if ph.CreditNoteServices != nil {
+			creditNoteTotal, _ := ph.CreditNoteServices.GetApprovedCreditNoteTotal(invoice.ID)
+			totalAmount -= creditNoteTotal
+		}
 	} else {
 		invoice, err := ph.SalesInvoiceServices.GetID(strconv.Itoa(int(req.InvoiceID)))
 		if err != nil {
@@ -120,9 +132,11 @@ func (ph *PaymentHandler) CreateHandler(c echo.Context) error {
 		invoice, _ := ph.PurchaseInvoiceServices.GetID(strconv.Itoa(int(req.InvoiceID)))
 
 		// Use tolerance for floating-point comparison (0.01 = 1 cent)
+		// totalAmount already has credit notes subtracted, so we compare against that
 		if newPaidAmount >= totalAmount-0.01 {
 			invoice.PaymentStatus = "paid"
-			invoice.PaidAmount = totalAmount // Set to exact amount to avoid precision issues
+			// Store actual paid amount, not the adjusted total
+			invoice.PaidAmount = newPaidAmount
 		} else if newPaidAmount > 0 {
 			invoice.PaymentStatus = "partial"
 			invoice.PaidAmount = newPaidAmount

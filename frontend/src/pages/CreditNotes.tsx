@@ -164,7 +164,7 @@ export default function CreditNotes() {
 
   const vendorOptions = vendors.map((v: any) => ({ 
     value: v.id?.toString() || '', 
-    label: v.name || v.name_en || v.name_ar || 'Unknown Vendor' 
+    label: v.company_name || v.name || 'Unknown Vendor' 
   }));
   const locationOptions = locations.map((l: any) => ({ 
     value: l.id?.toString() || '', 
@@ -173,7 +173,7 @@ export default function CreditNotes() {
   
   const purchaseInvoiceOptions = purchaseInvoices.map((p: any) => ({
     value: p.id?.toString() || '',
-    label: `${p.invoice_number} - ${p.vendor?.name || 'Unknown Vendor'} (${p.total_amount})`
+    label: `${p.invoice_number} - ${p.vendor?.company_name || p.vendor?.name || 'Unknown Vendor'} (${p.total_amount})`
   }));
   
   // Filter products to only show those with stock in selected location
@@ -559,7 +559,7 @@ export default function CreditNotes() {
                         <TableRow key={cn.id}>
                           <TableCell className="font-medium">{cn.credit_note_number}</TableCell>
                           <TableCell>{new Date(cn.credit_note_date).toLocaleDateString()}</TableCell>
-                          <TableCell>{cn.vendor?.name || '-'}</TableCell>
+                          <TableCell>{cn.vendor?.company_name || cn.vendor?.name || '-'}</TableCell>
                           <TableCell>{cn.location?.name || '-'}</TableCell>
                           <TableCell className="text-right">${cn.total_amount?.toFixed(2)}</TableCell>
                           <TableCell>
@@ -768,7 +768,7 @@ export default function CreditNotes() {
                 </div>
                 <div>
                   <Label>Vendor</Label>
-                  <p>{selectedCreditNote.vendor?.name}</p>
+                  <p>{selectedCreditNote.vendor?.company_name || selectedCreditNote.vendor?.name || '-'}</p>
                 </div>
                 <div>
                   <Label>Location</Label>

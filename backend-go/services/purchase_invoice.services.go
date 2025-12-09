@@ -31,7 +31,10 @@ func (s *PurchaseInvoiceService) GetALL(filters map[string]string, limit, offset
 		Preload("Location").
 		Preload("CreatedByUser").
 		Preload("Items").
-		Preload("Items.Product")
+		Preload("Items.Product").
+		Preload("CreditNotes", func(db *gorm.DB) *gorm.DB {
+			return db.Where("status = ?", "approved")
+		})
 
 	// Apply filters
 	if search, ok := filters["search"]; ok && search != "" {
@@ -69,6 +72,11 @@ func (s *PurchaseInvoiceService) GetID(id string) (models.PurchaseInvoice, error
 		Preload("CreatedByUser").
 		Preload("Items").
 		Preload("Items.Product").
+		Preload("CreditNotes", func(db *gorm.DB) *gorm.DB {
+			return db.Where("status = ?", "approved")
+		}).
+		Preload("CreditNotes.Items").
+		Preload("CreditNotes.Items.Product").
 		First(&invoice, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return invoice, errors.New("invoice not found")

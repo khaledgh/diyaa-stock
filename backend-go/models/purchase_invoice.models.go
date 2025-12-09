@@ -18,6 +18,7 @@ type PurchaseInvoice struct {
 	CreatedBy     uint                  `json:"created_by"`
 	CreatedByUser *User                 `json:"created_by_user,omitempty" gorm:"foreignKey:CreatedBy"`
 	Items         []PurchaseInvoiceItem `json:"items,omitempty" gorm:"foreignKey:InvoiceID"`
+	CreditNotes   []CreditNote          `json:"credit_notes" gorm:"foreignKey:PurchaseInvoiceID"`
 	CreatedAt     time.Time             `json:"created_at"`
 	UpdatedAt     time.Time             `json:"updated_at"`
 	DeletedAt     *time.Time            `json:"deleted_at,omitempty" gorm:"index"`

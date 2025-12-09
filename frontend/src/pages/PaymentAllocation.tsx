@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Combobox } from '@/components/ui/combobox';
 import { paymentAllocationApi, customerApi, vendorApi, api } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 
 export default function PaymentAllocation() {
   const { t } = useTranslation();
@@ -157,19 +158,24 @@ export default function PaymentAllocation() {
 
   console.log('Entities with unpaid invoices:', entitiesWithUnpaidInvoices);
 
-  // Calculate total unpaid amount for each entity
+  // Calculate total unpaid amount for each entity (including credit notes for purchase invoices)
   const entityOptions = entitiesWithUnpaidInvoices.map((entity: any) => {
     const entityInvoices = invoices.filter((inv: any) => 
       invoiceType === 'sales' ? inv.customer_id === entity.id : inv.vendor_id === entity.id
     );
-    const totalUnpaid = entityInvoices.reduce((sum: number, inv: any) => 
-      sum + (inv.total_amount - inv.paid_amount), 0
-    );
+    
+    // For purchase invoices, subtract credit notes from total
+    const totalUnpaid = entityInvoices.reduce((sum: number, inv: any) => {
+      const creditNotesTotal = inv.credit_notes?.reduce((cnSum: number, cn: any) => cnSum + (cn.total_amount || 0), 0) || 0;
+      const netAmount = inv.total_amount - creditNotesTotal - inv.paid_amount;
+      return sum + Math.max(0, netAmount);
+    }, 0);
+    
     const invoiceCount = entityInvoices.length;
     
     return {
       value: entity.id?.toString() || '', 
-      label: `${entity.name || entity.name_en || entity.name_ar || 'Unknown'} (${invoiceCount} invoices, $${totalUnpaid.toFixed(2)} due)`
+      label: `${entity.company_name || entity.name || entity.name_en || entity.name_ar || 'Unknown'} (${invoiceCount} invoices, ${formatCurrency(totalUnpaid)} due)`
     };
   });
 
@@ -321,9 +327,12 @@ export default function PaymentAllocation() {
                       const entityInvoices = invoices.filter((inv: any) => 
                         invoiceType === 'sales' ? inv.customer_id === parseInt(value) : inv.vendor_id === parseInt(value)
                       );
-                      const totalDue = entityInvoices.reduce((sum: number, inv: any) => 
-                        sum + (inv.total_amount - inv.paid_amount), 0
-                      );
+                      // For purchase invoices, subtract credit notes from total
+                      const totalDue = entityInvoices.reduce((sum: number, inv: any) => {
+                        const creditNotesTotal = inv.credit_notes?.reduce((cnSum: number, cn: any) => cnSum + (cn.total_amount || 0), 0) || 0;
+                        const netAmount = inv.total_amount - creditNotesTotal - inv.paid_amount;
+                        return sum + Math.max(0, netAmount);
+                      }, 0);
                       // Round to 2 decimals to match backend rounding
                       const roundedTotalDue = Math.round(totalDue * 100) / 100;
                       setMaxAmount(roundedTotalDue);
@@ -341,7 +350,7 @@ export default function PaymentAllocation() {
                 <Label>{t('paymentAllocation.paymentAmount')} *</Label>
                 {maxAmount > 0 && (
                   <p className="text-sm text-muted-foreground mb-1">
-                    {t('paymentAllocation.maxAmount')}: ${maxAmount.toFixed(2)}
+                    {t('paymentAllocation.maxAmount')}: {formatCurrency(maxAmount)}
                   </p>
                 )}
                 <Input
@@ -469,20 +478,20 @@ export default function PaymentAllocation() {
                   <div>
                     <p className="text-sm text-muted-foreground">Total Amount</p>
                     <p className="text-2xl font-bold text-green-600">
-                      ${allocationPreview.data?.payment?.amount?.toFixed(2) || '0.00'}
+                      {formatCurrency(Math.abs(allocationPreview.data?.payment?.amount || 0))}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Allocated</p>
                     <p className="text-2xl font-bold text-blue-600">
-                      ${allocationPreview.data?.payment?.total_allocated?.toFixed(2) || '0.00'}
+                      {formatCurrency(Math.abs(allocationPreview.data?.payment?.total_allocated || 0))}
                     </p>
                   </div>
                   {allocationPreview.data?.payment?.unallocated_amount > 0 && (
                     <div className="col-span-2">
                       <p className="text-sm text-muted-foreground">Unallocated</p>
                       <p className="text-xl font-bold text-orange-600">
-                        ${allocationPreview.data?.payment?.unallocated_amount?.toFixed(2) || '0.00'}
+                        {formatCurrency(Math.abs(allocationPreview.data?.payment?.unallocated_amount || 0))}
                       </p>
                     </div>
                   )}
@@ -506,7 +515,7 @@ export default function PaymentAllocation() {
                               Invoice #{allocation.invoice_id}
                             </TableCell>
                             <TableCell className="text-right">
-                              ${allocation.allocated_amount?.toFixed(2)}
+                              {formatCurrency(Math.abs(allocation.allocated_amount || 0))}
                             </TableCell>
                             <TableCell>
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${

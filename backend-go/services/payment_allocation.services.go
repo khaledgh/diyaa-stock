@@ -153,6 +153,14 @@ func (s *PaymentAllocationService) AllocatePaymentFIFO(
 			totalAmount = purchaseInv.TotalAmount
 			paidAmount = purchaseInv.PaidAmount
 			currentStatus = purchaseInv.PaymentStatus
+
+			// Subtract approved credit notes from total amount
+			var creditNoteTotal float64
+			tx.Model(&models.CreditNote{}).
+				Where("purchase_invoice_id = ? AND status = ?", invoiceID, "approved").
+				Select("COALESCE(SUM(total_amount), 0)").
+				Scan(&creditNoteTotal)
+			totalAmount -= creditNoteTotal
 		}
 
 		// Skip if already paid
@@ -176,12 +184,26 @@ func (s *PaymentAllocationService) AllocatePaymentFIFO(
 		// Round allocated amount to 2 decimals
 		allocatedAmount = float64(int(allocatedAmount*100+0.5)) / 100
 
-		// Create allocation record
+		// Update invoice
+		newPaidAmount := paidAmount + allocatedAmount
+		// Round to 2 decimals to avoid precision issues
+		newPaidAmount = float64(int(newPaidAmount*100+0.5)) / 100
+
+		newStatus := "partial"
+		// Use tolerance for floating-point comparison (0.01 = 1 cent)
+		// totalAmount already has credit notes subtracted for purchase invoices
+		if newPaidAmount >= totalAmount-0.01 {
+			newStatus = "paid"
+			// Keep the actual paid amount, don't set to adjusted total
+		}
+
+		// Create allocation record with the invoice status after this allocation
 		allocation := models.PaymentAllocation{
 			PaymentID:       payment.ID,
 			InvoiceID:       invoiceID,
 			InvoiceType:     invoiceType,
 			AllocatedAmount: allocatedAmount,
+			InvoiceStatus:   newStatus,
 			AllocationDate:  paymentDate,
 		}
 
@@ -191,18 +213,6 @@ func (s *PaymentAllocationService) AllocatePaymentFIFO(
 		}
 
 		allocations = append(allocations, allocation)
-
-		// Update invoice
-		newPaidAmount := paidAmount + allocatedAmount
-		// Round to 2 decimals to avoid precision issues
-		newPaidAmount = float64(int(newPaidAmount*100+0.5)) / 100
-
-		newStatus := "partial"
-		// Use tolerance for floating-point comparison (0.01 = 1 cent)
-		if newPaidAmount >= totalAmount-0.01 {
-			newStatus = "paid"
-			newPaidAmount = totalAmount // Set to exact amount to avoid precision issues
-		}
 
 		if invoiceType == "sales" {
 			if err := tx.Model(&models.SalesInvoice{}).

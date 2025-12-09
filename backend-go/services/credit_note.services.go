@@ -21,6 +21,16 @@ func NewCreditNoteService(db *gorm.DB) *CreditNoteService {
 	}
 }
 
+// GetApprovedCreditNoteTotal returns the total amount of approved credit notes for a purchase invoice
+func (s *CreditNoteService) GetApprovedCreditNoteTotal(purchaseInvoiceID uint) (float64, error) {
+	var total float64
+	err := s.db.Model(&models.CreditNote{}).
+		Where("purchase_invoice_id = ? AND status = ?", purchaseInvoiceID, "approved").
+		Select("COALESCE(SUM(total_amount), 0)").
+		Scan(&total).Error
+	return total, err
+}
+
 // GetAll retrieves all credit notes with pagination
 func (s *CreditNoteService) GetAll(limit, page int, orderBy, sortBy, status, searchTerm string) (PaginationResponse, error) {
 	var creditNotes []models.CreditNote

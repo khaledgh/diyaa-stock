@@ -124,8 +124,11 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.POST("/invoices/purchase/:id/items", invoiceHandler.AddPurchaseInvoiceItem)
 	apiGroup.DELETE("/invoices/:id", invoiceHandler.DeleteInvoiceHandler)
 
+	// Credit Note service (needed for payment handler)
+	creditNoteService := services.NewCreditNoteService(store)
+
 	// Payment routes - matches PHP: /api/payments
-	paymentHandler := handlers.NewPaymentHandler(paymentService, salesInvoiceService, purchaseInvoiceService)
+	paymentHandler := handlers.NewPaymentHandler(paymentService, salesInvoiceService, purchaseInvoiceService, creditNoteService)
 	apiGroup.GET("/payments", paymentHandler.GetAllHandler)
 	apiGroup.POST("/payments", paymentHandler.CreateHandler)
 
@@ -157,7 +160,6 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.DELETE("/vendors/:id", vendorHandler.Delete)
 
 	// Credit Note routes
-	creditNoteService := services.NewCreditNoteService(store)
 	creditNoteHandler := handlers.NewCreditNoteHandler(creditNoteService)
 	apiGroup.GET("/credit-notes", creditNoteHandler.GetAllHandler)
 	apiGroup.GET("/credit-notes/:id", creditNoteHandler.GetByIDHandler)

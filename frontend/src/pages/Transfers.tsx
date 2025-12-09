@@ -26,7 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { transferApi, locationApi, productApi, stockApi, vanApi } from '@/lib/api';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, formatQuantity } from '@/lib/utils';
 import { Combobox } from '@/components/ui/combobox';
 
 const transferItemSchema = z.object({
@@ -399,7 +399,7 @@ export default function Transfers() {
     
     return {
       value: product.id.toString(),
-      label: `${product.name_en} (Stock: ${stockQty})`,
+      label: `${product.name_en} (Stock: ${formatQuantity(stockQty)})`,
     };
   }) || [];
 
