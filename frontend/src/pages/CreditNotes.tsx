@@ -463,13 +463,13 @@ export default function CreditNotes() {
   };
 
   const handleApprove = (id: number) => {
-    if (confirm(t('common.confirmDelete'))) {
+    if (confirm(t('creditNotes.confirmApprove'))) {
       approveMutation.mutate(id);
     }
   };
 
   const handleCancel = (id: number) => {
-    if (confirm(t('common.confirmDelete'))) {
+    if (confirm(t('creditNotes.confirmCancel'))) {
       cancelMutation.mutate(id);
     }
   };
@@ -764,7 +764,7 @@ export default function CreditNotes() {
 
       {/* View Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Credit Note Details</DialogTitle>
           </DialogHeader>
