@@ -80,15 +80,38 @@ export default function PaymentAllocation({
       }
 
       const response = await invoiceApi.getAll(params);
-      const data = response.data?.data || response.data?.invoices?.data || [];
+
+      // Handle different API response formats
+      let data: any[] = [];
+      const payload = response.data;
+
+      if (payload?.data?.data) {
+        data = payload.data.data;
+      } else if (payload?.data) {
+        data = Array.isArray(payload.data) ? payload.data : (payload.data.invoices || []);
+      } else if (payload?.invoices?.data) {
+        data = payload.invoices.data;
+      } else if (Array.isArray(payload)) {
+        data = payload;
+      }
 
       // Filter locally for unpaid/partial and calculate remaining
       return data
         .filter((inv: any) => inv.payment_status === 'unpaid' || inv.payment_status === 'partial')
-        .map((inv: any) => ({
-          ...inv,
-          remaining: Number(inv.total_amount) - Number(inv.paid_amount)
-        }))
+        .map((inv: any) => {
+          // Calculate net amount (Total - Approved Credit Notes)
+          const creditNotesTotal = inv.credit_notes?.reduce((sum: number, cn: any) => {
+            return sum + (cn.status === 'approved' ? (Number(cn.total_amount) || 0) : 0);
+          }, 0) || 0;
+
+          const netAmount = Number(inv.total_amount) - creditNotesTotal;
+          const remaining = netAmount - Number(inv.paid_amount);
+
+          return {
+            ...inv,
+            remaining: Math.max(0, remaining)
+          };
+        })
         .filter((inv: any) => inv.remaining > 0);
     },
     enabled: open && !!entityId,

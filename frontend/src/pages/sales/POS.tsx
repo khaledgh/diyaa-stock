@@ -2,14 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ShoppingCart, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  X, 
-  DollarSign, 
-  Search, 
+import {
+  ShoppingCart,
+  Plus,
+  Minus,
+  Trash2,
+  X,
+  DollarSign,
+  Search,
   Printer,
   Check,
   MapPin,
@@ -20,9 +20,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { invoiceApi, productApi, locationApi, customerApi, stockApi } from '@/lib/api';
-import { formatCurrency, formatQuantity } from '@/lib/utils';
+import { formatCurrency, formatQuantity, cn } from '@/lib/utils';
 import { InvoicePrint } from '@/components/InvoicePrint';
 
 interface CartItem {
@@ -39,7 +39,7 @@ export default function POS() {
   const navigate = useNavigate();
   const printRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
@@ -138,7 +138,7 @@ export default function POS() {
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['location-stock'] });
-      
+
       const total = calculateTotal();
       const invoiceData = {
         invoiceNumber: response.data.data?.invoice_number,
@@ -152,11 +152,11 @@ export default function POS() {
         paymentMethod,
       };
       setLastInvoice(invoiceData);
-      
+
       toast.success('Sale completed!');
       handleClearCart();
       setShowPayment(false);
-      
+
       setTimeout(() => handlePrint(), 500);
     },
     onError: (error: any) => {
@@ -168,7 +168,7 @@ export default function POS() {
   const availableProducts = (products || []).filter((p: any) => {
     const stock = locationStock?.find((s: any) => s.product_id === p.id);
     const hasStock = stock && stock.quantity > 0;
-    const matchesSearch = !search || 
+    const matchesSearch = !search ||
       p.name_en?.toLowerCase().includes(search.toLowerCase()) ||
       p.name_ar?.includes(search) ||
       p.sku?.toLowerCase().includes(search.toLowerCase());
@@ -178,14 +178,14 @@ export default function POS() {
   const addToCart = (productId: number) => {
     const product = products?.find((p: any) => p.id === productId);
     const stock = locationStock?.find((s: any) => s.product_id === productId);
-    
+
     if (!stock || stock.quantity < 0.01) {
       toast.error('Out of stock');
       return;
     }
 
     const existing = cart.find(item => item.product_id === productId);
-    
+
     if (existing) {
       if (existing.quantity >= stock.quantity) {
         toast.error('Max stock reached');
@@ -213,7 +213,7 @@ export default function POS() {
     if (!existing) return;
 
     const newQty = existing.quantity + delta;
-    
+
     if (newQty <= 0) {
       setCart(cart.filter(item => item.product_id !== productId));
       return;
@@ -297,37 +297,65 @@ export default function POS() {
   // Step 1: Location Selection
   if (!selectedLocation) {
     return (
-      <div className="h-[calc(100vh-4rem)] flex items-center justify-center p-6 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-        <Card className="w-full max-w-md shadow-2xl border-none">
-          <CardContent className="pt-8 pb-8">
-            <div className="text-center mb-8">
-              <div className="bg-blue-100 dark:bg-blue-900/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MapPin className="h-10 w-10 text-blue-600" />
-              </div>
-              <h2 className="text-3xl font-bold">Select Location</h2>
-              <p className="text-muted-foreground mt-2 text-lg">Choose where you're selling from</p>
-            </div>
-            <div className="grid grid-cols-1 gap-4">
-              {locations?.map((location: any) => (
-                <button
-                  key={location.id}
-                  onClick={() => setSelectedLocation(location.id.toString())}
-                  className="p-5 border-2 border-gray-100 dark:border-gray-800 rounded-2xl hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-left flex items-center justify-between group shadow-sm hover:shadow-md"
-                >
-                  <div>
-                    <p className="font-bold text-lg group-hover:text-blue-600 transition-colors">{location.name}</p>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                      <span className="capitalize px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs">{location.type}</span>
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-xl group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40 transition-colors">
-                    <Check className="h-5 w-5 text-transparent group-hover:text-blue-600 transition-colors" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="min-h-[calc(100vh-4rem)] flex justify-center p-2 bg-muted/30">
+        <div className="w-full max-w-2xl animate-in fade-in zoom-in duration-500">
+          <div className="text-center mb-5">
+            <h2 className="text-2xl font-black tracking-tighter text-gray-900 dark:text-white mb-2">
+              Select Store
+            </h2>
+            <p className="text-muted-foreground font-medium text-sm">Choose your active operating location</p>
+          </div>
+
+          <div className="relative max-w-md mx-auto mb-5">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-500/50" />
+            <Input
+              placeholder="Quick search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-12 h-14 rounded-2xl border-none shadow-lg bg-white dark:bg-gray-800 focus-visible:ring-2 focus-visible:ring-blue-500 text-lg font-medium"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 max-h-[500px] overflow-y-auto p-2 custom-scrollbar">
+            {locations?.filter((l: any) =>
+              !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.type.toLowerCase().includes(search.toLowerCase())
+            ).map((location: any) => (
+              <button
+                key={location.id}
+                onClick={() => {
+                  setSelectedLocation(location.id.toString());
+                  setSearch('');
+                }}
+                className="group relative aspect-square bg-white dark:bg-gray-900 rounded-[2.5rem] p-6 shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 dark:border-gray-800 hover:-translate-y-2 flex flex-col items-center justify-center text-center"
+              >
+                <div className={cn(
+                  "w-16 h-16 rounded-3xl mb-4 flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-12 shadow-sm group-hover:shadow-blue-500/20",
+                  location.type === 'store'
+                    ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20"
+                    : "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20"
+                )}>
+                  <MapPin className="h-8 w-8 transition-transform group-hover:scale-110" />
+                </div>
+
+                <p className="font-black text-sm tracking-tight text-gray-800 dark:text-gray-200 line-clamp-2 px-2">
+                  {location.name}
+                </p>
+
+                <span className={cn(
+                  "mt-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest",
+                  location.type === 'store'
+                    ? "bg-blue-100/50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                    : "bg-emerald-100/50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                )}>
+                  {location.type}
+                </span>
+
+                {/* Decoration */}
+                <div className="absolute top-4 right-4 h-2 w-2 rounded-full bg-blue-500 scale-0 group-hover:scale-100 transition-transform duration-300 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -336,9 +364,9 @@ export default function POS() {
     <div className={`flex flex-col h-[calc(100vh-1rem)] p-2 space-y-4 w-full mx-auto transition-all ${isFullscreen ? 'fixed inset-0 z-50 bg-background h-screen' : ''}`}>
       <div className="flex items-center gap-4 bg-muted/30 p-2 rounded-2xl border border-muted h-20">
         <div className="flex items-center gap-4 px-2">
-            <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-xl">
+          <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-xl">
             <ShoppingCart className="h-6 w-6 text-blue-600" />
-            </div>
+          </div>
         </div>
 
         <div className="h-8 w-[1px] bg-border mx-1" />
@@ -350,7 +378,7 @@ export default function POS() {
           </span>
           <X className="h-3 w-3 text-muted-foreground hover:text-red-500 ml-1" />
         </div>
-        
+
         <div className="relative">
           <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <select
@@ -396,14 +424,14 @@ export default function POS() {
             {availableProducts.map((product: any) => {
               const stock = locationStock?.find((s: any) => s.product_id === product.id);
               const inCart = cart.find(item => item.product_id === product.id);
-              
+
               return (
                 <button
                   key={product.id}
                   onClick={() => addToCart(product.id)}
                   className={`p-4 rounded-xl transition-all text-left relative group overflow-hidden border-2
-                    ${inCart 
-                      ? 'border-green-500 bg-green-50/30' 
+                    ${inCart
+                      ? 'border-green-500 bg-green-50/30'
                       : 'border-transparent bg-white dark:bg-gray-900 hover:border-green-200'
                     } shadow-sm hover:shadow-md`}
                 >
@@ -414,7 +442,7 @@ export default function POS() {
                       </span>
                     </div>
                   )}
-                  
+
                   <div className="relative z-10">
                     <p className="font-bold text-sm leading-tight text-gray-800 dark:text-gray-100 line-clamp-2 min-h-[2.5rem]">
                       {product.name_en}
@@ -422,7 +450,7 @@ export default function POS() {
                     <p className="text-[10px] text-muted-foreground font-mono mt-1 opacity-50 tracking-wide uppercase">
                       {product.sku}
                     </p>
-                    
+
                     <div className="flex items-end justify-between mt-3 pt-2 border-t border-dashed border-gray-100 dark:border-gray-800">
                       <div>
                         <span className="text-[10px] block text-muted-foreground uppercase font-semibold text-[0.6rem] mb-0.5">Price</span>
@@ -431,12 +459,11 @@ export default function POS() {
                         </span>
                       </div>
                       <div>
-                         <span className="text-[10px] block text-muted-foreground uppercase font-semibold text-[0.6rem] mb-0.5 text-right">Stock</span>
-                         <div className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          stock?.quantity < 10 
-                            ? 'bg-red-50 text-red-600' 
-                            : 'bg-gray-100 text-gray-600'
-                        }`}>
+                        <span className="text-[10px] block text-muted-foreground uppercase font-semibold text-[0.6rem] mb-0.5 text-right">Stock</span>
+                        <div className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${stock?.quantity < 10
+                          ? 'bg-red-50 text-red-600'
+                          : 'bg-gray-100 text-gray-600'
+                          }`}>
                           {formatQuantity(stock?.quantity || 0)}
                         </div>
                       </div>
@@ -474,7 +501,7 @@ export default function POS() {
               </button>
             )}
           </div>
-          
+
           {/* Cart Items */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 bg-gray-50/50 dark:bg-transparent custom-scrollbar">
             {cart.length === 0 ? (
@@ -494,10 +521,10 @@ export default function POS() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                       <p className="text-[10px] text-muted-foreground">
-                         {formatCurrency(item.unit_price)}
-                       </p>
-                       <div className="flex items-center bg-gray-50 dark:bg-gray-800 rounded-lg p-0.5 h-6">
+                      <p className="text-[10px] text-muted-foreground">
+                        {formatCurrency(item.unit_price)}
+                      </p>
+                      <div className="flex items-center bg-gray-50 dark:bg-gray-800 rounded-lg p-0.5 h-6">
                         <button
                           onClick={() => updateQuantity(item.product_id, -1)}
                           className="w-5 h-full flex items-center justify-center hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors"
@@ -541,7 +568,7 @@ export default function POS() {
             </div>
 
             {cart.length > 0 && !showPayment && (
-              <Button 
+              <Button
                 className="w-full h-12 text-base font-bold rounded-xl bg-blue-600 hover:bg-blue-700 shadow-md transition-all"
                 onClick={() => { setShowPayment(true); setPaidAmount(total.toString()); }}
               >
@@ -575,7 +602,7 @@ export default function POS() {
                     </Button>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest opacity-70">Payment Method</Label>
                   <div className="grid grid-cols-3 gap-2">
@@ -584,8 +611,8 @@ export default function POS() {
                         key={method}
                         onClick={() => setPaymentMethod(method)}
                         className={`py-2 rounded-xl text-xs font-bold capitalize transition-all border-2
-                          ${paymentMethod === method 
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
+                          ${paymentMethod === method
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-md'
                             : 'bg-muted/50 border-transparent hover:border-blue-200'}`}
                       >
                         {method.replace('_', ' ')}
@@ -605,7 +632,7 @@ export default function POS() {
                   <Button variant="outline" className="flex-1 h-12 rounded-xl font-bold" onClick={() => setShowPayment(false)}>
                     CANCEL
                   </Button>
-                  <Button 
+                  <Button
                     className="flex-1 h-12 rounded-xl bg-green-600 hover:bg-green-700 font-extrabold shadow-lg shadow-green-500/20"
                     onClick={handleCompleteSale}
                     disabled={createSaleMutation.isPending || (Number(paidAmount) < total && !selectedCustomer)}

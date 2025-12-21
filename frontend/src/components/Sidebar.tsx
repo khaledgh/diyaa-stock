@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  ChevronDown,
   ChevronRight,
   Plus,
   X,
@@ -151,15 +150,19 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         onClick={onClose}
         className={({ isActive }) =>
           cn(
-            'group flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all',
-            isNested && 'ml-6 text-xs',
+            'group flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all',
+            isNested ? 'ml-6 text-xs' : 'my-0.5',
             isActive
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              ? 'bg-primary/10 text-primary border-r-2 border-primary rounded-r-none'
+              : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
           )
         }
       >
-        <item.icon className={cn("h-4 w-4 flex-shrink-0", isNested && "h-3.5 w-3.5")} />
+        <item.icon className={cn(
+          "transition-transform shrink-0",
+          isNested ? "h-3.5 w-3.5" : "h-5 w-5",
+          "group-hover:scale-110"
+        )} />
         <span className="truncate">{t(`nav.${item.name}`)}</span>
       </NavLink>
     );
@@ -182,24 +185,28 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <button
           onClick={() => toggleSection(sectionKey)}
           className={cn(
-            'w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors',
+            'w-full flex items-center justify-between px-3 py-2 text-sm font-semibold rounded-lg transition-colors group',
             hasActiveChild
-              ? 'text-foreground bg-muted/50'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              ? 'text-foreground'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
           )}
         >
           <div className="flex items-center gap-3">
-            <section.icon className="h-4 w-4" />
-            <span>{t(`nav.${section.label}`)}</span>
+            <section.icon className={cn(
+              "h-5 w-5 transition-transform",
+              hasActiveChild && "scale-110"
+            )} />
+            <span className="capitalize">{t(`nav.${section.label}`)}</span>
           </div>
-          {isExpanded ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
+          <div className={cn(
+            "transition-transform duration-200",
+            isExpanded ? "rotate-90" : "rotate-0"
+          )}>
+            <ChevronRight className="h-4 w-4 opacity-40 group-hover:opacity-70" />
+          </div>
         </button>
         {isExpanded && (
-          <div className="space-y-0.5 mt-0.5">
+          <div className="mt-0.5 space-y-0.5">
             {visibleChildren.map(item => renderNavItem(item, true))}
           </div>
         )}
@@ -229,7 +236,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <div className="flex items-center justify-between flex-shrink-0 px-4 py-4 border-b">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <ProductsIcon className="h-4 w-4 text-primary-foreground" />
+                <ProductsIcon className="h-4 w-4" style={{ stroke: 'white', color: 'white' }} />
               </div>
               <h1 className="text-base font-bold text-foreground">{t('app.name')}</h1>
             </div>
