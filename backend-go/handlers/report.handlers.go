@@ -593,6 +593,7 @@ func (rh *ReportHandler) VendorStatementHandler(c echo.Context) error {
 		WHERE (cn.vendor_id = ? OR pi.vendor_id = ?)
 		AND DATE(cn.created_at) BETWEEN ? AND ?
 		AND cn.type = 'purchase'
+		AND cn.status = 'approved'
 	`
 
 	// Calculate opening balance (include credit notes - linked directly or via purchase invoice)
@@ -605,7 +606,7 @@ func (rh *ReportHandler) VendorStatementHandler(c echo.Context) error {
 		) - COALESCE(
 			(SELECT SUM(cn.total_amount) FROM credit_notes cn
 			 LEFT JOIN purchase_invoices pi ON cn.purchase_invoice_id = pi.id
-			 WHERE (cn.vendor_id = ? OR pi.vendor_id = ?) AND cn.type = 'purchase' AND DATE(cn.created_at) < ?), 0
+			 WHERE (cn.vendor_id = ? OR pi.vendor_id = ?) AND cn.type = 'purchase' AND cn.status = 'approved' AND DATE(cn.created_at) < ?), 0
 		) as opening_balance
 	`, vendorID, fromDate, vendorID, fromDate, vendorID, vendorID, fromDate).Scan(&openingBalance)
 

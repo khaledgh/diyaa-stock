@@ -137,8 +137,10 @@ func (h *PDFHandler) CustomerStatementPDF(c echo.Context) error {
 			(SELECT SUM(total_amount) FROM sales_invoices WHERE customer_id = ? AND DATE(created_at) < ?), 0
 		) - COALESCE(
 			(SELECT SUM(amount) FROM payments WHERE customer_id = ? AND invoice_type = 'sales' AND DATE(created_at) < ?), 0
+		) - COALESCE(
+			(SELECT SUM(total_amount) FROM credit_notes WHERE customer_id = ? AND type = 'sales' AND status = 'approved' AND DATE(credit_note_date) < ?), 0
 		) as opening_balance
-	`, customerID, fromDate, customerID, fromDate).Scan(&openingBalance)
+	`, customerID, fromDate, customerID, fromDate, customerID, fromDate).Scan(&openingBalance)
 
 	// Calculate totals
 	var totalDebit, totalCredit float64
@@ -159,12 +161,12 @@ func (h *PDFHandler) CustomerStatementPDF(c echo.Context) error {
 	// Company Header - Blue background
 	pdf.SetFillColor(59, 130, 246)
 	pdf.Rect(0, 0, 210, 35, "F")
-	
+
 	pdf.SetTextColor(255, 255, 255)
 	pdf.SetFont("Arial", "B", 18)
 	pdf.SetY(10)
 	pdf.CellFormat(180, 8, companyName, "", 1, "C", false, 0, "")
-	
+
 	if companyAddress != "" || companyPhone != "" {
 		pdf.SetFont("Arial", "", 10)
 		contactInfo := ""
@@ -179,7 +181,7 @@ func (h *PDFHandler) CustomerStatementPDF(c echo.Context) error {
 		}
 		pdf.CellFormat(180, 6, contactInfo, "", 1, "C", false, 0, "")
 	}
-	
+
 	pdf.SetTextColor(0, 0, 0)
 	pdf.Ln(10)
 
@@ -192,7 +194,7 @@ func (h *PDFHandler) CustomerStatementPDF(c echo.Context) error {
 
 	// Customer Info
 	pdf.SetFont("Arial", "", 10)
-	
+
 	// Handle Arabic customer name
 	customerName := customer.Name
 	if containsArabic(customerName) {
@@ -200,7 +202,7 @@ func (h *PDFHandler) CustomerStatementPDF(c echo.Context) error {
 		customerName = fixArabicText(customerName)
 	}
 	pdf.CellFormat(180, 6, fmt.Sprintf("Customer: %s", customerName), "", 1, "L", false, 0, "")
-	
+
 	pdf.SetFont("Arial", "", 10)
 	pdf.CellFormat(180, 6, fmt.Sprintf("Period: %s to %s", fromDate, toDate), "", 1, "L", false, 0, "")
 	pdf.CellFormat(180, 6, fmt.Sprintf("Opening Balance: %.2f", openingBalance), "", 1, "L", false, 0, "")
@@ -258,7 +260,7 @@ func (h *PDFHandler) CustomerStatementPDF(c echo.Context) error {
 	}
 
 	// Set headers for PDF download
-	filename := fmt.Sprintf("Statement_%s_%s_to_%s.pdf", 
+	filename := fmt.Sprintf("Statement_%s_%s_to_%s.pdf",
 		strings.ReplaceAll(customer.Name, " ", "_"), fromDate, toDate)
 	c.Response().Header().Set("Content-Type", "application/pdf")
 	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
@@ -357,6 +359,7 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 		WHERE (cn.vendor_id = ? OR pi.vendor_id = ?)
 		AND DATE(cn.created_at) BETWEEN ? AND ?
 		AND cn.type = 'purchase'
+		AND cn.status = 'approved'
 	`
 	h.db.Raw(creditNoteQuery, vendorID, vendorID, fromDate, toDate).Scan(&creditNotes)
 	transactions = append(transactions, creditNotes...)
@@ -371,7 +374,7 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 		) - COALESCE(
 			(SELECT SUM(cn.total_amount) FROM credit_notes cn
 			 LEFT JOIN purchase_invoices pi ON cn.purchase_invoice_id = pi.id
-			 WHERE (cn.vendor_id = ? OR pi.vendor_id = ?) AND cn.type = 'purchase' AND DATE(cn.created_at) < ?), 0
+			 WHERE (cn.vendor_id = ? OR pi.vendor_id = ?) AND cn.type = 'purchase' AND cn.status = 'approved' AND DATE(cn.created_at) < ?), 0
 		) as opening_balance
 	`, vendorID, fromDate, vendorID, fromDate, vendorID, vendorID, fromDate).Scan(&openingBalance)
 
@@ -394,12 +397,12 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 	// Company Header - Red background for vendor
 	pdf.SetFillColor(220, 38, 38)
 	pdf.Rect(0, 0, 210, 35, "F")
-	
+
 	pdf.SetTextColor(255, 255, 255)
 	pdf.SetFont("Arial", "B", 18)
 	pdf.SetY(10)
 	pdf.CellFormat(180, 8, companyName, "", 1, "C", false, 0, "")
-	
+
 	if companyAddress != "" || companyPhone != "" {
 		pdf.SetFont("Arial", "", 10)
 		contactInfo := ""
@@ -414,7 +417,7 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 		}
 		pdf.CellFormat(180, 6, contactInfo, "", 1, "C", false, 0, "")
 	}
-	
+
 	pdf.SetTextColor(0, 0, 0)
 	pdf.Ln(10)
 
@@ -427,7 +430,7 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 
 	// Vendor Info
 	pdf.SetFont("Arial", "", 10)
-	
+
 	// Handle Arabic vendor name
 	vendorName := vendor.Name
 	if containsArabic(vendorName) {
@@ -435,7 +438,7 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 		vendorName = fixArabicText(vendorName)
 	}
 	pdf.CellFormat(180, 6, fmt.Sprintf("Vendor: %s", vendorName), "", 1, "L", false, 0, "")
-	
+
 	pdf.SetFont("Arial", "", 10)
 	pdf.CellFormat(180, 6, fmt.Sprintf("Period: %s to %s", fromDate, toDate), "", 1, "L", false, 0, "")
 	pdf.CellFormat(180, 6, fmt.Sprintf("Opening Balance: %.2f", openingBalance), "", 1, "L", false, 0, "")
@@ -462,7 +465,7 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 		runningBalance = runningBalance + tx.Credit - tx.Debit
 
 		pdf.CellFormat(22, 7, tx.Date.Format("2006-01-02"), "1", 0, "C", false, 0, "")
-		
+
 		typeLabel := tx.Type
 		if tx.Type == "invoice" {
 			typeLabel = "Bill"
@@ -498,7 +501,7 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 	}
 
 	// Set headers for PDF download
-	filename := fmt.Sprintf("Statement_%s_%s_to_%s.pdf", 
+	filename := fmt.Sprintf("Statement_%s_%s_to_%s.pdf",
 		strings.ReplaceAll(vendor.Name, " ", "_"), fromDate, toDate)
 	c.Response().Header().Set("Content-Type", "application/pdf")
 	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
