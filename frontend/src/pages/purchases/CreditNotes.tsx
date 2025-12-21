@@ -58,9 +58,9 @@ export default function CreditNotes() {
           page,
           per_page: perPage,
         });
-        
+
         const apiData = response.data;
-        
+
         if (apiData?.data && Array.isArray(apiData.data) && apiData.total !== undefined) {
           return {
             data: apiData.data,
@@ -72,11 +72,11 @@ export default function CreditNotes() {
             },
           };
         }
-        
+
         if (Array.isArray(apiData)) {
           return { data: apiData, pagination: null };
         }
-        
+
         return { data: [], pagination: null };
       } catch (error) {
         console.error('Failed to fetch credit notes:', error);
@@ -119,7 +119,7 @@ export default function CreditNotes() {
   const { data: invoicesData, isLoading: isLoadingInvoices } = useQuery({
     queryKey: ['invoices-search', formData.type, invoiceSearchTerm],
     queryFn: async () => {
-      const response = await invoiceApi.getAll({ 
+      const response = await invoiceApi.getAll({
         invoice_type: formData.type as any,
         search: invoiceSearchTerm || undefined,
         limit: 50
@@ -136,7 +136,7 @@ export default function CreditNotes() {
       try {
         const response = await productApi.getAll();
         console.log('Products API Response:', response.data);
-        
+
         // Try different response structures
         if (response.data?.data?.data && Array.isArray(response.data.data.data)) {
           return response.data.data.data;
@@ -147,7 +147,7 @@ export default function CreditNotes() {
         if (Array.isArray(response.data)) {
           return response.data;
         }
-        
+
         console.log('Products: Unknown format, returning empty array');
         return [];
       } catch (error) {
@@ -184,40 +184,36 @@ export default function CreditNotes() {
   console.log('Products loaded:', products.length, products);
   console.log('Location stock:', locationStock.length, locationStock);
 
-  const vendorOptions = vendors.map((v: any) => ({ 
-    value: v.id?.toString() || '', 
-    label: v.company_name || v.name || 'Unknown Vendor' 
+  const vendorOptions = vendors.map((v: any) => ({
+    value: v.id?.toString() || '',
+    label: v.company_name || v.name || 'Unknown Vendor'
   }));
-  const customerOptions = customers.map((c: any) => ({ 
-    value: c.id?.toString() || '', 
-    label: c.name || 'Unknown Customer' 
+  const customerOptions = customers.map((c: any) => ({
+    value: c.id?.toString() || '',
+    label: c.name || 'Unknown Customer'
   }));
-  const locationOptions = locations.map((l: any) => ({ 
-    value: l.id?.toString() || '', 
-    label: l.name || l.name_en || l.name_ar || 'Unknown Location' 
+  const locationOptions = locations.map((l: any) => ({
+    value: l.id?.toString() || '',
+    label: l.name || l.name_en || l.name_ar || 'Unknown Location'
   }));
-  
+
   const invoiceOptions = availableInvoices.map((p: any) => ({
     value: p.id?.toString() || '',
     label: `${p.invoice_number} - ${formData.type === 'purchase' ? (p.vendor?.company_name || p.vendor?.name) : p.customer?.name || 'Walk-in'} (${formatCurrency(p.total_amount || 0)})`
   }));
-  
-  // Filter products to only show those with stock in selected location
-  const availableProducts = formData.location_id 
-    ? products.filter((p: any) => {
-        const stockItem = locationStock.find((s: any) => s.product_id === p.id);
-        return stockItem && stockItem.quantity > 0;
-      })
-    : products;
+
+  // Show all products, regardless of current stock level. 
+  // Validation for quantity availability (for Purchase Returns) happens in handleItemChange/validateItemQuantity.
+  const availableProducts = products;
 
   const productOptions = availableProducts.map((p: any) => {
     const stockItem = locationStock.find((s: any) => s.product_id === p.id);
     const quantity = stockItem?.quantity || 0;
     // Format quantity to avoid floating-point precision issues
     const formattedQuantity = Number(quantity).toFixed(2);
-    
+
     return {
-      value: p.id?.toString() || '', 
+      value: p.id?.toString() || '',
       label: `${p.name_en || p.name || p.name_ar || 'Unknown Product'} (Stock: ${formattedQuantity})`
     };
   });
@@ -289,8 +285,8 @@ export default function CreditNotes() {
   };
 
   const handleInvoiceChange = async (invoiceId: string) => {
-    setFormData({ 
-      ...formData, 
+    setFormData({
+      ...formData,
       purchase_invoice_id: formData.type === 'purchase' ? invoiceId : '',
       sales_invoice_id: formData.type === 'sales' ? invoiceId : '',
       vendor_id: '',
@@ -305,7 +301,7 @@ export default function CreditNotes() {
       // Fetch full invoice details
       const response = await invoiceApi.getById(parseInt(invoiceId), formData.type as any);
       const invoice = response.data.data || response.data;
-      
+
       if (invoice) {
         // Auto-populate vendor/customer and location
         setFormData(prev => ({
@@ -345,7 +341,7 @@ export default function CreditNotes() {
   const handleItemChange = async (index: number, field: keyof CreditNoteItem, value: any) => {
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
-    
+
     // Auto-fill unit price when product is selected
     if (field === 'product_id' && value) {
       const product = products.find((p: any) => p.id === parseInt(value));
@@ -360,14 +356,14 @@ export default function CreditNotes() {
         await validateItemQuantity(parseInt(value), newItems[index].quantity, index);
       }
     }
-    
+
     // Validate quantity when it changes
     if (field === 'quantity' && value > 0 && newItems[index].product_id > 0) {
       if (formData.purchase_invoice_id || formData.sales_invoice_id) {
         await validateItemQuantity(newItems[index].product_id, value, index);
       }
     }
-    
+
     setFormData({ ...formData, items: newItems });
   };
 
@@ -383,9 +379,9 @@ export default function CreditNotes() {
         page: 1,
         per_page: 500
       });
-      
+
       const existingCreditNotes = creditNotesResponse.data?.data || creditNotesResponse.data || [];
-      const invoiceCreditNotes = existingCreditNotes.filter((cn: any) => 
+      const invoiceCreditNotes = existingCreditNotes.filter((cn: any) =>
         (formData.type === 'purchase' ? cn.purchase_invoice_id : cn.sales_invoice_id) === parseInt(invoiceId)
       );
 
@@ -409,13 +405,13 @@ export default function CreditNotes() {
       // Get original invoice
       const invoiceResponse = await invoiceApi.getById(parseInt(invoiceId), formData.type as any);
       const invoice = invoiceResponse.data.data || invoiceResponse.data;
-      
+
       if (invoice && invoice.items) {
         const invoiceItem = invoice.items.find((item: any) => item.product_id === productId);
         if (invoiceItem) {
           const maxQuantity = invoiceItem.quantity;
           const totalRequested = alreadyCredited + quantity;
-          
+
           if (totalRequested > maxQuantity) {
             toast.error(`Limit exceeded. Max: ${maxQuantity}, Credited: ${alreadyCredited}, Requested: ${quantity}`);
             return false;
@@ -579,8 +575,8 @@ export default function CreditNotes() {
                           <TableCell>{new Date(cn.credit_note_date).toLocaleDateString()}</TableCell>
                           <TableCell className="capitalize">{cn.type || 'purchase'}</TableCell>
                           <TableCell>
-                            {cn.type === 'sales' 
-                              ? (cn.customer?.name || 'Walk-in') 
+                            {cn.type === 'sales'
+                              ? (cn.customer?.name || 'Walk-in')
                               : (cn.vendor?.company_name || cn.vendor?.name || '-')}
                           </TableCell>
                           <TableCell>{cn.location?.name || '-'}</TableCell>
@@ -646,10 +642,10 @@ export default function CreditNotes() {
                     <input
                       type="radio"
                       checked={formData.type === 'purchase'}
-                      onChange={() => setFormData({ 
-                        ...formData, 
-                        type: 'purchase', 
-                        purchase_invoice_id: '', 
+                      onChange={() => setFormData({
+                        ...formData,
+                        type: 'purchase',
+                        purchase_invoice_id: '',
                         sales_invoice_id: '',
                         vendor_id: '',
                         customer_id: '',
@@ -662,10 +658,10 @@ export default function CreditNotes() {
                     <input
                       type="radio"
                       checked={formData.type === 'sales'}
-                      onChange={() => setFormData({ 
-                        ...formData, 
-                        type: 'sales', 
-                        purchase_invoice_id: '', 
+                      onChange={() => setFormData({
+                        ...formData,
+                        type: 'sales',
+                        purchase_invoice_id: '',
                         sales_invoice_id: '',
                         vendor_id: '',
                         customer_id: '',
@@ -693,10 +689,10 @@ export default function CreditNotes() {
                 <Combobox
                   options={formData.type === 'purchase' ? vendorOptions : customerOptions}
                   value={formData.type === 'purchase' ? formData.vendor_id : formData.customer_id}
-                  onChange={(value) => setFormData({ 
-                    ...formData, 
+                  onChange={(value) => setFormData({
+                    ...formData,
                     vendor_id: formData.type === 'purchase' ? value : '',
-                    customer_id: formData.type === 'sales' ? value : '' 
+                    customer_id: formData.type === 'sales' ? value : ''
                   })}
                   placeholder={`Select ${formData.type === 'purchase' ? 'vendor' : 'customer'}`}
                   searchPlaceholder={`Search ${formData.type === 'purchase' ? 'vendors' : 'customers'}...`}
@@ -834,8 +830,8 @@ export default function CreditNotes() {
                 <div>
                   <Label>{selectedCreditNote.type === 'sales' ? 'Customer' : 'Vendor'}</Label>
                   <p>
-                    {selectedCreditNote.type === 'sales' 
-                      ? (selectedCreditNote.customer?.name || 'Walk-in') 
+                    {selectedCreditNote.type === 'sales'
+                      ? (selectedCreditNote.customer?.name || 'Walk-in')
                       : (selectedCreditNote.vendor?.company_name || selectedCreditNote.vendor?.name || '-')}
                   </p>
                 </div>
