@@ -740,21 +740,19 @@ func (rh *ReportHandler) ReceivablesAgingHandler(c echo.Context) error {
 
 	query := `
 		SELECT 
-			c.id as customer_id,
-			c.name as customer_name,
-			c.phone as customer_phone,
+			si.customer_id,
+			COALESCE(c.name, 'Walk-in / No Customer') as customer_name,
+			COALESCE(c.phone, '-') as customer_phone,
 			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) <= 0 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as current_amount,
 			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) BETWEEN 1 AND 15 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_1_15,
 			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) BETWEEN 16 AND 30 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_16_30,
 			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) BETWEEN 31 AND 45 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_31_45,
 			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) > 45 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_over_45,
 			COALESCE(SUM(si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total_outstanding
-		FROM customers c
-		LEFT JOIN sales_invoices si ON c.id = si.customer_id 
-			AND si.payment_status != 'paid'
-			AND si.deleted_at IS NULL
-		WHERE c.deleted_at IS NULL
-		GROUP BY c.id, c.name, c.phone
+		FROM sales_invoices si
+		LEFT JOIN customers c ON si.customer_id = c.id
+		WHERE si.deleted_at IS NULL
+		GROUP BY si.customer_id, c.name, c.phone
 		HAVING total_outstanding > 0
 		ORDER BY total_outstanding DESC
 	`
@@ -815,20 +813,19 @@ func (rh *ReportHandler) PayablesAgingHandler(c echo.Context) error {
 
 	query := `
 		SELECT 
-			v.id as vendor_id,
-			v.name as vendor_name,
-			v.phone as vendor_phone,
+			pi.vendor_id,
+			COALESCE(v.name, 'Unknown / No Vendor') as vendor_name,
+			COALESCE(v.phone, '-') as vendor_phone,
 			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) <= 0 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as current_amount,
 			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) BETWEEN 1 AND 15 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_1_15,
 			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) BETWEEN 16 AND 30 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_16_30,
 			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) BETWEEN 31 AND 45 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_31_45,
 			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) > 45 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_over_45,
 			COALESCE(SUM(pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total_outstanding
-		FROM vendors v
-		LEFT JOIN purchase_invoices pi ON v.id = pi.vendor_id 
-			AND pi.deleted_at IS NULL
-		WHERE v.deleted_at IS NULL
-		GROUP BY v.id, v.name, v.phone
+		FROM purchase_invoices pi
+		LEFT JOIN vendors v ON pi.vendor_id = v.id
+		WHERE pi.deleted_at IS NULL
+		GROUP BY pi.vendor_id, v.name, v.phone
 		HAVING total_outstanding > 0
 		ORDER BY total_outstanding DESC
 	`
