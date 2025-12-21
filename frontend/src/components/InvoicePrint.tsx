@@ -53,7 +53,7 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
           `}
         </style>
         
-        <div style={{ width: '80mm', fontFamily: 'monospace', fontSize: '12px', padding: '5mm' }}>
+        <div style={{ width: '80mm', fontFamily: 'Cairo, Inter, sans-serif', fontSize: '12px', padding: '5mm', direction: 'ltr' }}>
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: '10px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
             <h1 style={{ margin: '0', fontSize: '18px', fontWeight: 'bold' }}>DIYAA STOCK</h1>
@@ -76,7 +76,7 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
             {customerName && (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
                 <span style={{ fontWeight: 'bold' }}>Customer:</span>
-                <span>{customerName}</span>
+                <span dir="auto">{customerName}</span>
               </div>
             )}
             {locationName && (
@@ -106,7 +106,7 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
                 {items.map((item, index) => (
                   <tr key={index} style={{ borderBottom: '1px dotted #ccc' }}>
                     <td style={{ padding: '5px 0' }}>
-                      <div style={{ fontWeight: 'bold' }}>{item.product_name}</div>
+                      <div style={{ fontWeight: 'bold' }} dir="auto">{item.product_name}</div>
                       <div style={{ fontSize: '9px', color: '#666' }}>{item.sku}</div>
                     </td>
                     <td style={{ textAlign: 'center', padding: '5px 0' }}>{item.quantity}</td>

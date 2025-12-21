@@ -38,6 +38,7 @@ func (s *CreditNoteService) GetAll(limit, page int, orderBy, sortBy, status, sea
 
 	query := s.db.Model(&models.CreditNote{}).
 		Preload("Vendor").
+		Preload("Customer").
 		Preload("Location").
 		Preload("Creator").
 		Preload("Items.Product")
@@ -88,9 +89,11 @@ func (s *CreditNoteService) GetAll(limit, page int, orderBy, sortBy, status, sea
 func (s *CreditNoteService) GetByID(id string) (models.CreditNote, error) {
 	var creditNote models.CreditNote
 	if err := s.db.Preload("Vendor").
+		Preload("Customer").
 		Preload("Location").
 		Preload("Creator").
 		Preload("PurchaseInvoice").
+		Preload("SalesInvoice").
 		Preload("Items.Product").
 		First(&creditNote, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -104,8 +107,8 @@ func (s *CreditNoteService) GetByID(id string) (models.CreditNote, error) {
 // Create creates a new credit note
 func (s *CreditNoteService) Create(creditNote models.CreditNote) (models.CreditNote, error) {
 	// Validate required fields
-	if creditNote.PurchaseInvoiceID == nil {
-		return creditNote, errors.New("purchase invoice is required")
+	if creditNote.PurchaseInvoiceID == nil && creditNote.SalesInvoiceID == nil {
+		return creditNote, errors.New("invoice (purchase or sales) is required")
 	}
 
 	// Use transaction to prevent race conditions
@@ -177,10 +180,13 @@ func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (mod
 
 	// Update basic fields
 	existing.VendorID = creditNote.VendorID
+	existing.CustomerID = creditNote.CustomerID
 	existing.LocationID = creditNote.LocationID
 	existing.CreditNoteDate = creditNote.CreditNoteDate
 	existing.Notes = creditNote.Notes
 	existing.PurchaseInvoiceID = creditNote.PurchaseInvoiceID
+	existing.SalesInvoiceID = creditNote.SalesInvoiceID
+	existing.Type = creditNote.Type
 
 	// Delete existing items within transaction
 	if err := tx.Where("credit_note_id = ?", existing.ID).Delete(&models.CreditNoteItem{}).Error; err != nil {
@@ -230,25 +236,45 @@ func (s *CreditNoteService) Approve(id string, approvedBy uint) (models.CreditNo
 		}
 	}()
 
-	// Process each item - reduce stock from location
+	// Process each item
 	for _, item := range creditNote.Items {
-		// Check if stock exists
+		// Check if stock exists or create it if it's a sales return
 		var stock models.Stock
-		if err := tx.Where("product_id = ? AND location_id = ?", item.ProductID, creditNote.LocationID).
-			First(&stock).Error; err != nil {
-			tx.Rollback()
-			return creditNote, fmt.Errorf("stock not found for product %d at location %d", item.ProductID, creditNote.LocationID)
+		err := tx.Where("product_id = ? AND location_id = ?", item.ProductID, creditNote.LocationID).
+			First(&stock).Error
+		
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) && creditNote.Type == "sales" {
+				// For sales return, if stock record doesn't exist, create it
+				stock = models.Stock{
+					ProductID:  item.ProductID,
+					LocationID: creditNote.LocationID,
+					Quantity:   0,
+				}
+				if err := tx.Create(&stock).Error; err != nil {
+					tx.Rollback()
+					return creditNote, err
+				}
+			} else {
+				tx.Rollback()
+				return creditNote, fmt.Errorf("stock not found for product %d at location %d", item.ProductID, creditNote.LocationID)
+			}
 		}
 
-		// Check if sufficient quantity
-		if stock.Quantity < item.Quantity {
-			tx.Rollback()
-			return creditNote, fmt.Errorf("insufficient stock for product %d. Available: %.2f, Required: %.2f",
-				item.ProductID, stock.Quantity, item.Quantity)
+		if creditNote.Type == "purchase" {
+			// Check if sufficient quantity for purchase return
+			if stock.Quantity < item.Quantity {
+				tx.Rollback()
+				return creditNote, fmt.Errorf("insufficient stock for product %d. Available: %.2f, Required: %.2f",
+					item.ProductID, stock.Quantity, item.Quantity)
+			}
+			// Reduce stock
+			stock.Quantity -= item.Quantity
+		} else {
+			// Increase stock for sales return
+			stock.Quantity += item.Quantity
 		}
 
-		// Reduce stock
-		stock.Quantity -= item.Quantity
 		if err := tx.Save(&stock).Error; err != nil {
 			tx.Rollback()
 			return creditNote, err
@@ -257,19 +283,31 @@ func (s *CreditNoteService) Approve(id string, approvedBy uint) (models.CreditNo
 		// Create stock movement record
 		notes := fmt.Sprintf("Credit Note: %s - %s", creditNote.CreditNoteNumber, item.Reason)
 		movement := models.StockMovement{
-			ProductID:        item.ProductID,
-			FromLocationType: "location",
-			FromLocationID:   creditNote.LocationID,
-			ToLocationType:   "vendor",
-			MovementType:     "credit_note_return",
-			Quantity:         item.Quantity,
-			ReferenceID:      &creditNote.ID,
-			Notes:            &notes,
-			CreatedBy:        &approvedBy,
+			ProductID:   item.ProductID,
+			Quantity:    item.Quantity,
+			ReferenceID: &creditNote.ID,
+			Notes:       &notes,
+			CreatedBy:   &approvedBy,
 		}
-		if creditNote.VendorID != nil {
-			movement.ToLocationID = *creditNote.VendorID
+
+		if creditNote.Type == "purchase" {
+			movement.FromLocationType = "location"
+			movement.FromLocationID = creditNote.LocationID
+			movement.ToLocationType = "vendor"
+			movement.MovementType = "credit_note_return"
+			if creditNote.VendorID != nil {
+				movement.ToLocationID = *creditNote.VendorID
+			}
+		} else {
+			movement.FromLocationType = "customer"
+			movement.ToLocationType = "location"
+			movement.ToLocationID = creditNote.LocationID
+			movement.MovementType = "sales_return"
+			if creditNote.CustomerID != nil {
+				movement.FromLocationID = *creditNote.CustomerID
+			}
 		}
+
 		if err := tx.Create(&movement).Error; err != nil {
 			tx.Rollback()
 			return creditNote, err
@@ -336,16 +374,40 @@ func (s *CreditNoteService) validateQuantitiesAgainstInvoice(creditNote models.C
 		db = tx
 	}
 
-	// Get the original purchase invoice with items
-	var invoice models.PurchaseInvoice
-	if err := db.Preload("Items").First(&invoice, *creditNote.PurchaseInvoiceID).Error; err != nil {
-		return fmt.Errorf("purchase invoice not found: %v", err)
+	invoiceQty := make(map[uint]float64)
+
+	if creditNote.SalesInvoiceID != nil {
+		// Get original sales invoice
+		var invoice models.SalesInvoice
+		if err := db.Preload("Items").First(&invoice, *creditNote.SalesInvoiceID).Error; err != nil {
+			return fmt.Errorf("sales invoice not found: %v", err)
+		}
+		for _, item := range invoice.Items {
+			invoiceQty[item.ProductID] = item.Quantity
+		}
+	} else if creditNote.PurchaseInvoiceID != nil {
+		// Get original purchase invoice
+		var invoice models.PurchaseInvoice
+		if err := db.Preload("Items").First(&invoice, *creditNote.PurchaseInvoiceID).Error; err != nil {
+			return fmt.Errorf("purchase invoice not found: %v", err)
+		}
+		for _, item := range invoice.Items {
+			invoiceQty[item.ProductID] = item.Quantity
+		}
+	} else {
+		return nil // No invoice to validate against
 	}
 
-	// Get existing approved credit notes for this invoice to calculate already credited quantities
-	query := db.Preload("Items").Where("purchase_invoice_id = ? AND status = ? AND deleted_at IS NULL", *creditNote.PurchaseInvoiceID, "approved")
+	// Get existing approved credit notes for this invoice
+	query := db.Preload("Items")
+	if creditNote.SalesInvoiceID != nil {
+		query = query.Where("sales_invoice_id = ?", *creditNote.SalesInvoiceID)
+	} else {
+		query = query.Where("purchase_invoice_id = ?", *creditNote.PurchaseInvoiceID)
+	}
+	query = query.Where("status = ? AND deleted_at IS NULL", "approved")
 
-	// Exclude current credit note if updating (to avoid counting its own items)
+	// Exclude current credit note if updating
 	if excludeCreditNoteID != nil {
 		query = query.Where("id != ?", *excludeCreditNoteID)
 	}
@@ -355,7 +417,7 @@ func (s *CreditNoteService) validateQuantitiesAgainstInvoice(creditNote models.C
 		return fmt.Errorf("failed to check existing credit notes: %v", err)
 	}
 
-	// Create a map of product -> total credited quantity from existing approved credit notes
+	// Total already credited
 	existingCreditedQty := make(map[uint]float64)
 	for _, existingCN := range existingCreditNotes {
 		for _, existingItem := range existingCN.Items {
@@ -363,25 +425,17 @@ func (s *CreditNoteService) validateQuantitiesAgainstInvoice(creditNote models.C
 		}
 	}
 
-	// Create a map of product -> invoice quantity
-	invoiceQty := make(map[uint]float64)
-	for _, invoiceItem := range invoice.Items {
-		invoiceQty[invoiceItem.ProductID] = invoiceItem.Quantity
-	}
-
-	// Validate each credit note item
+	// Validate each item
 	for _, cnItem := range creditNote.Items {
-		invoiceQuantity, exists := invoiceQty[cnItem.ProductID]
+		maxQuantity, exists := invoiceQty[cnItem.ProductID]
 		if !exists {
 			return fmt.Errorf("product %d not found in original invoice", cnItem.ProductID)
 		}
 
-		// Calculate total quantity that would be credited after this credit note
 		totalCreditedQty := existingCreditedQty[cnItem.ProductID] + cnItem.Quantity
-
-		if totalCreditedQty > invoiceQuantity {
-			return fmt.Errorf("total credit note quantity (%.2f) for product %d exceeds invoice quantity (%.2f). Already credited: %.2f, Requested: %.2f",
-				totalCreditedQty, cnItem.ProductID, invoiceQuantity, existingCreditedQty[cnItem.ProductID], cnItem.Quantity)
+		if totalCreditedQty > maxQuantity {
+			return fmt.Errorf("total credit quantity (%.2f) for product %d exceeds invoice quantity (%.2f). Already credited: %.2f, Requested: %.2f",
+				totalCreditedQty, cnItem.ProductID, maxQuantity, existingCreditedQty[cnItem.ProductID], cnItem.Quantity)
 		}
 	}
 
@@ -390,7 +444,25 @@ func (s *CreditNoteService) validateQuantitiesAgainstInvoice(creditNote models.C
 
 // generateCreditNoteNumber generates a unique credit note number
 func (s *CreditNoteService) generateCreditNoteNumber() string {
-	var count int64
-	s.db.Model(&models.CreditNote{}).Count(&count)
-	return fmt.Sprintf("CN-%s-%05d", time.Now().Format("200601"), count+1)
+	prefix := fmt.Sprintf("CN-%s-", time.Now().Format("200601"))
+	var lastCN models.CreditNote
+	
+	// Get the last credit note number for this month that matches the prefix
+	// We use Unscoped to include soft-deleted records to avoid duplication if the latest one was deleted
+	err := s.db.Unscoped().Where("credit_note_number LIKE ?", prefix+"%").Order("credit_note_number desc").First(&lastCN).Error
+	
+	if err != nil {
+		// If no credit note found for this month, start with 1
+		return fmt.Sprintf("%s%05d", prefix, 1)
+	}
+
+	// Extract the sequence number from the last credit note number
+	var lastSeq int
+	_, err = fmt.Sscanf(lastCN.CreditNoteNumber, prefix+"%d", &lastSeq)
+	if err != nil {
+		// Fallback if parsing fails (shouldn't happen with standard format)
+		return fmt.Sprintf("%s%05d", prefix, 1)
+	}
+
+	return fmt.Sprintf("%s%05d", prefix, lastSeq+1)
 }

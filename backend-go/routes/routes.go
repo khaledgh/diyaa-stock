@@ -140,6 +140,13 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.GET("/reports/product-performance", reportHandler.ProductPerformanceReportHandler)
 	apiGroup.GET("/reports/location-sales", reportHandler.LocationSalesReportHandler)
 	apiGroup.GET("/reports/dashboard", reportHandler.DashboardReportHandler)
+	apiGroup.GET("/reports/customer-statement/:id", reportHandler.CustomerStatementHandler)
+	apiGroup.GET("/reports/vendor-statement/:id", reportHandler.VendorStatementHandler)
+	apiGroup.GET("/reports/inventory-valuation", reportHandler.InventoryValuationHandler)
+	apiGroup.GET("/reports/receivables-aging", reportHandler.ReceivablesAgingHandler)
+	apiGroup.GET("/reports/payables-aging", reportHandler.PayablesAgingHandler)
+	apiGroup.GET("/reports/sales-by-customer", reportHandler.SalesByCustomerHandler)
+	apiGroup.GET("/reports/sales-by-item", reportHandler.SalesByItemHandler)
 
 	// User routes - matches PHP: /api/users
 	userservice := services.NewUserService(models.User{}, store)

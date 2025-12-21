@@ -36,7 +36,12 @@
     "general-reports": "التقارير العامة",
     "location-sales": "مبيعات المواقع",
     "settings": "الإعدادات",
-    "business": "الأعمال"
+    "business": "الأعمال",
+    "items": "الأصناف",
+    "sales": "المبيعات",
+    "purchases": "المشتريات",
+    "banking": "البنوك",
+    "warehousing": "التخزين"
   },
   "common": {
     "search": "بحث",

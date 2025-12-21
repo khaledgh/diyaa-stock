@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FileText, Eye, Plus, Search, ChevronLeft, ChevronRight, ShoppingCart, Package, Trash2 } from 'lucide-react';
+import { FileText, Eye, Plus, Search, ChevronLeft, ChevronRight, ShoppingCart, Package, Trash2, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { invoiceApi } from '@/lib/api';
+import { invoiceApi, customerApi } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
+import PaymentAllocation from '@/components/PaymentAllocation';
+import { Combobox } from '@/components/ui/combobox';
 
 export default function InvoicesNew() {
   const { t } = useTranslation();
@@ -29,8 +31,39 @@ export default function InvoicesNew() {
   const [pageSize] = useState(10);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [isAllocationDialogOpen, setIsAllocationDialogOpen] = useState(false);
+  const [isCustomerSelectOpen, setIsCustomerSelectOpen] = useState(false);
+  const [tempCustomerId, setTempCustomerId] = useState<string>('');
+  const [allocationCustomer, setAllocationCustomer] = useState<{id: number, name: string} | null>(null);
 
   const queryClient = useQueryClient();
+
+  const { data: customers } = useQuery({
+    queryKey: ['customers'],
+    queryFn: async () => {
+      const response = await customerApi.getAll({ per_page: 1000 });
+      const apiData = response.data.data || response.data;
+      return Array.isArray(apiData) ? apiData : (apiData.data || []);
+    },
+    enabled: isCustomerSelectOpen,
+  });
+
+  const handleOpenAllocation = () => {
+    setIsCustomerSelectOpen(true);
+  };
+
+  const handleConfirmCustomer = () => {
+    if (!tempCustomerId) {
+      toast.error('Please select a customer');
+      return;
+    }
+    const customer = customers?.find((c: any) => c.id.toString() === tempCustomerId);
+    if (customer) {
+      setAllocationCustomer({ id: customer.id, name: customer.name });
+      setIsCustomerSelectOpen(false);
+      setIsAllocationDialogOpen(true);
+    }
+  };
 
   // Sync invoice type with URL when path changes
   useEffect(() => {
@@ -157,10 +190,23 @@ export default function InvoicesNew() {
               : 'Sales invoices reduce location stock'}
           </p>
         </div>
-        <Button onClick={() => navigate(`/invoices/new?type=${invoiceType}`)} size="lg" className="shadow-lg">
-          <Plus className="mr-2 h-5 w-5" />
-          {invoiceType === 'purchase' ? 'New Purchase' : 'New Sale'}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {invoiceType === 'sales' && (
+            <Button 
+              variant="outline" 
+              onClick={handleOpenAllocation} 
+              size="lg"
+              className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+            >
+              <DollarSign className="mr-2 h-5 w-5" />
+              Payment Allocation
+            </Button>
+          )}
+          <Button onClick={() => navigate(`/invoices/new?type=${invoiceType}`)} size="lg" className="shadow-lg">
+            <Plus className="mr-2 h-5 w-5" />
+            {invoiceType === 'purchase' ? 'New Purchase' : 'New Sale'}
+          </Button>
+        </div>
       </div>
 
       {/* Invoice Type Cards */}
@@ -415,6 +461,47 @@ export default function InvoicesNew() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Customer Selection for Allocation */}
+      <Dialog open={isCustomerSelectOpen} onOpenChange={setIsCustomerSelectOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Select Customer for Payment</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Customer</label>
+              <Combobox
+                options={(customers || []).map((c: any) => ({ value: c.id.toString(), label: c.name }))}
+                value={tempCustomerId}
+                onChange={setTempCustomerId}
+                placeholder="Search customer..."
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setIsCustomerSelectOpen(false)}>Cancel</Button>
+            <Button onClick={handleConfirmCustomer} disabled={!tempCustomerId}>Next</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Allocation Component */}
+      {allocationCustomer && (
+        <PaymentAllocation
+          open={isAllocationDialogOpen}
+          onClose={() => {
+            setIsAllocationDialogOpen(false);
+            setAllocationCustomer(null);
+            setTempCustomerId('');
+          }}
+          customerId={allocationCustomer.id}
+          customerName={allocationCustomer.name}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+          }}
+        />
+      )}
     </div>
   );
 }

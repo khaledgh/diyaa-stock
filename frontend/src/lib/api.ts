@@ -140,6 +140,13 @@ export const reportApi = {
   receivables: () => api.get('/reports/receivables'),
   productPerformance: (params?: any) => api.get('/reports/product-performance', { params }),
   locationSales: (params?: any) => api.get('/reports/location-sales', { params }),
+  customerStatement: (id: number, params?: any) => api.get(`/reports/customer-statement/${id}`, { params }),
+  vendorStatement: (id: number, params?: any) => api.get(`/reports/vendor-statement/${id}`, { params }),
+  inventoryValuation: () => api.get('/reports/inventory-valuation'),
+  receivablesAging: (params?: any) => api.get('/reports/receivables-aging', { params }),
+  payablesAging: (params?: any) => api.get('/reports/payables-aging', { params }),
+  salesByCustomer: (params?: any) => api.get('/reports/sales-by-customer', { params }),
+  salesByItem: (params?: any) => api.get('/reports/sales-by-item', { params }),
 };
 
 export const userApi = {

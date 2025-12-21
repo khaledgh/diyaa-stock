@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Printer, ShoppingCart, MapPin, User, Calendar, DollarSign, Plus, Edit2, Save, X } from 'lucide-react';
+import { ArrowLeft, Printer, ShoppingCart, MapPin, User, Calendar, DollarSign, Plus, Edit2, Save, X, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Combobox } from '@/components/ui/combobox';
 import { invoiceApi, paymentApi, productApi, stockApi } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
+import PaymentAllocation from '@/components/PaymentAllocation';
 
 export default function SalesInvoiceDetails() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,7 @@ export default function SalesInvoiceDetails() {
   const queryClient = useQueryClient();
   
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isPaymentAllocationOpen, setIsPaymentAllocationOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
@@ -257,6 +259,15 @@ export default function SalesInvoiceDetails() {
             >
               <Plus className="mr-2 h-4 w-4" />
               Add Payment
+            </Button>
+          )}
+          {invoice.customer_id && remaining > 0 && (
+            <Button 
+              onClick={() => setIsPaymentAllocationOpen(true)} 
+              variant="outline"
+            >
+              <Users className="mr-2 h-4 w-4" />
+              Pay Multiple Invoices
             </Button>
           )}
           <Button onClick={handlePrint} variant="outline">
@@ -718,6 +729,19 @@ export default function SalesInvoiceDetails() {
           }
         }
       `}</style>
+
+      {/* Payment Allocation Modal */}
+      {invoice.customer_id && (
+        <PaymentAllocation
+          open={isPaymentAllocationOpen}
+          onClose={() => setIsPaymentAllocationOpen(false)}
+          customerId={invoice.customer_id}
+          customerName={invoice.customer_name || "Customer"}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['sales-invoice', id] });
+          }}
+        />
+      )}
     </div>
   );
 }

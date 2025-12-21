@@ -206,9 +206,27 @@ func (s *PurchaseInvoiceService) UpdatePaymentStatus(id uint, paidAmount float64
 }
 
 func (s *PurchaseInvoiceService) generateInvoiceNumber() string {
-	var count int64
-	s.db.Model(&models.PurchaseInvoice{}).Count(&count)
-	return fmt.Sprintf("PI-%s-%05d", time.Now().Format("200601"), count+1)
+	prefix := fmt.Sprintf("PI-%s-", time.Now().Format("200601"))
+	var lastInvoice models.PurchaseInvoice
+	
+	// Get the last invoice number for this month that matches the prefix
+	// We use Unscoped to include soft-deleted records to avoid duplication if the latest one was deleted
+	err := s.db.Unscoped().Where("invoice_number LIKE ?", prefix+"%").Order("invoice_number desc").First(&lastInvoice).Error
+	
+	if err != nil {
+		// If no invoice found for this month, start with 1
+		return fmt.Sprintf("%s%05d", prefix, 1)
+	}
+
+	// Extract the sequence number from the last invoice number
+	var lastSeq int
+	_, err = fmt.Sscanf(lastInvoice.InvoiceNumber, prefix+"%d", &lastSeq)
+	if err != nil {
+		// Fallback if parsing fails (shouldn't happen with standard format)
+		return fmt.Sprintf("%s%05d", prefix, 1)
+	}
+
+	return fmt.Sprintf("%s%05d", prefix, lastSeq+1)
 }
 
 func (s *PurchaseInvoiceService) GetPaginated(limit, page int, orderBy, sortBy string, filters map[string]string) (PaginationResponse, error) {

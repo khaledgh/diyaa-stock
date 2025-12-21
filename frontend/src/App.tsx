@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import ProductForm from './pages/ProductForm';
 import Customers from './pages/Customers';
+import CustomerStatement from './pages/CustomerStatement';
 import Employees from './pages/Employees';
 import InvoiceForm from './pages/InvoiceFormNew';
 import PurchaseInvoiceDetails from './pages/PurchaseInvoiceDetails';
@@ -21,8 +22,6 @@ import Transfers from './pages/Transfers';
 import Invoices from './pages/InvoicesNew';
 import Payments from './pages/Payments';
 import Transactions from './pages/Transactions';
-import Reports from './pages/Reports';
-import ReportsNew from './pages/ReportsNew';
 import LocationSalesReport from './pages/LocationSalesReport';
 import LowStock from './pages/LowStock';
 import Inventory from './pages/Inventory';
@@ -33,12 +32,22 @@ import ProductTypes from './pages/ProductTypes';
 import CreditNotes from './pages/CreditNotes';
 import PaymentAllocation from './pages/PaymentAllocation';
 
+// Report Pages
+import ReportsHub from './pages/ReportsHub';
+import ReceivablesAging from './pages/ReceivablesAging';
+import PayablesAging from './pages/PayablesAging';
+import SalesByCustomer from './pages/SalesByCustomer';
+import SalesByItem from './pages/SalesByItem';
+import InventoryValuation from './pages/InventoryValuation';
+import VendorStatement from './pages/VendorStatement';
+import CustomerOverview from './pages/CustomerOverview';
 
 // Layout
 import Layout from './components/Layout';
 import POS from './pages/POS';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
+import InvoiceTemplates from './pages/InvoiceTemplates';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -84,10 +93,13 @@ function App() {
             <Route path="categories" element={<Categories />} />
             <Route path="product-types" element={<ProductTypes />} />
             <Route path="customers" element={<Customers />} />
+            <Route path="customers/:id" element={<CustomerOverview />} />
+            <Route path="customers/:id/statement" element={<CustomerStatement />} />
             <Route path="employees" element={<Employees />} />
             <Route path="users" element={<Users />} />
             <Route path="inventory" element={<Inventory />} />
             <Route path="vendors" element={<Vendors />} />
+            <Route path="vendors/:id/statement" element={<VendorStatement />} />
             <Route path="vans" element={<Vans />} />
             <Route path="locations" element={<Locations />} />
             <Route path="transfers" element={<Transfers />} />
@@ -101,12 +113,18 @@ function App() {
             <Route path="invoices/sales/:id" element={<SalesInvoiceDetails />} />
             <Route path="payments" element={<Payments />} />
             <Route path="transactions" element={<Transactions />} />
-            <Route path="reports" element={<ReportsNew />} />
+            {/* Reports */}
+            <Route path="reports" element={<ReportsHub />} />
+            <Route path="reports/receivables-aging" element={<ReceivablesAging />} />
+            <Route path="reports/payables-aging" element={<PayablesAging />} />
+            <Route path="reports/sales-by-customer" element={<SalesByCustomer />} />
+            <Route path="reports/sales-by-item" element={<SalesByItem />} />
+            <Route path="reports/inventory-valuation" element={<InventoryValuation />} />
             <Route path="reports/location-sales" element={<LocationSalesReport />} />
-            <Route path="reports-old" element={<Reports />} />
             <Route path="low-stock" element={<LowStock />} />
             <Route path="pos" element={<POS />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="settings/templates" element={<InvoiceTemplates />} />
           </Route>
         </Routes>
       </BrowserRouter>

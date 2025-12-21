@@ -36,7 +36,12 @@
     "general-reports": "General Reports",
     "location-sales": "Location Sales",
     "settings": "Settings",
-    "business": "Business"
+    "business": "Business",
+    "items": "Items",
+    "sales": "Sales",
+    "purchases": "Purchases",
+    "banking": "Banking",
+    "warehousing": "Warehousing"
   },
   "common": {
     "search": "Search",

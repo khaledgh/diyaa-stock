@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Pagination } from '@/components/ui/pagination';
 import { Combobox } from '@/components/ui/combobox';
-import { creditNoteApi, vendorApi, locationApi, productApi, api, invoiceApi } from '@/lib/api';
+import { creditNoteApi, vendorApi, locationApi, productApi, api, invoiceApi, customerApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 interface CreditNoteItem {
@@ -33,10 +33,13 @@ export default function CreditNotes() {
   const [perPage] = useState(20);
 
   const [formData, setFormData] = useState({
+    type: 'purchase', // purchase or sales
     vendor_id: '',
+    customer_id: '',
     location_id: '',
     credit_note_date: new Date().toISOString().split('T')[0],
     purchase_invoice_id: '',
+    sales_invoice_id: '',
     notes: '',
     items: [] as CreditNoteItem[],
   });
@@ -103,18 +106,27 @@ export default function CreditNotes() {
     },
   });
 
-  // Fetch purchase invoices for credit note selection with server-side search
-  const { data: purchaseInvoicesData, isLoading: isLoadingInvoices } = useQuery({
-    queryKey: ['purchase-invoices-search', invoiceSearchTerm],
+  // Fetch customers
+  const { data: customersData } = useQuery({
+    queryKey: ['customers'],
+    queryFn: async () => {
+      const response = await customerApi.getAll();
+      return response.data.data || response.data || [];
+    },
+  });
+
+  // Fetch invoices (sales or purchase) for credit note selection
+  const { data: invoicesData, isLoading: isLoadingInvoices } = useQuery({
+    queryKey: ['invoices-search', formData.type, invoiceSearchTerm],
     queryFn: async () => {
       const response = await invoiceApi.getAll({ 
-        invoice_type: 'purchase',
+        invoice_type: formData.type as any,
         search: invoiceSearchTerm || undefined,
         limit: 50
       });
       return response.data.data.data || response.data.data || response.data || [];
     },
-    enabled: isDialogOpen, // Only fetch when dialog is open
+    enabled: isDialogOpen,
   });
 
   // Fetch products
@@ -163,10 +175,11 @@ export default function CreditNotes() {
   });
 
   const vendors = Array.isArray(vendorsData) ? vendorsData : [];
+  const customers = Array.isArray(customersData) ? customersData : [];
   const locations = Array.isArray(locationsData) ? locationsData : [];
   const products = Array.isArray(productsData) ? productsData : [];
   const locationStock = Array.isArray(locationStockData) ? locationStockData : [];
-  const purchaseInvoices = Array.isArray(purchaseInvoicesData) ? purchaseInvoicesData : [];
+  const availableInvoices = Array.isArray(invoicesData) ? invoicesData : [];
 
   console.log('Products loaded:', products.length, products);
   console.log('Location stock:', locationStock.length, locationStock);
@@ -175,14 +188,18 @@ export default function CreditNotes() {
     value: v.id?.toString() || '', 
     label: v.company_name || v.name || 'Unknown Vendor' 
   }));
+  const customerOptions = customers.map((c: any) => ({ 
+    value: c.id?.toString() || '', 
+    label: c.name || 'Unknown Customer' 
+  }));
   const locationOptions = locations.map((l: any) => ({ 
     value: l.id?.toString() || '', 
     label: l.name || l.name_en || l.name_ar || 'Unknown Location' 
   }));
   
-  const purchaseInvoiceOptions = purchaseInvoices.map((p: any) => ({
+  const invoiceOptions = availableInvoices.map((p: any) => ({
     value: p.id?.toString() || '',
-    label: `${p.invoice_number} - ${p.vendor?.company_name || p.vendor?.name || 'Unknown Vendor'} (${formatCurrency(p.total_amount || 0)})`
+    label: `${p.invoice_number} - ${formData.type === 'purchase' ? (p.vendor?.company_name || p.vendor?.name) : p.customer?.name || 'Walk-in'} (${formatCurrency(p.total_amount || 0)})`
   }));
   
   // Filter products to only show those with stock in selected location
@@ -253,10 +270,13 @@ export default function CreditNotes() {
 
   const handleOpenDialog = () => {
     setFormData({
+      type: 'purchase',
       vendor_id: '',
+      customer_id: '',
       location_id: '',
       credit_note_date: new Date().toISOString().split('T')[0],
       purchase_invoice_id: '',
+      sales_invoice_id: '',
       notes: '',
       items: [],
     });
@@ -268,60 +288,42 @@ export default function CreditNotes() {
     setInvoiceSearchTerm(''); // Reset search when closing dialog
   };
 
-  const handlePurchaseInvoiceChange = async (purchaseInvoiceId: string) => {
+  const handleInvoiceChange = async (invoiceId: string) => {
     setFormData({ 
       ...formData, 
-      purchase_invoice_id: purchaseInvoiceId,
+      purchase_invoice_id: formData.type === 'purchase' ? invoiceId : '',
+      sales_invoice_id: formData.type === 'sales' ? invoiceId : '',
       vendor_id: '',
+      customer_id: '',
       location_id: '',
       items: []
     });
 
-    if (!purchaseInvoiceId) return;
+    if (!invoiceId) return;
 
     try {
-      // Fetch full purchase invoice details
-      const response = await invoiceApi.getById(parseInt(purchaseInvoiceId), 'purchase');
+      // Fetch full invoice details
+      const response = await invoiceApi.getById(parseInt(invoiceId), formData.type as any);
       const invoice = response.data.data || response.data;
       
       if (invoice) {
-        // Check for existing approved credit notes for this invoice
-        try {
-          const creditNotesResponse = await creditNoteApi.getAll({
-            search: '',
-            status: 'approved',
-            page: 1,
-            per_page: 100
-          });
-          
-          const existingCreditNotes = creditNotesResponse.data?.data || creditNotesResponse.data || [];
-          const invoiceCreditNotes = existingCreditNotes.filter((cn: any) => 
-            cn.purchase_invoice_id === parseInt(purchaseInvoiceId)
-          );
-          
-          if (invoiceCreditNotes.length > 0) {
-            toast.info(`Info: ${invoiceCreditNotes.length} approved credit note(s) already exist. You can create additional credit notes for remaining quantities.`);
-          }
-        } catch (creditCheckError) {
-          console.warn('Could not check existing credit notes:', creditCheckError);
-        }
-
-        // Auto-populate vendor and location
+        // Auto-populate vendor/customer and location
         setFormData(prev => ({
           ...prev,
-          vendor_id: invoice.vendor_id?.toString() || '',
+          vendor_id: formData.type === 'purchase' ? (invoice.vendor_id?.toString() || '') : '',
+          customer_id: formData.type === 'sales' ? (invoice.customer_id?.toString() || '') : '',
           location_id: invoice.location_id?.toString() || '',
           items: invoice.items?.map((item: any) => ({
             product_id: item.product_id,
             quantity: item.quantity,
             unit_price: item.unit_price,
-            reason: 'Return from purchase invoice'
+            reason: `Return from ${formData.type} invoice`
           })) || []
         }));
       }
     } catch (error) {
-      console.error('Failed to fetch purchase invoice details:', error);
-      toast.error('Failed to load purchase invoice details');
+      console.error('Failed to fetch invoice details:', error);
+      toast.error('Failed to load invoice details');
     }
   };
 
@@ -354,14 +356,14 @@ export default function CreditNotes() {
       }
 
       // Validate quantity against invoice limits if purchase invoice is selected
-      if (formData.purchase_invoice_id && newItems[index].quantity > 0) {
+      if (formData.purchase_invoice_id || formData.sales_invoice_id) {
         await validateItemQuantity(parseInt(value), newItems[index].quantity, index);
       }
     }
     
     // Validate quantity when it changes
     if (field === 'quantity' && value > 0 && newItems[index].product_id > 0) {
-      if (formData.purchase_invoice_id) {
+      if (formData.purchase_invoice_id || formData.sales_invoice_id) {
         await validateItemQuantity(newItems[index].product_id, value, index);
       }
     }
@@ -370,7 +372,8 @@ export default function CreditNotes() {
   };
 
   const validateItemQuantity = async (productId: number, quantity: number, itemIndex: number) => {
-    if (!formData.purchase_invoice_id) return;
+    const invoiceId = formData.purchase_invoice_id || formData.sales_invoice_id;
+    if (!invoiceId) return;
 
     try {
       // Get existing approved credit notes for this invoice
@@ -378,15 +381,15 @@ export default function CreditNotes() {
         search: '',
         status: 'approved',
         page: 1,
-        per_page: 100
+        per_page: 500
       });
       
       const existingCreditNotes = creditNotesResponse.data?.data || creditNotesResponse.data || [];
       const invoiceCreditNotes = existingCreditNotes.filter((cn: any) => 
-        cn.purchase_invoice_id === parseInt(formData.purchase_invoice_id)
+        (formData.type === 'purchase' ? cn.purchase_invoice_id : cn.sales_invoice_id) === parseInt(invoiceId)
       );
 
-      // Calculate already credited quantity for this product
+      // Calculate already credited quantity
       let alreadyCredited = 0;
       for (const cn of invoiceCreditNotes) {
         for (const item of cn.items || []) {
@@ -396,15 +399,15 @@ export default function CreditNotes() {
         }
       }
 
-      // Add current item quantity (excluding the item being edited)
+      // Add current item quantity
       for (let i = 0; i < formData.items.length; i++) {
         if (i !== itemIndex && formData.items[i].product_id === productId) {
           alreadyCredited += formData.items[i].quantity;
         }
       }
 
-      // Get original invoice to check the maximum quantity
-      const invoiceResponse = await invoiceApi.getById(parseInt(formData.purchase_invoice_id), 'purchase');
+      // Get original invoice
+      const invoiceResponse = await invoiceApi.getById(parseInt(invoiceId), formData.type as any);
       const invoice = invoiceResponse.data.data || invoiceResponse.data;
       
       if (invoice && invoice.items) {
@@ -414,15 +417,14 @@ export default function CreditNotes() {
           const totalRequested = alreadyCredited + quantity;
           
           if (totalRequested > maxQuantity) {
-            toast.error(`Quantity limit exceeded for this product. Invoice quantity: ${maxQuantity}, Already credited: ${alreadyCredited}, Requested: ${quantity}`);
+            toast.error(`Limit exceeded. Max: ${maxQuantity}, Credited: ${alreadyCredited}, Requested: ${quantity}`);
             return false;
           }
         }
       }
     } catch (error) {
-      console.warn('Could not validate quantity:', error);
+      console.warn('Validation error:', error);
     }
-    
     return true;
   };
 
@@ -436,10 +438,13 @@ export default function CreditNotes() {
     const dateWithTime = `${formData.credit_note_date}T00:00:00Z`;
 
     const data = {
-      vendor_id: formData.vendor_id ? parseInt(formData.vendor_id) : null,
+      type: formData.type,
+      vendor_id: formData.type === 'purchase' && formData.vendor_id ? parseInt(formData.vendor_id) : null,
+      customer_id: formData.type === 'sales' && formData.customer_id ? parseInt(formData.customer_id) : null,
       location_id: parseInt(formData.location_id),
       credit_note_date: dateWithTime,
       purchase_invoice_id: formData.purchase_invoice_id ? parseInt(formData.purchase_invoice_id) : null,
+      sales_invoice_id: formData.sales_invoice_id ? parseInt(formData.sales_invoice_id) : null,
       notes: formData.notes,
       items: formData.items.map(item => ({
         product_id: item.product_id,
@@ -552,7 +557,8 @@ export default function CreditNotes() {
                     <TableRow>
                       <TableHead>Credit Note #</TableHead>
                       <TableHead>Date</TableHead>
-                      <TableHead>Vendor</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Entity</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead>Status</TableHead>
@@ -571,7 +577,12 @@ export default function CreditNotes() {
                         <TableRow key={cn.id}>
                           <TableCell className="font-medium">{cn.credit_note_number}</TableCell>
                           <TableCell>{new Date(cn.credit_note_date).toLocaleDateString()}</TableCell>
-                          <TableCell>{cn.vendor?.company_name || cn.vendor?.name || '-'}</TableCell>
+                          <TableCell className="capitalize">{cn.type || 'purchase'}</TableCell>
+                          <TableCell>
+                            {cn.type === 'sales' 
+                              ? (cn.customer?.name || 'Walk-in') 
+                              : (cn.vendor?.company_name || cn.vendor?.name || '-')}
+                          </TableCell>
                           <TableCell>{cn.location?.name || '-'}</TableCell>
                           <TableCell className="text-right">{formatCurrency(cn.total_amount || 0)}</TableCell>
                           <TableCell>
@@ -628,28 +639,69 @@ export default function CreditNotes() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <Label>Credit Note Type *</Label>
+                <div className="flex gap-4 mt-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={formData.type === 'purchase'}
+                      onChange={() => setFormData({ 
+                        ...formData, 
+                        type: 'purchase', 
+                        purchase_invoice_id: '', 
+                        sales_invoice_id: '',
+                        vendor_id: '',
+                        customer_id: '',
+                        items: []
+                      })}
+                    />
+                    Purchase Return (Vendor)
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={formData.type === 'sales'}
+                      onChange={() => setFormData({ 
+                        ...formData, 
+                        type: 'sales', 
+                        purchase_invoice_id: '', 
+                        sales_invoice_id: '',
+                        vendor_id: '',
+                        customer_id: '',
+                        items: []
+                      })}
+                    />
+                    Sales Return (Customer)
+                  </label>
+                </div>
+              </div>
               <div>
-                <Label>Purchase Invoice *</Label>
+                <Label>{formData.type === 'purchase' ? 'Purchase' : 'Sales'} Invoice *</Label>
                 <Combobox
-                  options={purchaseInvoiceOptions}
-                  value={formData.purchase_invoice_id}
-                  onChange={handlePurchaseInvoiceChange}
-                  placeholder="Select purchase invoice"
+                  options={invoiceOptions}
+                  value={formData.type === 'purchase' ? formData.purchase_invoice_id : formData.sales_invoice_id}
+                  onChange={handleInvoiceChange}
+                  placeholder={`Select ${formData.type} invoice`}
                   searchPlaceholder="Search by invoice number..."
-                  emptyText={isLoadingInvoices ? "Loading..." : "No purchase invoices found"}
+                  emptyText={isLoadingInvoices ? "Loading..." : `No ${formData.type} invoices found`}
                   onSearchChange={setInvoiceSearchTerm}
                 />
               </div>
               <div>
-                <Label>Vendor</Label>
+                <Label>{formData.type === 'purchase' ? 'Vendor' : 'Customer'}</Label>
                 <Combobox
-                  options={vendorOptions}
-                  value={formData.vendor_id}
-                  onChange={(value) => setFormData({ ...formData, vendor_id: value })}
-                  placeholder="Select vendor"
-                  searchPlaceholder="Search vendors..."
-                  emptyText="No vendors found"
-                  disabled={!!formData.purchase_invoice_id}
+                  options={formData.type === 'purchase' ? vendorOptions : customerOptions}
+                  value={formData.type === 'purchase' ? formData.vendor_id : formData.customer_id}
+                  onChange={(value) => setFormData({ 
+                    ...formData, 
+                    vendor_id: formData.type === 'purchase' ? value : '',
+                    customer_id: formData.type === 'sales' ? value : '' 
+                  })}
+                  placeholder={`Select ${formData.type === 'purchase' ? 'vendor' : 'customer'}`}
+                  searchPlaceholder={`Search ${formData.type === 'purchase' ? 'vendors' : 'customers'}...`}
+                  emptyText="No results found"
+                  disabled={!!(formData.purchase_invoice_id || formData.sales_invoice_id)}
                 />
               </div>
               <div>
@@ -661,7 +713,7 @@ export default function CreditNotes() {
                   placeholder="Select location"
                   searchPlaceholder="Search locations..."
                   emptyText="No locations found"
-                  disabled={!!formData.purchase_invoice_id}
+                  disabled={!!(formData.purchase_invoice_id || formData.sales_invoice_id)}
                 />
               </div>
               <div>
@@ -780,12 +832,20 @@ export default function CreditNotes() {
                   <p>{new Date(selectedCreditNote.credit_note_date).toLocaleDateString()}</p>
                 </div>
                 <div>
-                  <Label>Vendor</Label>
-                  <p>{selectedCreditNote.vendor?.company_name || selectedCreditNote.vendor?.name || '-'}</p>
+                  <Label>{selectedCreditNote.type === 'sales' ? 'Customer' : 'Vendor'}</Label>
+                  <p>
+                    {selectedCreditNote.type === 'sales' 
+                      ? (selectedCreditNote.customer?.name || 'Walk-in') 
+                      : (selectedCreditNote.vendor?.company_name || selectedCreditNote.vendor?.name || '-')}
+                  </p>
                 </div>
                 <div>
                   <Label>Location</Label>
                   <p>{selectedCreditNote.location?.name}</p>
+                </div>
+                <div>
+                  <Label>Type</Label>
+                  <p className="capitalize font-medium">{selectedCreditNote.type || 'purchase'}</p>
                 </div>
                 <div>
                   <Label>Status</Label>

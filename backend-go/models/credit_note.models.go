@@ -6,9 +6,12 @@ type CreditNote struct {
 	ID                uint       `json:"id" gorm:"primaryKey"`
 	CreditNoteNumber  string     `json:"credit_note_number" gorm:"size:50;uniqueIndex;not null"`
 	PurchaseInvoiceID *uint      `json:"purchase_invoice_id" gorm:"index"`
+	SalesInvoiceID    *uint      `json:"sales_invoice_id" gorm:"index"`
 	VendorID          *uint      `json:"vendor_id" gorm:"index"`
+	CustomerID        *uint      `json:"customer_id" gorm:"index"`
 	LocationID        uint       `json:"location_id" gorm:"not null;index"`
 	CreditNoteDate    time.Time  `json:"credit_note_date" gorm:"not null"`
+	Type              string     `json:"type" gorm:"size:20;default:'purchase'"` // purchase, sales
 	TotalAmount       float64    `json:"total_amount" gorm:"type:decimal(15,2);not null"`
 	Notes             string     `json:"notes" gorm:"type:text"`
 	Status            string     `json:"status" gorm:"size:20;default:'draft'"` // draft, approved, cancelled
@@ -19,7 +22,9 @@ type CreditNote struct {
 
 	// Relationships
 	PurchaseInvoice *PurchaseInvoice `json:"purchase_invoice,omitempty" gorm:"foreignKey:PurchaseInvoiceID"`
-	Vendor          Vendor           `json:"vendor" gorm:"foreignKey:VendorID"`
+	SalesInvoice    *SalesInvoice    `json:"sales_invoice,omitempty" gorm:"foreignKey:SalesInvoiceID"`
+	Vendor          *Vendor          `json:"vendor,omitempty" gorm:"foreignKey:VendorID"`
+	Customer        *Customer        `json:"customer,omitempty" gorm:"foreignKey:CustomerID"`
 	Location        Location         `json:"location" gorm:"foreignKey:LocationID"`
 	Creator         *User            `json:"creator,omitempty" gorm:"foreignKey:CreatedBy"`
 	Items           []CreditNoteItem `json:"items" gorm:"foreignKey:CreditNoteID"`

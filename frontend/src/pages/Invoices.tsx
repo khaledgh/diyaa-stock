@@ -45,6 +45,7 @@ import {
 } from "@/lib/api";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/utils";
 import { Combobox } from "@/components/ui/combobox";
+import PaymentAllocation from "@/components/PaymentAllocation";
 
 interface InvoiceItem {
   product_id: number;
@@ -63,6 +64,7 @@ export default function Invoices() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isPaymentAllocationOpen, setIsPaymentAllocationOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
@@ -1670,14 +1672,24 @@ export default function Invoices() {
               </div>
 
               {selectedInvoice.payment_status !== "paid" && (
-                <div className="border-t pt-4">
+                <div className="border-t pt-4 space-y-2">
                   <Button
                     onClick={() => setIsPaymentDialogOpen(true)}
                     className="w-full"
                   >
                     <DollarSign className="mr-2 h-4 w-4" />
-                    Add Payment
+                    Add Payment to This Invoice
                   </Button>
+                  {invoiceType === "sales" && selectedInvoice.customer_id && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsPaymentAllocationOpen(true)}
+                      className="w-full"
+                    >
+                      <DollarSign className="mr-2 h-4 w-4" />
+                      Pay Multiple Invoices for This Customer
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -1841,6 +1853,20 @@ export default function Invoices() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Payment Allocation Modal (for paying multiple invoices) */}
+      {selectedInvoice && selectedInvoice.customer_id && (
+        <PaymentAllocation
+          open={isPaymentAllocationOpen}
+          onClose={() => setIsPaymentAllocationOpen(false)}
+          customerId={selectedInvoice.customer_id}
+          customerName={selectedInvoice.customer_name || "Customer"}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["invoices"] });
+            handleViewDetails(selectedInvoice.id);
+          }}
+        />
+      )}
     </div>
   );
 }

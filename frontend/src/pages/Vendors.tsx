@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Pagination } from '@/components/ui/pagination';
 import { vendorApi } from '@/lib/api';
-import { Building2, Plus, Edit, Trash2, Phone, Mail, Search } from 'lucide-react';
+import { Building2, Plus, Edit, Trash2, Phone, Mail, Search, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Vendors() {
@@ -369,6 +370,16 @@ export default function Vendors() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          <Link to={`/vendors/${vendor.id}/statement`}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                            >
+                              <FileText className="h-4 w-4 mr-1" />
+                              Statement
+                            </Button>
+                          </Link>
                           <Button
                             variant="ghost"
                             size="sm"

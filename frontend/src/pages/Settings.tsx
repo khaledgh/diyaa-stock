@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Building2, Save } from 'lucide-react';
+import { Building2, Save, FileText, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -236,6 +237,46 @@ export default function Settings() {
                 {settings.invoice_footer}
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              <h2 className="text-lg font-semibold">Invoice Templates</h2>
+            </div>
+            <Link to="/settings/templates">
+              <Button variant="outline" size="sm">
+                <FileText className="mr-2 h-4 w-4" />
+                Manage Templates
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Customize invoice layouts, add company branding, and choose which fields to display.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="border rounded-lg p-4 text-center hover:bg-muted transition-colors">
+              <FileText className="h-8 w-8 mx-auto mb-2 text-blue-600" />
+              <p className="font-medium">Standard Invoice</p>
+              <p className="text-xs text-muted-foreground">A4 format</p>
+            </div>
+            <div className="border rounded-lg p-4 text-center hover:bg-muted transition-colors">
+              <FileText className="h-8 w-8 mx-auto mb-2 text-green-600" />
+              <p className="font-medium">POS Receipt</p>
+              <p className="text-xs text-muted-foreground">Thermal 80mm</p>
+            </div>
+            <div className="border rounded-lg p-4 text-center hover:bg-muted transition-colors border-dashed">
+              <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="font-medium text-muted-foreground">+ Create New</p>
+              <p className="text-xs text-muted-foreground">Custom template</p>
+            </div>
           </div>
         </CardContent>
       </Card>
