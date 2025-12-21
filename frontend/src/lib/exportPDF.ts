@@ -68,35 +68,18 @@ async function loadArabicFont(doc: jsPDF) {
   }
 }
 
-// Basic Arabic support helper
-import { reshapeArabic } from './arabicReshaper';
-
-// Helper to load Arabic font
-// ...
 
 // Process Arabic text for PDF rendering
 function fixArabic(text: string): string {
   if (!text) return '';
   
-  // Check if text contains Arabic characters
   const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
   if (!arabicPattern.test(text)) return text;
 
-  // For Arabic text in jsPDF with Amiri font:
-  // 1. Split into words
-  // 2. Reverse each word (for character-level RTL)
-  // 3. Reverse the word order (for word-level RTL)
-  const words = text.split(' ');
-  const reversedWords = words.map(word => {
-    // Only reverse if the word contains Arabic
-    if (arabicPattern.test(word)) {
-      return word.split('').reverse().join('');
-    }
-    return word;
-  });
-  
-  // Reverse the word order for RTL reading
-  return reversedWords.reverse().join(' ');
+  // jsPDF renders LTR, so for Arabic RTL text:
+  // We need to reverse the ENTIRE string (including spaces)
+  // This makes "ابو سعود ماركت" render correctly when jsPDF draws it LTR
+  return text.split('').reverse().join('');
 }
 
 export async function exportToPDF(options: PDFExportOptions) {

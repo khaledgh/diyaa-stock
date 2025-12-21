@@ -85,12 +85,20 @@ description: Major UX Improvements - Phase 2
 
 ---
 
-## 6. Invoices Page Improvements (Pending)
+## 6. Invoices Page Improvements ✅ COMPLETED
 
-The page is already comprehensive (1800+ lines). Main improvements to consider:
-- Add "Record Payment" button that opens PaymentAllocation modal
-- Better visual status indicators (already have color-coded badges)
-- Quick actions toolbar
+### InvoicesNew.tsx Enhancements:
+- **Payment Allocation button**: Already in header for quick access
+- **Per-invoice Record Payment button**: Added green $ icon for unpaid invoices
+  - Only shows for sales invoices with customer assigned
+  - Opens PaymentAllocation modal directly for that customer
+- **Better action tooltips**: Added title attributes for all action buttons
+- **Cleaner action layout**: Wrapped actions in flex container for consistent spacing
+
+### Status Indicators:
+- Green badge for "paid"
+- Yellow badge for "partial" 
+- Red badge for "unpaid"
 
 ---
 

@@ -573,7 +573,7 @@ func (rh *ReportHandler) VendorStatementHandler(c echo.Context) error {
 			p.id,
 			COALESCE(p.reference_number, CONCAT('PAY-', p.id)) as reference,
 			p.created_at as date,
-			p.amount as debit,
+			ABS(p.amount) as debit,
 			0 as credit,
 			CONCAT('Payment (', p.payment_method, ')') as description
 		FROM payments p
@@ -591,7 +591,7 @@ func (rh *ReportHandler) VendorStatementHandler(c echo.Context) error {
 		SELECT COALESCE(
 			(SELECT SUM(total_amount) FROM purchase_invoices WHERE vendor_id = ? AND DATE(created_at) < ?), 0
 		) - COALESCE(
-			(SELECT SUM(amount) FROM payments WHERE vendor_id = ? AND invoice_type = 'purchase' AND DATE(created_at) < ?), 0
+			(SELECT SUM(ABS(amount)) FROM payments WHERE vendor_id = ? AND invoice_type = 'purchase' AND DATE(created_at) < ?), 0
 		) as opening_balance
 	`, vendorID, fromDate, vendorID, fromDate).Scan(&openingBalance)
 

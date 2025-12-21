@@ -2,9 +2,9 @@ import { useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useReactToPrint } from 'react-to-print';
-import { 
-  ArrowLeft, 
-  Printer, 
+import {
+  ArrowLeft,
+  Printer,
   Calendar,
   FileText,
   CreditCard,
@@ -15,13 +15,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { reportApi } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { exportVendorStatementPDF } from '@/lib/exportPDF';
 
 
 export default function VendorStatement() {
   const { id } = useParams<{ id: string }>();
   const printRef = useRef<HTMLDivElement>(null);
-  
+
   const [dateRange, setDateRange] = useState({
     from_date: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString().split('T')[0],
     to_date: new Date().toISOString().split('T')[0],
@@ -37,28 +36,47 @@ export default function VendorStatement() {
   });
 
   const handleExportPDF = async () => {
-    if (!statement) return;
-    
-    // Calculate balances for statement PDF
-    let runningBalance = statement.opening_balance || 0;
-    const transactionsWithBalance = (statement.transactions || []).map((t: any) => {
-        runningBalance = runningBalance + (Number(t.debit) || 0) - (Number(t.credit) || 0);
-        return { ...t, running_balance: runningBalance };
-    });
+    if (!id) return;
 
-    await exportVendorStatementPDF(
-      transactionsWithBalance,
-      { 
-        name: statement.vendor?.name || 'Vendor', 
-        phone: statement.vendor?.phone, 
-        email: statement.vendor?.email,
-        address: statement.vendor?.address
-      },
-      dateRange.from_date,
-      dateRange.to_date,
-      statement.opening_balance || 0,
-      statement.closing_balance || 0
-    );
+    try {
+      // Get auth token and company settings
+      const token = localStorage.getItem('auth_token');
+      const companySettings = JSON.parse(localStorage.getItem('company_settings') || '{}');
+
+      // Build URL with company info
+      const params = new URLSearchParams({
+        from_date: dateRange.from_date,
+        to_date: dateRange.to_date,
+        company_name: companySettings.company_name || '',
+        company_address: companySettings.company_address || '',
+        company_phone: companySettings.company_phone || '',
+      });
+
+      // Call backend PDF endpoint
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/pdf/vendor-statement/${id}?${params.toString()}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to generate PDF');
+
+      // Download the PDF
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Statement_${statement?.vendor?.name || 'Vendor'}_${dateRange.from_date}_to_${dateRange.to_date}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('PDF export error:', error);
+    }
   };
 
   const handlePrint = useReactToPrint({
@@ -96,10 +114,11 @@ export default function VendorStatement() {
     );
   }
 
-  // Calculate running balance
+  // Calculate running balance for vendor statement
+  // Credit (invoices) increases what we owe, Debit (payments) decreases it
   let runningBalance = statement?.opening_balance || 0;
   const transactionsWithBalance = statement?.transactions?.map((t: any) => {
-    runningBalance = runningBalance + (Number(t.debit) || 0) - (Number(t.credit) || 0);
+    runningBalance = runningBalance + (Number(t.credit) || 0) - (Number(t.debit) || 0);
     return { ...t, running_balance: runningBalance };
   }) || [];
 
@@ -123,9 +142,9 @@ export default function VendorStatement() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-           <Button 
-            variant="outline" 
-            onClick={handleExportPDF} 
+          <Button
+            variant="outline"
+            onClick={handleExportPDF}
             className="gap-2"
             disabled={!statement?.transactions?.length}
           >
@@ -243,8 +262,8 @@ export default function VendorStatement() {
                   <TableCell>
                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeBadge(transaction.type)}`}>
                       {getTypeIcon(transaction.type)}
-                      {transaction.type === 'invoice' ? 'Bill' : 
-                       transaction.type === 'credit_note' ? 'Credit Note' : 'Payment'}
+                      {transaction.type === 'invoice' ? 'Bill' :
+                        transaction.type === 'credit_note' ? 'Credit Note' : 'Payment'}
                     </span>
                   </TableCell>
                   <TableCell className="font-mono text-sm">

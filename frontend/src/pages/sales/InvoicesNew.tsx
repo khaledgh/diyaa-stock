@@ -356,22 +356,42 @@ export default function InvoicesNew() {
                             </span>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewDetails(invoice.id)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteInvoice(invoice)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              DELETE
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewDetails(invoice.id)}
+                                title="View Details"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {invoice.payment_status !== 'paid' && invoiceType === 'sales' && invoice.customer?.id && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setAllocationCustomer({ 
+                                      id: invoice.customer.id, 
+                                      name: invoice.customer.name 
+                                    });
+                                    setIsAllocationDialogOpen(true);
+                                  }}
+                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  title="Record Payment"
+                                >
+                                  <DollarSign className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteInvoice(invoice)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
