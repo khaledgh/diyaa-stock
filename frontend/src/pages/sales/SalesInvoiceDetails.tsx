@@ -18,7 +18,7 @@ export default function SalesInvoiceDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  
+
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isPaymentAllocationOpen, setIsPaymentAllocationOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -114,7 +114,7 @@ export default function SalesInvoiceDetails() {
   const handlePrint = () => {
     window.print();
   };
-  
+
   const handleAddPayment = () => {
     if (!invoice || !paymentAmount) {
       toast.error('Please enter payment amount');
@@ -252,8 +252,8 @@ export default function SalesInvoiceDetails() {
         </div>
         <div className="flex items-center gap-2">
           {remaining > 0 && (
-            <Button 
-              onClick={() => setIsPaymentDialogOpen(true)} 
+            <Button
+              onClick={() => setIsPaymentDialogOpen(true)}
               variant="default"
               className="bg-green-600 hover:bg-green-700"
             >
@@ -262,8 +262,8 @@ export default function SalesInvoiceDetails() {
             </Button>
           )}
           {invoice.customer_id && remaining > 0 && (
-            <Button 
-              onClick={() => setIsPaymentAllocationOpen(true)} 
+            <Button
+              onClick={() => setIsPaymentAllocationOpen(true)}
               variant="outline"
             >
               <Users className="mr-2 h-4 w-4" />
@@ -322,13 +322,12 @@ export default function SalesInvoiceDetails() {
                 <DollarSign className="h-4 w-4" />
                 <span className="text-sm">Payment Status</span>
               </div>
-              <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
-                invoice.payment_status === 'paid' 
+              <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${invoice.payment_status === 'paid'
                   ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                   : invoice.payment_status === 'partial'
-                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-              }`}>
+                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                }`}>
                 {invoice.payment_status}
               </span>
             </div>
@@ -690,13 +689,13 @@ export default function SalesInvoiceDetails() {
             )}
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setIsPaymentDialogOpen(false)}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleAddPayment}
               disabled={!paymentAmount || createPaymentMutation.isPending}
             >
@@ -730,13 +729,13 @@ export default function SalesInvoiceDetails() {
         }
       `}</style>
 
-      {/* Payment Allocation Modal */}
       {invoice.customer_id && (
         <PaymentAllocation
           open={isPaymentAllocationOpen}
           onClose={() => setIsPaymentAllocationOpen(false)}
-          customerId={invoice.customer_id}
-          customerName={invoice.customer_name || "Customer"}
+          entityId={invoice.customer_id}
+          entityName={invoice.customer_name || "Customer"}
+          type="sales"
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['sales-invoice', id] });
           }}

@@ -2,26 +2,32 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  LayoutDashboard,
-  Package,
+  LayoutGrid,
+  Box,
   Users,
   Truck,
   Warehouse,
-  ArrowRightLeft,
-  CreditCard,
-  BarChart3,
-  ShoppingCart,
-  Settings,
+  ArrowLeftRight,
+  Wallet,
+  LineChart,
+  Settings2,
   X,
-  Building2,
   MapPin,
   ChevronDown,
   ChevronRight,
-  Tag,
-  FileX,
-  Receipt,
+  Layers,
+  Undo2,
   Plus,
   FileText,
+  Monitor,
+  Package,
+  Store,
+  Factory,
+  ClipboardList,
+  BadgeDollarSign,
+  Coins,
+  UserCog,
+  FileStack,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -30,57 +36,57 @@ import { usePermissions } from '@/hooks/usePermissions';
 // Simplified Zoho-style navigation
 const navigation = {
   main: [
-    { name: 'dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'pos', href: '/pos', icon: ShoppingCart },
+    { name: 'dashboard', href: '/dashboard', icon: LayoutGrid },
+    { name: 'pos', href: '/pos', icon: Monitor },
   ],
   items: {
     label: 'items',
-    icon: Package,
+    icon: Box,
     children: [
       { name: 'products', href: '/products', icon: Package },
-      { name: 'categories', href: '/categories', icon: Tag },
-      { name: 'inventory', href: '/inventory', icon: Warehouse },
-      { name: 'transfers', href: '/transfers', icon: ArrowRightLeft },
+      { name: 'categories', href: '/categories', icon: Layers },
+      { name: 'inventory', href: '/inventory', icon: ClipboardList },
+      { name: 'transfers', href: '/transfers', icon: ArrowLeftRight },
     ],
   },
   sales: {
     label: 'sales',
-    icon: Receipt,
+    icon: BadgeDollarSign,
     children: [
       { name: 'customers', href: '/customers', icon: Users },
-      { name: 'sales-invoices', href: '/invoices/sales', icon: FileText },
-      { name: 'credit-notes', href: '/credit-notes', icon: FileX },
+      { name: 'sales-invoices', href: '/invoices/sales', icon: FileStack },
+      { name: 'credit-notes', href: '/credit-notes', icon: Undo2 },
     ],
   },
   purchases: {
     label: 'purchases',
-    icon: ShoppingCart,
+    icon: Store,
     children: [
-      { name: 'vendors', href: '/vendors', icon: Building2 },
+      { name: 'vendors', href: '/vendors', icon: Factory },
       { name: 'purchase-invoices', href: '/invoices/purchase', icon: FileText },
     ],
   },
   banking: {
     label: 'banking',
-    icon: CreditCard,
+    icon: Wallet,
     children: [
-      { name: 'payments', href: '/payments', icon: CreditCard },
+      { name: 'payments', href: '/payments', icon: Coins },
     ],
   },
   locations: {
     label: 'warehousing',
-    icon: MapPin,
+    icon: Warehouse,
     children: [
       { name: 'locations', href: '/locations', icon: MapPin },
       { name: 'vans', href: '/vans', icon: Truck },
     ],
   },
   reports: [
-    { name: 'reports', href: '/reports', icon: BarChart3 },
+    { name: 'reports', href: '/reports', icon: LineChart },
   ],
   settings: [
-    { name: 'users', href: '/users', icon: Users },
-    { name: 'settings', href: '/settings', icon: Settings },
+    { name: 'users', href: '/users', icon: UserCog },
+    { name: 'settings', href: '/settings', icon: Settings2 },
   ],
 };
 
@@ -93,7 +99,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { t } = useTranslation();
   const { canView } = usePermissions();
   const location = useLocation();
-  
+
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     items: false,
     sales: false,
@@ -106,7 +112,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   useEffect(() => {
     const path = location.pathname;
     const newExpanded = { ...expandedSections };
-    
+
     if (path.includes('/products') || path.includes('/categories') || path.includes('/inventory') || path.includes('/transfers')) {
       newExpanded.items = true;
     }
@@ -122,7 +128,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     if (path.includes('/locations') || path.includes('/vans')) {
       newExpanded.locations = true;
     }
-    
+
     setExpandedSections(newExpanded);
   }, []);
 
@@ -135,7 +141,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const renderNavItem = (item: { name: string; href: string; icon: any }, isNested = false) => {
     if (!canView(item.name)) return null;
-    
+
     return (
       <NavLink
         key={item.name}

@@ -232,8 +232,7 @@ export default function Invoices() {
       queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
       queryClient.invalidateQueries({ queryKey: ["van-stock"] });
       toast.success(
-        `${
-          invoiceType === "purchase" ? "Purchase" : "Sales"
+        `${invoiceType === "purchase" ? "Purchase" : "Sales"
         } invoice created successfully`
       );
       handleCloseCreateDialog();
@@ -265,8 +264,7 @@ export default function Invoices() {
       queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
       queryClient.invalidateQueries({ queryKey: ["van-stock"] });
       toast.success(
-        `${
-          invoiceType === "purchase" ? "Purchase" : "Sales"
+        `${invoiceType === "purchase" ? "Purchase" : "Sales"
         } invoice deleted successfully`
       );
       setIsDeleteDialogOpen(false);
@@ -489,72 +487,61 @@ export default function Invoices() {
       </head>
       <body>
         <div class="header">
-          ${
-            companySettings.company_logo_url
-              ? `<img src="${companySettings.company_logo_url}" alt="Company Logo" />`
-              : ""
-          }
+          ${companySettings.company_logo_url
+        ? `<img src="${companySettings.company_logo_url}" alt="Company Logo" />`
+        : ""
+      }
           <h1>${companySettings.company_name}</h1>
-          ${
-            companySettings.company_address
-              ? `<p>${companySettings.company_address}</p>`
-              : ""
-          }
+          ${companySettings.company_address
+        ? `<p>${companySettings.company_address}</p>`
+        : ""
+      }
           <p>
-            ${
-              companySettings.company_phone
-                ? `Tel: ${companySettings.company_phone}`
-                : ""
-            }
-            ${
-              companySettings.company_phone && companySettings.company_email
-                ? " | "
-                : ""
-            }
-            ${
-              companySettings.company_email
-                ? `Email: ${companySettings.company_email}`
-                : ""
-            }
+            ${companySettings.company_phone
+        ? `Tel: ${companySettings.company_phone}`
+        : ""
+      }
+            ${companySettings.company_phone && companySettings.company_email
+        ? " | "
+        : ""
+      }
+            ${companySettings.company_email
+        ? `Email: ${companySettings.company_email}`
+        : ""
+      }
           </p>
-          ${
-            companySettings.company_tax_id
-              ? `<p>Tax ID: ${companySettings.company_tax_id}</p>`
-              : ""
-          }
+          ${companySettings.company_tax_id
+        ? `<p>Tax ID: ${companySettings.company_tax_id}</p>`
+        : ""
+      }
         </div>
         
         <div class="invoice-title">INVOICE</div>
-        <p><strong>Invoice Number:</strong> ${
-          selectedInvoice.invoice_number
-        }</p>
+        <p><strong>Invoice Number:</strong> ${selectedInvoice.invoice_number
+      }</p>
         
         <div class="info">
           <div class="info-section">
             <strong>Date:</strong> ${formatDateTime(
-              selectedInvoice.created_at
-            )}<br>
-            ${
-              selectedInvoice.invoice_type === "purchase" &&
-              selectedInvoice.vendor_name
-                ? `<strong>Vendor:</strong> ${selectedInvoice.vendor_name}${
-                    selectedInvoice.vendor_company
-                      ? ` (${selectedInvoice.vendor_company})`
-                      : ""
-                  }<br>`
-                : ""
-            }
-            ${
-              selectedInvoice.invoice_type === "sales" &&
-              selectedInvoice.customer_name
-                ? `<strong>Customer:</strong> ${selectedInvoice.customer_name}<br>`
-                : ""
-            }
-            ${
-              selectedInvoice.van_name
-                ? `<strong>Van:</strong> ${selectedInvoice.van_name}<br>`
-                : ""
-            }
+        selectedInvoice.created_at
+      )}<br>
+            ${selectedInvoice.invoice_type === "purchase" &&
+        selectedInvoice.vendor_name
+        ? `<strong>Vendor:</strong> ${selectedInvoice.vendor_name}${selectedInvoice.vendor_company
+          ? ` (${selectedInvoice.vendor_company})`
+          : ""
+        }<br>`
+        : ""
+      }
+            ${selectedInvoice.invoice_type === "sales" &&
+        selectedInvoice.customer_name
+        ? `<strong>Customer:</strong> ${selectedInvoice.customer_name}<br>`
+        : ""
+      }
+            ${selectedInvoice.van_name
+        ? `<strong>Van:</strong> ${selectedInvoice.van_name}<br>`
+        : ""
+      }
           </div>
           <div class="info-section" style="text-align: right;">
             <strong>Status:</strong> ${selectedInvoice.payment_status.toUpperCase()}<br>
@@ -573,8 +560,8 @@ export default function Invoices() {
           </thead>
           <tbody>
             ${selectedInvoice.items
-              ?.map(
-                (item: any) => `
+        ?.map(
+          (item: any) => `
               <tr>
                 <td>${item.product_name || item.name_en}</td>
                 <td class="text-right">${item.quantity}</td>
@@ -582,8 +569,8 @@ export default function Invoices() {
                 <td class="text-right">${formatCurrency(item.total)}</td>
               </tr>
             `
-              )
-              .join("")}
+        )
+        .join("")}
           </tbody>
         </table>
 
@@ -592,26 +579,24 @@ export default function Invoices() {
             <span>Subtotal:</span>
             <span>${formatCurrency(selectedInvoice.subtotal)}</span>
           </div>
-          ${
-            selectedInvoice.tax_amount > 0
-              ? `
+          ${selectedInvoice.tax_amount > 0
+        ? `
             <div class="totals-row">
               <span>Tax:</span>
               <span>${formatCurrency(selectedInvoice.tax_amount)}</span>
             </div>
           `
-              : ""
-          }
-          ${
-            selectedInvoice.discount_amount > 0
-              ? `
+        : ""
+      }
+          ${selectedInvoice.discount_amount > 0
+        ? `
             <div class="totals-row">
               <span>Discount:</span>
               <span>-${formatCurrency(selectedInvoice.discount_amount)}</span>
             </div>
           `
-              : ""
-          }
+        : ""
+      }
           <div class="totals-row total-row">
             <span>Total:</span>
             <span>${formatCurrency(selectedInvoice.total_amount)}</span>
@@ -623,20 +608,19 @@ export default function Invoices() {
           <div class="totals-row" style="color: red; font-weight: bold;">
             <span>Remaining:</span>
             <span>${formatCurrency(
-              selectedInvoice.total_amount - selectedInvoice.paid_amount
-            )}</span>
+        selectedInvoice.total_amount - selectedInvoice.paid_amount
+      )}</span>
           </div>
         </div>
 
-        ${
-          companySettings.invoice_footer
-            ? `
+        ${companySettings.invoice_footer
+        ? `
           <div class="footer">
             ${companySettings.invoice_footer}
           </div>
         `
-            : ""
-        }
+        : ""
+      }
         
         <div style="margin-top: 50px; text-align: center;">
           <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">Print Invoice</button>
@@ -706,16 +690,14 @@ export default function Invoices() {
       </head>
       <body>
         <div class="center bold large">${companySettings.company_name}</div>
-        ${
-          companySettings.company_phone
-            ? `<div class="center">Tel: ${companySettings.company_phone}</div>`
-            : ""
-        }
-        ${
-          companySettings.company_tax_id
-            ? `<div class="center">Tax ID: ${companySettings.company_tax_id}</div>`
-            : ""
-        }
+        ${companySettings.company_phone
+        ? `<div class="center">Tel: ${companySettings.company_phone}</div>`
+        : ""
+      }
+        ${companySettings.company_tax_id
+        ? `<div class="center">Tax ID: ${companySettings.company_tax_id}</div>`
+        : ""
+      }
         
         <div class="line"></div>
         
@@ -727,48 +709,44 @@ export default function Invoices() {
           <span>Date:</span>
           <span>${new Date(selectedInvoice.created_at).toLocaleString()}</span>
         </div>
-        ${
-          selectedInvoice.invoice_type === "purchase" &&
-          selectedInvoice.vendor_name
-            ? `
+        ${selectedInvoice.invoice_type === "purchase" &&
+        selectedInvoice.vendor_name
+        ? `
           <div class="row">
             <span>Vendor:</span>
-            <span>${selectedInvoice.vendor_name}${
-                selectedInvoice.vendor_company
-                  ? ` (${selectedInvoice.vendor_company})`
-                  : ""
-              }</span>
+            <span>${selectedInvoice.vendor_name}${selectedInvoice.vendor_company
+          ? ` (${selectedInvoice.vendor_company})`
+          : ""
+        }</span>
           </div>
         `
-            : ""
-        }
-        ${
-          selectedInvoice.invoice_type === "sales" &&
-          selectedInvoice.customer_name
-            ? `
+        : ""
+      }
+        ${selectedInvoice.invoice_type === "sales" &&
+        selectedInvoice.customer_name
+        ? `
           <div class="row">
             <span>Customer:</span>
             <span>${selectedInvoice.customer_name}</span>
           </div>
         `
-            : ""
-        }
-        ${
-          selectedInvoice.van_name
-            ? `
+        : ""
+      }
+        ${selectedInvoice.van_name
+        ? `
           <div class="row">
             <span>Van:</span>
             <span>${selectedInvoice.van_name}</span>
           </div>
         `
-            : ""
-        }
+        : ""
+      }
         
         <div class="double-line"></div>
         
         ${selectedInvoice.items
-          ?.map(
-            (item: any) => `
+        ?.map(
+          (item: any) => `
           <div class="item-row">
             <div class="item-name">${item.product_name || item.name_en}</div>
           </div>
@@ -778,8 +756,8 @@ export default function Invoices() {
             <div class="item-price">${formatCurrency(item.total)}</div>
           </div>
         `
-          )
-          .join("")}
+        )
+        .join("")}
         
         <div class="line"></div>
         
@@ -787,26 +765,24 @@ export default function Invoices() {
           <span>Subtotal:</span>
           <span>${formatCurrency(selectedInvoice.subtotal)}</span>
         </div>
-        ${
-          selectedInvoice.tax_amount > 0
-            ? `
+        ${selectedInvoice.tax_amount > 0
+        ? `
           <div class="row">
             <span>Tax:</span>
             <span>${formatCurrency(selectedInvoice.tax_amount)}</span>
           </div>
         `
-            : ""
-        }
-        ${
-          selectedInvoice.discount_amount > 0
-            ? `
+        : ""
+      }
+        ${selectedInvoice.discount_amount > 0
+        ? `
           <div class="row">
             <span>Discount:</span>
             <span>-${formatCurrency(selectedInvoice.discount_amount)}</span>
           </div>
         `
-            : ""
-        }
+        : ""
+      }
         
         <div class="double-line"></div>
         
@@ -820,18 +796,17 @@ export default function Invoices() {
           <span>${formatCurrency(selectedInvoice.paid_amount)}</span>
         </div>
         
-        ${
-          selectedInvoice.total_amount - selectedInvoice.paid_amount > 0
-            ? `
+        ${selectedInvoice.total_amount - selectedInvoice.paid_amount > 0
+        ? `
           <div class="row bold">
             <span>Balance Due:</span>
             <span>${formatCurrency(
-              selectedInvoice.total_amount - selectedInvoice.paid_amount
-            )}</span>
+          selectedInvoice.total_amount - selectedInvoice.paid_amount
+        )}</span>
           </div>
         `
-            : ""
-        }
+        : ""
+      }
         
         <div class="line"></div>
         
@@ -914,11 +889,10 @@ export default function Invoices() {
 
       <div className="grid grid-cols-2 gap-4">
         <Card
-          className={`cursor-pointer transition-all ${
-            invoiceType === "purchase"
+          className={`cursor-pointer transition-all ${invoiceType === "purchase"
               ? "ring-2 ring-red-500 bg-red-50 dark:bg-red-950"
               : "hover:bg-muted"
-          }`}
+            }`}
           onClick={() => {
             setInvoiceType("purchase");
             setCurrentPage(1);
@@ -941,11 +915,10 @@ export default function Invoices() {
         </Card>
 
         <Card
-          className={`cursor-pointer transition-all ${
-            invoiceType === "sales"
+          className={`cursor-pointer transition-all ${invoiceType === "sales"
               ? "ring-2 ring-green-500 bg-green-50 dark:bg-green-950"
               : "hover:bg-muted"
-          }`}
+            }`}
           onClick={() => {
             setInvoiceType("sales");
             setCurrentPage(1);
@@ -1049,8 +1022,8 @@ export default function Invoices() {
                         <TableCell className="hidden lg:table-cell">
                           {invoiceType === "purchase"
                             ? invoice.vendor_name ||
-                              invoice.vendor_company ||
-                              "-"
+                            invoice.vendor_company ||
+                            "-"
                             : invoice.customer_name || "-"}
                         </TableCell>
                         {invoiceType === "sales" && (
@@ -1071,7 +1044,7 @@ export default function Invoices() {
                         {invoiceType === "purchase" && (
                           <TableCell className="hidden lg:table-cell text-right font-medium">
                             {formatCurrency(
-                              invoice.total_amount - 
+                              invoice.total_amount -
                               (invoice.credit_notes?.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0) || 0)
                             )}
                           </TableCell>
@@ -1081,13 +1054,12 @@ export default function Invoices() {
                         </TableCell>
                         <TableCell>
                           <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              invoice.payment_status === "paid"
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${invoice.payment_status === "paid"
                                 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                 : invoice.payment_status === "partial"
-                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                            }`}
+                                  ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                                  : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                              }`}
                           >
                             {invoice.payment_status}
                           </span>
@@ -1163,18 +1135,16 @@ export default function Invoices() {
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div
-              className={`p-4 rounded-lg mb-4 ${
-                invoiceType === "purchase"
+              className={`p-4 rounded-lg mb-4 ${invoiceType === "purchase"
                   ? "bg-red-50 dark:bg-red-950"
                   : "bg-green-50 dark:bg-green-950"
-              }`}
+                }`}
             >
               <DialogTitle
-                className={`flex items-center gap-2 ${
-                  invoiceType === "purchase"
+                className={`flex items-center gap-2 ${invoiceType === "purchase"
                     ? "text-red-700 dark:text-red-300"
                     : "text-green-700 dark:text-green-300"
-                }`}
+                  }`}
               >
                 <FileText className="h-5 w-5" />
                 {invoiceType === "purchase"
@@ -1421,11 +1391,10 @@ export default function Invoices() {
             </div>
 
             <div
-              className={`border-t pt-4 ${
-                invoiceType === "purchase"
+              className={`border-t pt-4 ${invoiceType === "purchase"
                   ? "bg-red-50 dark:bg-red-950"
                   : "bg-green-50 dark:bg-green-950"
-              } p-4 rounded-lg`}
+                } p-4 rounded-lg`}
             >
               <h3 className="font-semibold mb-2 flex items-center gap-2">
                 <DollarSign className="h-5 w-5" />
@@ -1456,11 +1425,10 @@ export default function Invoices() {
                   />
                   {paidAmount && (
                     <p
-                      className={`text-xs mt-1 font-medium ${
-                        invoiceType === "purchase"
+                      className={`text-xs mt-1 font-medium ${invoiceType === "purchase"
                           ? "text-red-600"
                           : "text-green-600"
-                      }`}
+                        }`}
                     >
                       Will be recorded as:{" "}
                       {invoiceType === "purchase" ? "-" : "+"}
@@ -1664,7 +1632,7 @@ export default function Invoices() {
                     <span>
                       {formatCurrency(
                         selectedInvoice.total_amount -
-                          selectedInvoice.paid_amount
+                        selectedInvoice.paid_amount
                       )}
                     </span>
                   </div>
@@ -1854,13 +1822,13 @@ export default function Invoices() {
         </DialogContent>
       </Dialog>
 
-      {/* Payment Allocation Modal (for paying multiple invoices) */}
-      {selectedInvoice && selectedInvoice.customer_id && (
+      {selectedInvoice && (selectedInvoice.customer_id || selectedInvoice.vendor_id) && (
         <PaymentAllocation
           open={isPaymentAllocationOpen}
           onClose={() => setIsPaymentAllocationOpen(false)}
-          customerId={selectedInvoice.customer_id}
-          customerName={selectedInvoice.customer_name || "Customer"}
+          entityId={selectedInvoice.customer_id || selectedInvoice.vendor_id}
+          entityName={selectedInvoice.customer_name || selectedInvoice.vendor_name || selectedInvoice.vendor_company || "Entity"}
+          type={invoiceType}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ["invoices"] });
             handleViewDetails(selectedInvoice.id);
