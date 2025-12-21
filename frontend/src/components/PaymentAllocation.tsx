@@ -26,8 +26,9 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 interface PaymentAllocationProps {
   open: boolean;
   onClose: () => void;
-  customerId: number;
-  customerName: string;
+  entityId: number;
+  entityName: string;
+  type: 'sales' | 'purchase';
   onSuccess?: () => void;
 }
 
@@ -49,12 +50,13 @@ interface Allocation {
 export default function PaymentAllocation({
   open,
   onClose,
-  customerId,
-  customerName,
+  entityId,
+  entityName,
+  type,
   onSuccess
 }: PaymentAllocationProps) {
   const queryClient = useQueryClient();
-  
+
   const [totalAmount, setTotalAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
@@ -62,23 +64,34 @@ export default function PaymentAllocation({
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [autoAllocate, setAutoAllocate] = useState(true);
 
-  // Fetch outstanding invoices for this customer
+  // Fetch outstanding invoices for this entity
   const { data: invoicesData, isLoading } = useQuery({
-    queryKey: ['customer-outstanding-invoices', customerId],
+    queryKey: [type === 'sales' ? 'customer-outstanding-invoices' : 'vendor-outstanding-invoices', entityId],
     queryFn: async () => {
-      const response = await invoiceApi.getAll({
-        customer_id: customerId,
-        payment_status: 'unpaid,partial',
-        invoice_type: 'sales',
+      const params: any = {
+        invoice_type: type,
         per_page: 100
-      });
+      };
+
+      if (type === 'sales') {
+        params.customer_id = entityId;
+      } else {
+        params.vendor_id = entityId;
+      }
+
+      const response = await invoiceApi.getAll(params);
       const data = response.data?.data || response.data?.invoices?.data || [];
-      return data.map((inv: any) => ({
-        ...inv,
-        remaining: inv.total_amount - inv.paid_amount
-      }));
+
+      // Filter locally for unpaid/partial and calculate remaining
+      return data
+        .filter((inv: any) => inv.payment_status === 'unpaid' || inv.payment_status === 'partial')
+        .map((inv: any) => ({
+          ...inv,
+          remaining: Number(inv.total_amount) - Number(inv.paid_amount)
+        }))
+        .filter((inv: any) => inv.remaining > 0);
     },
-    enabled: open && !!customerId,
+    enabled: open && !!entityId,
   });
 
   const invoices: Invoice[] = invoicesData || [];
@@ -92,13 +105,13 @@ export default function PaymentAllocation({
       const newAllocations: Allocation[] = [];
 
       // Allocate to oldest invoices first
-      const sortedInvoices = [...invoices].sort((a, b) => 
-        new Date(a.invoice_date).getTime() - new Date(b.invoice_date).getTime()
+      const sortedInvoices = [...invoices].sort((a, b) =>
+        new Date(a.invoice_date || 0).getTime() - new Date(b.invoice_date || 0).getTime()
       );
 
       for (const invoice of sortedInvoices) {
         if (remaining <= 0) break;
-        
+
         const allocationAmount = Math.min(remaining, invoice.remaining);
         if (allocationAmount > 0) {
           newAllocations.push({
@@ -117,22 +130,30 @@ export default function PaymentAllocation({
   const createPayments = useMutation({
     mutationFn: async () => {
       // Create individual payments for each allocation
-      const promises = allocations.map(allocation => 
-        paymentApi.create({
-          customer_id: customerId,
+      const promises = allocations.map(allocation => {
+        const payload: any = {
           invoice_id: allocation.invoice_id,
+          invoice_type: type,
           amount: allocation.amount,
           payment_method: paymentMethod,
           reference_number: referenceNumber || undefined,
           notes: notes || undefined,
           payment_date: new Date().toISOString()
-        })
-      );
+        };
+
+        if (type === 'sales') {
+          payload.customer_id = entityId;
+        } else {
+          payload.vendor_id = entityId;
+        }
+
+        return paymentApi.create(payload);
+      });
       return Promise.all(promises);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['customer-outstanding-invoices'] });
+      queryClient.invalidateQueries({ queryKey: [type === 'sales' ? 'customer-outstanding-invoices' : 'vendor-outstanding-invoices'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       toast.success('Payment recorded successfully!');
       handleClose();
@@ -160,14 +181,14 @@ export default function PaymentAllocation({
     if (!invoice) return;
 
     const validAmount = Math.min(numAmount, invoice.remaining);
-    
+
     setAllocations(prev => {
       const existing = prev.find(a => a.invoice_id === invoiceId);
       if (existing) {
         if (validAmount === 0) {
           return prev.filter(a => a.invoice_id !== invoiceId);
         }
-        return prev.map(a => 
+        return prev.map(a =>
           a.invoice_id === invoiceId ? { ...a, amount: validAmount } : a
         );
       } else if (validAmount > 0) {
@@ -212,7 +233,7 @@ export default function PaymentAllocation({
           <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
             <User className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="font-medium">{customerName}</p>
+              <p className="font-medium">{entityName}</p>
               <p className="text-sm text-muted-foreground">
                 Outstanding: <span className="font-medium text-red-600">{formatCurrency(totalOutstanding)}</span>
               </p>
@@ -296,7 +317,7 @@ export default function PaymentAllocation({
                 {invoices.length} invoice(s)
               </span>
             </div>
-            
+
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground">Loading invoices...</div>
             ) : invoices.length === 0 ? (
@@ -309,15 +330,14 @@ export default function PaymentAllocation({
                 {invoices.map((invoice) => {
                   const allocation = getAllocationForInvoice(invoice.id);
                   const isFullyAllocated = allocation >= invoice.remaining;
-                  
+
                   return (
                     <div
                       key={invoice.id}
-                      className={`p-3 border rounded-lg transition-colors ${
-                        allocation > 0 
-                          ? 'border-green-300 bg-green-50 dark:bg-green-900/20' 
-                          : 'border-gray-200'
-                      }`}
+                      className={`p-3 border rounded-lg transition-colors ${allocation > 0
+                        ? 'border-green-300 bg-green-50 dark:bg-green-900/20'
+                        : 'border-gray-200'
+                        }`}
                     >
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -333,7 +353,7 @@ export default function PaymentAllocation({
                             </div>
                           </div>
                         </div>
-                        
+
                         <div className="text-right text-sm">
                           <p className="text-muted-foreground">Remaining</p>
                           <p className="font-medium text-red-600">{formatCurrency(invoice.remaining)}</p>

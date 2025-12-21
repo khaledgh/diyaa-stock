@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/gonext-tech/invoicing-system/backend/models"
@@ -39,7 +40,13 @@ func (s *SalesInvoiceService) GetALL(filters map[string]string, limit, offset in
 	}
 
 	if paymentStatus, ok := filters["payment_status"]; ok && paymentStatus != "" {
-		query = query.Where("payment_status = ?", paymentStatus)
+		// Support comma-separated values like "unpaid,partial"
+		if strings.Contains(paymentStatus, ",") {
+			statuses := strings.Split(paymentStatus, ",")
+			query = query.Where("payment_status IN ?", statuses)
+		} else {
+			query = query.Where("payment_status = ?", paymentStatus)
+		}
 	}
 
 	if customerID, ok := filters["customer_id"]; ok && customerID != "" {

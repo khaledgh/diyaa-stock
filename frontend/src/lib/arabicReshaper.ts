@@ -102,9 +102,6 @@ function characterMapContains(c: number) {
   return charsMap[c] !== undefined;
 }
 
-function getCharRep(c: number) {
-  return charsMap[c];
-}
 
 function getCombCharRep(c1: number, c2: number) {
   const combs = combCharsMap[c1];

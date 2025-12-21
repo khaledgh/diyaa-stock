@@ -127,7 +127,7 @@ func AutoMigrate(db *gorm.DB) error {
 	updateSQL := `
 		UPDATE purchase_invoices
 		SET invoice_date = DATE(created_at)
-		WHERE invoice_date IS NULL OR invoice_date = '0000-00-00' OR invoice_date = ''
+		WHERE invoice_date IS NULL OR invoice_date = '0000-00-00'
 	`
 	result = db.Exec(updateSQL)
 	if result.Error != nil {

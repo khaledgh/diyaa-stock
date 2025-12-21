@@ -545,10 +545,9 @@ func (rh *ReportHandler) VendorStatementHandler(c echo.Context) error {
 		return ResponseError(c, err)
 	}
 
-	// Get all transactions (invoices and payments) for the vendor
-	var transactions []map[string]interface{}
+	// Get all transactions (invoices, payments, and credit notes) for the vendor
 
-	// Get purchase invoices
+	// Get purchase invoices query
 	invoiceQuery := `
 		SELECT 
 			'invoice' as type,
@@ -562,11 +561,8 @@ func (rh *ReportHandler) VendorStatementHandler(c echo.Context) error {
 		WHERE vendor_id = ?
 		AND DATE(created_at) BETWEEN ? AND ?
 	`
-	var invoices []map[string]interface{}
-	rh.db.Raw(invoiceQuery, vendorID, fromDate, toDate).Scan(&invoices)
-	transactions = append(transactions, invoices...)
 
-	// Get payments made to vendor
+	// Get payments query
 	paymentQuery := `
 		SELECT 
 			'payment' as type,
@@ -581,41 +577,96 @@ func (rh *ReportHandler) VendorStatementHandler(c echo.Context) error {
 		AND p.invoice_type = 'purchase'
 		AND DATE(p.created_at) BETWEEN ? AND ?
 	`
-	var payments []map[string]interface{}
-	rh.db.Raw(paymentQuery, vendorID, fromDate, toDate).Scan(&payments)
-	transactions = append(transactions, payments...)
 
-	// Calculate opening balance
+	// Get credit notes query
+	creditNoteQuery := `
+		SELECT 
+			'credit_note' as type,
+			cn.id,
+			cn.credit_note_number as reference,
+			cn.created_at as date,
+			cn.total_amount as debit,
+			0 as credit,
+			CONCAT('Credit Note - ', COALESCE(cn.notes, 'Return')) as description
+		FROM credit_notes cn
+		LEFT JOIN purchase_invoices pi ON cn.purchase_invoice_id = pi.id
+		WHERE (cn.vendor_id = ? OR pi.vendor_id = ?)
+		AND DATE(cn.created_at) BETWEEN ? AND ?
+		AND cn.type = 'purchase'
+	`
+
+	// Calculate opening balance (include credit notes - linked directly or via purchase invoice)
 	var openingBalance float64
 	rh.db.Raw(`
 		SELECT COALESCE(
 			(SELECT SUM(total_amount) FROM purchase_invoices WHERE vendor_id = ? AND DATE(created_at) < ?), 0
 		) - COALESCE(
 			(SELECT SUM(ABS(amount)) FROM payments WHERE vendor_id = ? AND invoice_type = 'purchase' AND DATE(created_at) < ?), 0
+		) - COALESCE(
+			(SELECT SUM(cn.total_amount) FROM credit_notes cn
+			 LEFT JOIN purchase_invoices pi ON cn.purchase_invoice_id = pi.id
+			 WHERE (cn.vendor_id = ? OR pi.vendor_id = ?) AND cn.type = 'purchase' AND DATE(cn.created_at) < ?), 0
 		) as opening_balance
-	`, vendorID, fromDate, vendorID, fromDate).Scan(&openingBalance)
+	`, vendorID, fromDate, vendorID, fromDate, vendorID, vendorID, fromDate).Scan(&openingBalance)
 
-	// Calculate totals
-	var totalDebit, totalCredit float64
-	for _, t := range transactions {
-		if debit, ok := t["debit"].(float64); ok {
-			totalDebit += debit
-		}
-		if credit, ok := t["credit"].(float64); ok {
-			totalCredit += credit
+	// Use a struct to ensure GORM handles type conversions correctly
+	type StatementTransaction struct {
+		Type        string    `json:"type"`
+		ID          uint      `json:"id"`
+		Reference   string    `json:"reference"`
+		Date        time.Time `json:"date"`
+		Debit       float64   `json:"debit"`
+		Credit      float64   `json:"credit"`
+		Description string    `json:"description"`
+	}
+
+	var allTransactions []StatementTransaction
+
+	// Get purchase invoices
+	var invs []StatementTransaction
+	rh.db.Raw(invoiceQuery, vendorID, fromDate, toDate).Scan(&invs)
+	allTransactions = append(allTransactions, invs...)
+
+	// Get payments
+	var pmts []StatementTransaction
+	rh.db.Raw(paymentQuery, vendorID, fromDate, toDate).Scan(&pmts)
+	allTransactions = append(allTransactions, pmts...)
+
+	// Get credit notes
+	var cns []StatementTransaction
+	rh.db.Raw(creditNoteQuery, vendorID, vendorID, fromDate, toDate).Scan(&cns)
+	allTransactions = append(allTransactions, cns...)
+
+	// Calculate totals (separated by type)
+	var totalBills, totalPayments, totalCreditNotes float64
+	for _, t := range allTransactions {
+		switch t.Type {
+		case "invoice":
+			totalBills += t.Credit
+		case "payment":
+			totalPayments += t.Debit
+		case "credit_note":
+			totalCreditNotes += t.Debit
 		}
 	}
+	
+	// Total debit = payments + credit notes, Total credit = bills
+	totalDebit := totalPayments + totalCreditNotes
+	totalCredit := totalBills
 	closingBalance := openingBalance + totalCredit - totalDebit
 
 	result := map[string]interface{}{
-		"vendor":          vendor,
-		"from_date":       fromDate,
-		"to_date":         toDate,
-		"opening_balance": openingBalance,
-		"transactions":    transactions,
-		"total_debit":     totalDebit,
-		"total_credit":    totalCredit,
-		"closing_balance": closingBalance,
+		"vendor":             vendor,
+		"from_date":          fromDate,
+		"to_date":            toDate,
+		"opening_balance":    openingBalance,
+		"transactions":       allTransactions,
+		"total_bills":        totalBills,
+		"total_payments":     totalPayments,
+		"total_credit_notes": totalCreditNotes,
+		"total_debit":        totalDebit,
+		"total_credit":       totalCredit,
+		"closing_balance":    closingBalance,
 	}
 
 	return ResponseOK(c, result, "data")

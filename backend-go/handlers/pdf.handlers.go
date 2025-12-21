@@ -297,8 +297,8 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Vendor not found"})
 	}
 
-	// Get transactions (invoices and payments)
-	var transactions []struct {
+	// Get transactions (invoices, payments, and credit notes)
+	type VendorTransaction struct {
 		Type        string    `json:"type"`
 		Reference   string    `json:"reference"`
 		Date        time.Time `json:"date"`
@@ -306,6 +306,7 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 		Credit      float64   `json:"credit"`
 		Description string    `json:"description"`
 	}
+	var transactions []VendorTransaction
 
 	// Purchase invoices (credit = what we owe)
 	invoiceQuery := `
@@ -323,14 +324,7 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 	h.db.Raw(invoiceQuery, vendorID, fromDate, toDate).Scan(&transactions)
 
 	// Payments to vendor (debit = what we paid)
-	var payments []struct {
-		Type        string    `json:"type"`
-		Reference   string    `json:"reference"`
-		Date        time.Time `json:"date"`
-		Debit       float64   `json:"debit"`
-		Credit      float64   `json:"credit"`
-		Description string    `json:"description"`
-	}
+	var payments []VendorTransaction
 	paymentQuery := `
 		SELECT 
 			'payment' as type,
@@ -347,15 +341,39 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 	h.db.Raw(paymentQuery, vendorID, fromDate, toDate).Scan(&payments)
 	transactions = append(transactions, payments...)
 
-	// Calculate opening balance
+	// Credit notes (debit = reduces what we owe)
+	// Support both: vendor_id directly OR linked via purchase_invoice
+	var creditNotes []VendorTransaction
+	creditNoteQuery := `
+		SELECT 
+			'credit_note' as type,
+			cn.credit_note_number as reference,
+			cn.created_at as date,
+			cn.total_amount as debit,
+			0 as credit,
+			CONCAT('Credit Note - ', COALESCE(cn.notes, 'Return')) as description
+		FROM credit_notes cn
+		LEFT JOIN purchase_invoices pi ON cn.purchase_invoice_id = pi.id
+		WHERE (cn.vendor_id = ? OR pi.vendor_id = ?)
+		AND DATE(cn.created_at) BETWEEN ? AND ?
+		AND cn.type = 'purchase'
+	`
+	h.db.Raw(creditNoteQuery, vendorID, vendorID, fromDate, toDate).Scan(&creditNotes)
+	transactions = append(transactions, creditNotes...)
+
+	// Calculate opening balance (including credit notes - linked directly or via purchase invoice)
 	var openingBalance float64
 	h.db.Raw(`
 		SELECT COALESCE(
 			(SELECT SUM(total_amount) FROM purchase_invoices WHERE vendor_id = ? AND DATE(created_at) < ?), 0
 		) - COALESCE(
 			(SELECT SUM(ABS(amount)) FROM payments WHERE vendor_id = ? AND invoice_type = 'purchase' AND DATE(created_at) < ?), 0
+		) - COALESCE(
+			(SELECT SUM(cn.total_amount) FROM credit_notes cn
+			 LEFT JOIN purchase_invoices pi ON cn.purchase_invoice_id = pi.id
+			 WHERE (cn.vendor_id = ? OR pi.vendor_id = ?) AND cn.type = 'purchase' AND DATE(cn.created_at) < ?), 0
 		) as opening_balance
-	`, vendorID, fromDate, vendorID, fromDate).Scan(&openingBalance)
+	`, vendorID, fromDate, vendorID, fromDate, vendorID, vendorID, fromDate).Scan(&openingBalance)
 
 	// Calculate totals
 	var totalDebit, totalCredit float64

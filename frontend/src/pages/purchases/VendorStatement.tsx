@@ -91,7 +91,7 @@ export default function VendorStatement() {
       case 'payment':
         return <CreditCard className="h-4 w-4 text-green-500" />;
       case 'credit_note':
-        return <Receipt className="h-4 w-4 text-blue-500" />;
+        return <Receipt className="h-4 w-6 text-blue-500" />;
       default:
         return null;
     }
@@ -201,7 +201,7 @@ export default function VendorStatement() {
         </div>
 
         {/* Balance Summary */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-muted/30">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-6 bg-muted/30">
           <div className="text-center">
             <p className="text-sm text-muted-foreground">Opening Balance</p>
             <p className="text-lg font-semibold">
@@ -211,13 +211,19 @@ export default function VendorStatement() {
           <div className="text-center">
             <p className="text-sm text-muted-foreground">Total Bills</p>
             <p className="text-lg font-semibold text-red-600">
-              {formatCurrency(statement?.total_debit || 0)}
+              +{formatCurrency(statement?.total_bills || 0)}
             </p>
           </div>
           <div className="text-center">
-            <p className="text-sm text-muted-foreground">Total Payments</p>
+            <p className="text-sm text-muted-foreground">Payments</p>
             <p className="text-lg font-semibold text-green-600">
-              {formatCurrency(statement?.total_credit || 0)}
+              -{formatCurrency(statement?.total_payments || 0)}
+            </p>
+          </div>
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">Credit Notes</p>
+            <p className="text-lg font-semibold text-blue-600">
+              -{formatCurrency(statement?.total_credit_notes || 0)}
             </p>
           </div>
           <div className="text-center">
@@ -234,7 +240,7 @@ export default function VendorStatement() {
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="w-[100px]">Date</TableHead>
-                <TableHead className="w-[100px]">Type</TableHead>
+                <TableHead className="w-[120px]">Type</TableHead>
                 <TableHead>Reference</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead className="text-right">Debit</TableHead>
@@ -258,9 +264,9 @@ export default function VendorStatement() {
 
               {transactionsWithBalance.map((transaction: any, index: number) => (
                 <TableRow key={index} className="hover:bg-muted/30">
-                  <TableCell>{formatDate(transaction.date)}</TableCell>
+                  <TableCell className='w-[140px]'>{formatDate(transaction.date)}</TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeBadge(transaction.type)}`}>
+                    <span className={`inline-flex items-center justify-center w-max gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeBadge(transaction.type)}`}>
                       {getTypeIcon(transaction.type)}
                       {transaction.type === 'invoice' ? 'Bill' :
                         transaction.type === 'credit_note' ? 'Credit Note' : 'Payment'}

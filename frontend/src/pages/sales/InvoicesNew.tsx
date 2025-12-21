@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { invoiceApi, customerApi } from '@/lib/api';
+import { invoiceApi, customerApi, vendorApi } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
 import PaymentAllocation from '@/components/PaymentAllocation';
@@ -18,13 +18,13 @@ export default function InvoicesNew() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Determine invoice type from URL path
   const getInvoiceTypeFromPath = () => {
     if (location.pathname.includes('/invoices/purchase')) return 'purchase';
     return 'sales';
   };
-  
+
   const [invoiceType, setInvoiceType] = useState<'purchase' | 'sales'>(getInvoiceTypeFromPath());
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -34,7 +34,7 @@ export default function InvoicesNew() {
   const [isAllocationDialogOpen, setIsAllocationDialogOpen] = useState(false);
   const [isCustomerSelectOpen, setIsCustomerSelectOpen] = useState(false);
   const [tempCustomerId, setTempCustomerId] = useState<string>('');
-  const [allocationCustomer, setAllocationCustomer] = useState<{id: number, name: string} | null>(null);
+  const [allocationCustomer, setAllocationCustomer] = useState<{ id: number, name: string } | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -45,7 +45,17 @@ export default function InvoicesNew() {
       const apiData = response.data.data || response.data;
       return Array.isArray(apiData) ? apiData : (apiData.data || []);
     },
-    enabled: isCustomerSelectOpen,
+    enabled: isCustomerSelectOpen && invoiceType === 'sales',
+  });
+
+  const { data: vendors } = useQuery({
+    queryKey: ['vendors'],
+    queryFn: async () => {
+      const response = await vendorApi.getAll({ per_page: 1000 });
+      const apiData = response.data.data || response.data;
+      return Array.isArray(apiData) ? apiData : (apiData.data || []);
+    },
+    enabled: isCustomerSelectOpen && invoiceType === 'purchase',
   });
 
   const handleOpenAllocation = () => {
@@ -54,14 +64,24 @@ export default function InvoicesNew() {
 
   const handleConfirmCustomer = () => {
     if (!tempCustomerId) {
-      toast.error('Please select a customer');
+      toast.error(`Please select a ${invoiceType === 'sales' ? 'customer' : 'vendor'}`);
       return;
     }
-    const customer = customers?.find((c: any) => c.id.toString() === tempCustomerId);
-    if (customer) {
-      setAllocationCustomer({ id: customer.id, name: customer.name });
-      setIsCustomerSelectOpen(false);
-      setIsAllocationDialogOpen(true);
+
+    if (invoiceType === 'sales') {
+      const customer = customers?.find((c: any) => c.id.toString() === tempCustomerId);
+      if (customer) {
+        setAllocationCustomer({ id: customer.id, name: customer.name });
+        setIsCustomerSelectOpen(false);
+        setIsAllocationDialogOpen(true);
+      }
+    } else {
+      const vendor = vendors?.find((v: any) => v.id.toString() === tempCustomerId);
+      if (vendor) {
+        setAllocationCustomer({ id: vendor.id, name: vendor.company_name || vendor.name });
+        setIsCustomerSelectOpen(false);
+        setIsAllocationDialogOpen(true);
+      }
     }
   };
 
@@ -83,7 +103,7 @@ export default function InvoicesNew() {
   const { data: invoicesData, isLoading } = useQuery({
     queryKey: ['invoices', invoiceType, searchQuery, currentPage, pageSize],
     queryFn: async () => {
-      const response = await invoiceApi.getAll({ 
+      const response = await invoiceApi.getAll({
         invoice_type: invoiceType,
         search: searchQuery || undefined,
         limit: pageSize,
@@ -145,8 +165,7 @@ export default function InvoicesNew() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       toast.success(
-        `${
-          invoiceType === "purchase" ? "Purchase" : "Sales"
+        `${invoiceType === "purchase" ? "Purchase" : "Sales"
         } invoice deleted successfully`
       );
       setIsDeleteDialogOpen(false);
@@ -185,23 +204,24 @@ export default function InvoicesNew() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">{t('invoices.title') || 'Invoices'}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {invoiceType === 'purchase' 
-              ? 'Purchase invoices add stock to locations' 
+            {invoiceType === 'purchase'
+              ? 'Purchase invoices add stock to locations'
               : 'Sales invoices reduce location stock'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {invoiceType === 'sales' && (
-            <Button 
-              variant="outline" 
-              onClick={handleOpenAllocation} 
-              size="lg"
-              className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-            >
-              <DollarSign className="mr-2 h-5 w-5" />
-              Payment Allocation
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            onClick={handleOpenAllocation}
+            size="lg"
+            className={invoiceType === 'sales'
+              ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+              : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+            }
+          >
+            <DollarSign className="mr-2 h-5 w-5" />
+            {invoiceType === 'sales' ? 'Record Payment' : 'Pay Vendor'}
+          </Button>
           <Button onClick={() => navigate(`/invoices/new?type=${invoiceType}`)} size="lg" className="shadow-lg">
             <Plus className="mr-2 h-5 w-5" />
             {invoiceType === 'purchase' ? 'New Purchase' : 'New Sale'}
@@ -211,7 +231,7 @@ export default function InvoicesNew() {
 
       {/* Invoice Type Cards */}
       <div className="grid grid-cols-2 gap-4">
-        <Card 
+        <Card
           className={`cursor-pointer transition-all ${invoiceType === 'purchase' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950' : 'hover:bg-muted'}`}
           onClick={() => handleInvoiceTypeChange('purchase')}
         >
@@ -231,7 +251,7 @@ export default function InvoicesNew() {
           </CardContent>
         </Card>
 
-        <Card 
+        <Card
           className={`cursor-pointer transition-all ${invoiceType === 'sales' ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950' : 'hover:bg-muted'}`}
           onClick={() => handleInvoiceTypeChange('sales')}
         >
@@ -316,7 +336,7 @@ export default function InvoicesNew() {
                             {formatDateTime(invoice.invoice_date || invoice.created_at)}
                           </TableCell>
                           <TableCell className="hidden lg:table-cell">
-                            {invoiceType === 'purchase' 
+                            {invoiceType === 'purchase'
                               ? (invoice.vendor?.company_name || invoice.vendor?.name || '-')
                               : (invoice.customer?.name || '-')}
                           </TableCell>
@@ -336,7 +356,7 @@ export default function InvoicesNew() {
                           {invoiceType === 'purchase' && (
                             <TableCell className="hidden lg:table-cell text-right font-medium">
                               {formatCurrency(
-                                invoice.total_amount - 
+                                invoice.total_amount -
                                 (invoice.credit_notes?.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0) || 0)
                               )}
                             </TableCell>
@@ -345,13 +365,12 @@ export default function InvoicesNew() {
                             {formatCurrency(invoice.paid_amount)}
                           </TableCell>
                           <TableCell>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              invoice.payment_status === 'paid' 
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                : invoice.payment_status === 'partial'
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${invoice.payment_status === 'paid'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                              : invoice.payment_status === 'partial'
                                 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
                                 : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                            }`}>
+                              }`}>
                               {invoice.payment_status}
                             </span>
                           </TableCell>
@@ -365,18 +384,26 @@ export default function InvoicesNew() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              {invoice.payment_status !== 'paid' && invoiceType === 'sales' && invoice.customer?.id && (
+                              {invoice.payment_status !== 'paid' && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => {
-                                    setAllocationCustomer({ 
-                                      id: invoice.customer.id, 
-                                      name: invoice.customer.name 
-                                    });
-                                    setIsAllocationDialogOpen(true);
+                                    if (invoiceType === 'sales' && invoice.customer?.id) {
+                                      setAllocationCustomer({
+                                        id: invoice.customer.id,
+                                        name: invoice.customer.name
+                                      });
+                                      setIsAllocationDialogOpen(true);
+                                    } else if (invoiceType === 'purchase' && invoice.vendor?.id) {
+                                      setAllocationCustomer({
+                                        id: invoice.vendor.id,
+                                        name: invoice.vendor.company_name || invoice.vendor.name
+                                      });
+                                      setIsAllocationDialogOpen(true);
+                                    }
                                   }}
-                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  className={invoiceType === 'sales' ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-blue-600 hover:text-blue-700 hover:bg-blue-50"}
                                   title="Record Payment"
                                 >
                                   <DollarSign className="h-4 w-4" />
@@ -482,20 +509,23 @@ export default function InvoicesNew() {
         </DialogContent>
       </Dialog>
 
-      {/* Customer Selection for Allocation */}
+      {/* Entity Selection for Allocation */}
       <Dialog open={isCustomerSelectOpen} onOpenChange={setIsCustomerSelectOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Select Customer for Payment</DialogTitle>
+            <DialogTitle>Select {invoiceType === 'sales' ? 'Customer' : 'Vendor'} for Payment</DialogTitle>
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Customer</label>
+              <label className="text-sm font-medium">{invoiceType === 'sales' ? 'Customer' : 'Vendor'}</label>
               <Combobox
-                options={(customers || []).map((c: any) => ({ value: c.id.toString(), label: c.name }))}
+                options={invoiceType === 'sales'
+                  ? (customers || []).map((c: any) => ({ value: c.id.toString(), label: c.name }))
+                  : (vendors || []).map((v: any) => ({ value: v.id.toString(), label: v.company_name || v.name }))
+                }
                 value={tempCustomerId}
                 onChange={setTempCustomerId}
-                placeholder="Search customer..."
+                placeholder={`Search ${invoiceType === 'sales' ? 'customer' : 'vendor'}...`}
               />
             </div>
           </div>
@@ -515,8 +545,9 @@ export default function InvoicesNew() {
             setAllocationCustomer(null);
             setTempCustomerId('');
           }}
-          customerId={allocationCustomer.id}
-          customerName={allocationCustomer.name}
+          entityId={allocationCustomer.id}
+          entityName={allocationCustomer.name}
+          type={invoiceType}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['invoices'] });
           }}
