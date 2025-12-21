@@ -128,7 +128,37 @@ func (h *PDFHandler) CustomerStatementPDF(c echo.Context) error {
 		AND DATE(created_at) BETWEEN ? AND ?
 	`
 	h.db.Raw(paymentQuery, customerID, fromDate, toDate).Scan(&payments)
-	transactions = append(transactions, payments...)
+	for _, p := range payments {
+		transactions = append(transactions, p)
+	}
+
+	// Credit notes (credit = reduces what customer owes)
+	var creditNotes []struct {
+		Type        string    `json:"type"`
+		Reference   string    `json:"reference"`
+		Date        time.Time `json:"date"`
+		Debit       float64   `json:"debit"`
+		Credit      float64   `json:"credit"`
+		Description string    `json:"description"`
+	}
+	creditNoteQuery := `
+		SELECT 
+			'credit_note' as type,
+			credit_note_number as reference,
+			credit_note_date as date,
+			0 as debit,
+			total_amount as credit,
+			'Credit Note' as description
+		FROM credit_notes
+		WHERE customer_id = ?
+		AND type = 'sales'
+		AND status = 'approved'
+		AND DATE(credit_note_date) BETWEEN ? AND ?
+	`
+	h.db.Raw(creditNoteQuery, customerID, fromDate, toDate).Scan(&creditNotes)
+	for _, cn := range creditNotes {
+		transactions = append(transactions, cn)
+	}
 
 	// Calculate opening balance
 	var openingBalance float64
