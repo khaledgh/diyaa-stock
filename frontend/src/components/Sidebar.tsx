@@ -2,33 +2,35 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  LayoutGrid,
-  Box,
-  Users,
-  Truck,
-  Warehouse,
-  ArrowLeftRight,
-  Wallet,
-  LineChart,
-  Settings2,
-  X,
-  MapPin,
   ChevronDown,
   ChevronRight,
-  Layers,
-  Undo2,
   Plus,
-  FileText,
-  Monitor,
-  Package,
-  Store,
-  Factory,
-  ClipboardList,
-  BadgeDollarSign,
-  Coins,
-  UserCog,
-  FileStack,
+  X,
 } from 'lucide-react';
+import {
+  DashboardIcon,
+  PosIcon,
+  ItemsIcon,
+  ProductsIcon,
+  CategoriesIcon,
+  InventoryIcon,
+  TransfersIcon,
+  SalesIcon,
+  CustomersIcon,
+  SalesInvoicesIcon,
+  CreditNotesIcon,
+  PurchasesIcon,
+  VendorsIcon,
+  PurchaseInvoicesIcon,
+  BankingIcon,
+  PaymentsIcon,
+  WarehouseIcon,
+  LocationsIcon,
+  VansIcon,
+  ReportsIcon,
+  UsersSettingsIcon,
+  SettingsIcon,
+} from './NavIcons';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -36,57 +38,57 @@ import { usePermissions } from '@/hooks/usePermissions';
 // Simplified Zoho-style navigation
 const navigation = {
   main: [
-    { name: 'dashboard', href: '/dashboard', icon: LayoutGrid },
-    { name: 'pos', href: '/pos', icon: Monitor },
+    { name: 'dashboard', href: '/dashboard', icon: DashboardIcon },
+    { name: 'pos', href: '/pos', icon: PosIcon },
   ],
   items: {
     label: 'items',
-    icon: Box,
+    icon: ItemsIcon,
     children: [
-      { name: 'products', href: '/products', icon: Package },
-      { name: 'categories', href: '/categories', icon: Layers },
-      { name: 'inventory', href: '/inventory', icon: ClipboardList },
-      { name: 'transfers', href: '/transfers', icon: ArrowLeftRight },
+      { name: 'products', href: '/products', icon: ProductsIcon },
+      { name: 'categories', href: '/categories', icon: CategoriesIcon },
+      { name: 'inventory', href: '/inventory', icon: InventoryIcon },
+      { name: 'transfers', href: '/transfers', icon: TransfersIcon },
     ],
   },
   sales: {
     label: 'sales',
-    icon: BadgeDollarSign,
+    icon: SalesIcon,
     children: [
-      { name: 'customers', href: '/customers', icon: Users },
-      { name: 'sales-invoices', href: '/invoices/sales', icon: FileStack },
-      { name: 'credit-notes', href: '/credit-notes', icon: Undo2 },
+      { name: 'customers', href: '/customers', icon: CustomersIcon },
+      { name: 'sales-invoices', href: '/invoices/sales', icon: SalesInvoicesIcon },
+      { name: 'credit-notes', href: '/credit-notes', icon: CreditNotesIcon },
     ],
   },
   purchases: {
     label: 'purchases',
-    icon: Store,
+    icon: PurchasesIcon,
     children: [
-      { name: 'vendors', href: '/vendors', icon: Factory },
-      { name: 'purchase-invoices', href: '/invoices/purchase', icon: FileText },
+      { name: 'vendors', href: '/vendors', icon: VendorsIcon },
+      { name: 'purchase-invoices', href: '/invoices/purchase', icon: PurchaseInvoicesIcon },
     ],
   },
   banking: {
     label: 'banking',
-    icon: Wallet,
+    icon: BankingIcon,
     children: [
-      { name: 'payments', href: '/payments', icon: Coins },
+      { name: 'payments', href: '/payments', icon: PaymentsIcon },
     ],
   },
   locations: {
     label: 'warehousing',
-    icon: Warehouse,
+    icon: WarehouseIcon,
     children: [
-      { name: 'locations', href: '/locations', icon: MapPin },
-      { name: 'vans', href: '/vans', icon: Truck },
+      { name: 'locations', href: '/locations', icon: LocationsIcon },
+      { name: 'vans', href: '/vans', icon: VansIcon },
     ],
   },
   reports: [
-    { name: 'reports', href: '/reports', icon: LineChart },
+    { name: 'reports', href: '/reports', icon: ReportsIcon },
   ],
   settings: [
-    { name: 'users', href: '/users', icon: UserCog },
-    { name: 'settings', href: '/settings', icon: Settings2 },
+    { name: 'users', href: '/users', icon: UsersSettingsIcon },
+    { name: 'settings', href: '/settings', icon: SettingsIcon },
   ],
 };
 
@@ -227,7 +229,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <div className="flex items-center justify-between flex-shrink-0 px-4 py-4 border-b">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Package className="h-4 w-4 text-primary-foreground" />
+                <ProductsIcon className="h-4 w-4 text-primary-foreground" />
               </div>
               <h1 className="text-base font-bold text-foreground">{t('app.name')}</h1>
             </div>
