@@ -91,3 +91,33 @@ func GetUserIDFromContext(c echo.Context) uint {
 	}
 	return 0
 }
+
+// ToFloat64 safely converts various types to float64
+func ToFloat64(value interface{}) float64 {
+	if value == nil {
+		return 0
+	}
+	switch v := value.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case uint:
+		return float64(v)
+	case uint64:
+		return float64(v)
+	case []uint8:
+		if f, err := strconv.ParseFloat(string(v), 64); err == nil {
+			return f
+		}
+	case string:
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return 0
+}

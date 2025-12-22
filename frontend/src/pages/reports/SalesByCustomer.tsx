@@ -2,9 +2,9 @@ import { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useReactToPrint } from 'react-to-print';
-import { 
-  ArrowLeft, 
-  Printer, 
+import {
+  ArrowLeft,
+  Printer,
   Calendar,
   Users,
   DollarSign,
@@ -66,18 +66,18 @@ export default function SalesByCustomer() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => exportSalesByCustomer(report?.customers || [], dateRange.from_date, dateRange.to_date)} 
+          <Button
+            variant="outline"
+            onClick={() => exportSalesByCustomer(report?.customers || [], dateRange.from_date, dateRange.to_date)}
             className="gap-2"
             disabled={!report?.customers?.length}
           >
             <Download className="h-4 w-4" />
             Excel
           </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => exportSalesByCustomerPDF(report?.customers || [], dateRange.from_date, dateRange.to_date)} 
+          <Button
+            variant="outline"
+            onClick={() => exportSalesByCustomerPDF(report?.customers || [], dateRange.from_date, dateRange.to_date)}
             className="gap-2"
             disabled={!report?.customers?.length}
           >
@@ -205,7 +205,7 @@ export default function SalesByCustomer() {
                     <TableRow key={customer.customer_id || index} className="hover:bg-muted/30">
                       <TableCell className="font-medium">
                         {customer.customer_id > 0 ? (
-                          <Link 
+                          <Link
                             to={`/customers/${customer.customer_id}/statement`}
                             className="text-primary hover:underline"
                           >
@@ -242,7 +242,7 @@ export default function SalesByCustomer() {
                   {/* Totals Row */}
                   <TableRow className="bg-muted/50 font-semibold border-t-2">
                     <TableCell>Total</TableCell>
-                    <TableCell className="text-right">-</TableCell>
+                    <TableCell className="text-right">{report?.summary?.total_invoices || 0}</TableCell>
                     <TableCell className="text-right text-blue-600">
                       {formatCurrency(report?.summary?.total_sales || 0)}
                     </TableCell>

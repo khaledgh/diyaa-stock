@@ -253,18 +253,10 @@ func (rh *ReportHandler) LocationSalesReportHandler(c echo.Context) error {
 	var totalSales, totalPaid, totalUnpaid float64
 	for _, location := range locationSales {
 		totalLocations++
-		if count, ok := location["invoice_count"].(int64); ok {
-			totalInvoices += count
-		}
-		if sales, ok := location["total_sales"].(float64); ok {
-			totalSales += sales
-		}
-		if paid, ok := location["total_paid"].(float64); ok {
-			totalPaid += paid
-		}
-		if unpaid, ok := location["total_unpaid"].(float64); ok {
-			totalUnpaid += unpaid
-		}
+		totalInvoices += int64(ToFloat64(location["invoice_count"]))
+		totalSales += ToFloat64(location["total_sales"])
+		totalPaid += ToFloat64(location["total_paid"])
+		totalUnpaid += ToFloat64(location["total_unpaid"])
 	}
 
 	summary := map[string]interface{}{
@@ -318,7 +310,7 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 	// Pending payments (Receivables)
 	var pendingPayments float64
 	rh.db.Raw(`
-		SELECT COALESCE(SUM(total_amount - paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = sales_invoices.id AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total
+		SELECT COALESCE(SUM(total_amount - paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = sales_invoices.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total
 		FROM sales_invoices
 		WHERE deleted_at IS NULL
 	`).Scan(&pendingPayments)
@@ -327,7 +319,7 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 	// Payables
 	var payables float64
 	rh.db.Raw(`
-		SELECT COALESCE(SUM(total_amount - paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = purchase_invoices.id AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total
+		SELECT COALESCE(SUM(total_amount - paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = purchase_invoices.id AND type = 'purchase' AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total
 		FROM purchase_invoices
 		WHERE deleted_at IS NULL
 	`).Scan(&payables)
@@ -743,12 +735,12 @@ func (rh *ReportHandler) ReceivablesAgingHandler(c echo.Context) error {
 			si.customer_id,
 			COALESCE(c.name, 'Walk-in / No Customer') as customer_name,
 			COALESCE(c.phone, '-') as customer_phone,
-			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) <= 0 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as current_amount,
-			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) BETWEEN 1 AND 15 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_1_15,
-			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) BETWEEN 16 AND 30 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_16_30,
-			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) BETWEEN 31 AND 45 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_31_45,
-			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) > 45 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_over_45,
-			COALESCE(SUM(si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total_outstanding
+			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) <= 0 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as current_amount,
+			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) BETWEEN 1 AND 15 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_1_15,
+			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) BETWEEN 16 AND 30 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_16_30,
+			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) BETWEEN 31 AND 45 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_31_45,
+			COALESCE(SUM(CASE WHEN DATEDIFF(?, si.created_at) > 45 THEN (si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_over_45,
+			COALESCE(SUM(si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total_outstanding
 		FROM sales_invoices si
 		LEFT JOIN customers c ON si.customer_id = c.id
 		WHERE si.deleted_at IS NULL
@@ -816,12 +808,12 @@ func (rh *ReportHandler) PayablesAgingHandler(c echo.Context) error {
 			pi.vendor_id,
 			COALESCE(v.name, 'Unknown / No Vendor') as vendor_name,
 			COALESCE(v.phone, '-') as vendor_phone,
-			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) <= 0 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as current_amount,
-			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) BETWEEN 1 AND 15 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_1_15,
-			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) BETWEEN 16 AND 30 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_16_30,
-			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) BETWEEN 31 AND 45 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_31_45,
-			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) > 45 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_over_45,
-			COALESCE(SUM(pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total_outstanding
+			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) <= 0 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND type = 'purchase' AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as current_amount,
+			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) BETWEEN 1 AND 15 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND type = 'purchase' AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_1_15,
+			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) BETWEEN 16 AND 30 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND type = 'purchase' AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_16_30,
+			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) BETWEEN 31 AND 45 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND type = 'purchase' AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_31_45,
+			COALESCE(SUM(CASE WHEN DATEDIFF(?, pi.created_at) > 45 THEN (pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND type = 'purchase' AND status = 'approved' AND deleted_at IS NULL), 0)) ELSE 0 END), 0) as days_over_45,
+			COALESCE(SUM(pi.total_amount - pi.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = pi.id AND type = 'purchase' AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total_outstanding
 		FROM purchase_invoices pi
 		LEFT JOIN vendors v ON pi.vendor_id = v.id
 		WHERE pi.deleted_at IS NULL
@@ -898,12 +890,16 @@ func (rh *ReportHandler) SalesByCustomerHandler(c echo.Context) error {
 			COALESCE((
 				SELECT SUM(total_amount) 
 				FROM credit_notes 
-				WHERE (customer_id = c.id OR (c.id IS NULL AND customer_id IS NULL))
+				WHERE type = 'sales'
 				AND status = 'approved' 
 				AND deleted_at IS NULL
-				AND DATE(created_at) BETWEEN ? AND ?
+				AND (
+					(c.id IS NOT NULL AND customer_id = c.id) OR 
+					(c.id IS NULL AND customer_id IS NULL AND vendor_id IS NULL)
+				)
+				AND DATE(credit_note_date) BETWEEN ? AND ?
 			), 0) as total_credit_notes,
-			COALESCE(SUM(si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total_outstanding
+			COALESCE(SUM(si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND type = 'sales' AND vendor_id IS NULL AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total_outstanding
 		FROM sales_invoices si
 		LEFT JOIN customers c ON si.customer_id = c.id
 		WHERE si.deleted_at IS NULL
@@ -921,21 +917,11 @@ func (rh *ReportHandler) SalesByCustomerHandler(c echo.Context) error {
 	var totalSales, totalPaid, totalOutstanding, totalCreditNotes float64
 	var totalInvoices int64
 	for _, cust := range customers {
-		if v, ok := cust["total_sales"].(float64); ok {
-			totalSales += v
-		}
-		if v, ok := cust["total_paid"].(float64); ok {
-			totalPaid += v
-		}
-		if v, ok := cust["total_credit_notes"].(float64); ok {
-			totalCreditNotes += v
-		}
-		if v, ok := cust["total_outstanding"].(float64); ok {
-			totalOutstanding += v
-		}
-		if v, ok := cust["invoice_count"].(int64); ok {
-			totalInvoices += v
-		}
+		totalSales += ToFloat64(cust["total_sales"])
+		totalPaid += ToFloat64(cust["total_paid"])
+		totalCreditNotes += ToFloat64(cust["total_credit_notes"])
+		totalOutstanding += ToFloat64(cust["total_outstanding"])
+		totalInvoices += int64(ToFloat64(cust["invoice_count"]))
 	}
 
 	summary := map[string]interface{}{
@@ -1018,12 +1004,8 @@ func (rh *ReportHandler) SalesByItemHandler(c echo.Context) error {
 	var totalQuantity float64
 	var totalSales float64
 	for _, prod := range prods {
-		if v, ok := prod["quantity_sold"].(float64); ok {
-			totalQuantity += v
-		}
-		if v, ok := prod["total_sales"].(float64); ok {
-			totalSales += v
-		}
+		totalQuantity += ToFloat64(prod["quantity_sold"])
+		totalSales += ToFloat64(prod["total_sales"])
 	}
 
 	summary := map[string]interface{}{
