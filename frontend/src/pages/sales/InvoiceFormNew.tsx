@@ -43,6 +43,10 @@ export default function InvoiceFormNew() {
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [productSearch, setProductSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('');
+  const [vendorSearch, setVendorSearch] = useState('');
+  const [debouncedVendorSearch, setDebouncedVendorSearch] = useState('');
 
   // Item editing state
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
@@ -51,13 +55,29 @@ export default function InvoiceFormNew() {
   const [editUnitPrice, setEditUnitPrice] = useState('');
   const [editDiscount, setEditDiscount] = useState('');
 
-  // Debounce search
+  // Debounce product search
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(productSearch);
     }, 300);
     return () => clearTimeout(timer);
   }, [productSearch]);
+
+  // Debounce customer search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCustomerSearch(customerSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [customerSearch]);
+
+  // Debounce vendor search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedVendorSearch(vendorSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [vendorSearch]);
 
   const { data: locations } = useQuery({
     queryKey: ['locations'],
@@ -77,18 +97,18 @@ export default function InvoiceFormNew() {
   });
 
   const { data: customers } = useQuery({
-    queryKey: ['customers'],
+    queryKey: ['customers', debouncedCustomerSearch],
     queryFn: async () => {
-      const response = await customerApi.getAll();
+      const response = await customerApi.getAll({ search: debouncedCustomerSearch, per_page: 50 });
       const apiData = response.data.data || response.data;
       return Array.isArray(apiData) ? apiData : (apiData.data || []);
     },
   });
 
   const { data: vendors } = useQuery({
-    queryKey: ['vendors'],
+    queryKey: ['vendors', debouncedVendorSearch],
     queryFn: async () => {
-      const response = await vendorApi.getAll();
+      const response = await vendorApi.getAll({ search: debouncedVendorSearch, per_page: 50 });
       const apiData = response.data.data || response.data;
       return Array.isArray(apiData) ? apiData : (apiData.data || []);
     },
@@ -407,6 +427,7 @@ export default function InvoiceFormNew() {
                           ]}
                           value={selectedCustomer}
                           onChange={setSelectedCustomer}
+                          onSearchChange={setCustomerSearch}
                           placeholder="Select customer"
                           searchPlaceholder="Search customers..."
                           emptyText="No customers found"
@@ -424,6 +445,7 @@ export default function InvoiceFormNew() {
                           ]}
                           value={selectedVendor}
                           onChange={setSelectedVendor}
+                          onSearchChange={setVendorSearch}
                           placeholder="Select vendor"
                           searchPlaceholder="Search vendors..."
                           emptyText="No vendors found"

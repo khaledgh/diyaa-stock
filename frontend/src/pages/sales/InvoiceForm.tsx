@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -29,7 +29,13 @@ export default function InvoiceForm() {
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
   const [selectedVan, setSelectedVan] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [vendorSearchTerm, setVendorSearchTerm] = useState('');
+  const [showVendorDropdown, setShowVendorDropdown] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState('');
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
+  const vendorDropdownRef = useRef<HTMLDivElement>(null);
   const [quantity, setQuantity] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
   const [discount, setDiscount] = useState('');
@@ -60,9 +66,9 @@ export default function InvoiceForm() {
   });
 
   const { data: customers } = useQuery({
-    queryKey: ['customers'],
+    queryKey: ['customers', customerSearchTerm],
     queryFn: async () => {
-      const response = await customerApi.getAll();
+      const response = await customerApi.getAll({ search: customerSearchTerm, per_page: 50 });
       // Handle paginated response
       const apiData = response.data.data || response.data;
       return Array.isArray(apiData) ? apiData : (apiData.data || []);
@@ -70,9 +76,9 @@ export default function InvoiceForm() {
   });
 
   const { data: vendors } = useQuery({
-    queryKey: ['vendors'],
+    queryKey: ['vendors', vendorSearchTerm],
     queryFn: async () => {
-      const response = await vendorApi.getAll();
+      const response = await vendorApi.getAll({ search: vendorSearchTerm, per_page: 50 });
       // Handle paginated response
       const apiData = response.data.data || response.data;
       return Array.isArray(apiData) ? apiData : (apiData.data || []);
@@ -126,6 +132,48 @@ export default function InvoiceForm() {
       }
     }
   }, [selectedProduct, products, invoiceType]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(event.target as Node)) {
+        setShowCustomerDropdown(false);
+      }
+      if (vendorDropdownRef.current && !vendorDropdownRef.current.contains(event.target as Node)) {
+        setShowVendorDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleCustomerSelect = (customer: any) => {
+    setSelectedCustomer(customer.id.toString());
+    setCustomerSearchTerm(customer.name);
+    setShowCustomerDropdown(false);
+  };
+
+  const handleCustomerSearchChange = (value: string) => {
+    setCustomerSearchTerm(value);
+    setShowCustomerDropdown(true);
+    if (!value) {
+      setSelectedCustomer('');
+    }
+  };
+
+  const handleVendorSelect = (vendor: any) => {
+    setSelectedCustomer(vendor.id.toString());
+    setVendorSearchTerm(vendor.company_name || vendor.name);
+    setShowVendorDropdown(false);
+  };
+
+  const handleVendorSearchChange = (value: string) => {
+    setVendorSearchTerm(value);
+    setShowVendorDropdown(true);
+    if (!value) {
+      setSelectedCustomer('');
+    }
+  };
 
   const handleAddItem = () => {
     if (!selectedProduct || !quantity || !unitPrice) {
@@ -298,42 +346,70 @@ export default function InvoiceForm() {
                         )}
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-2" ref={customerDropdownRef}>
                         <Label htmlFor="customer">Customer</Label>
-                        <select
-                          id="customer"
-                          value={selectedCustomer}
-                          onChange={(e) => setSelectedCustomer(e.target.value)}
-                          className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          <option value="">Select customer (optional)</option>
-                          {customers?.map((customer: any) => (
-                            <option key={customer.id} value={customer.id}>
-                              {customer.name}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="relative">
+                          <Input
+                            id="customer"
+                            type="text"
+                            value={customerSearchTerm}
+                            onChange={(e) => handleCustomerSearchChange(e.target.value)}
+                            onFocus={() => setShowCustomerDropdown(true)}
+                            placeholder="Search customer (optional)"
+                            className="h-11"
+                          />
+                          {showCustomerDropdown && customers && customers.length > 0 && (
+                            <div className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto">
+                              {customers.map((customer: any) => (
+                                <div
+                                  key={customer.id}
+                                  onClick={() => handleCustomerSelect(customer)}
+                                  className="px-3 py-2 hover:bg-accent cursor-pointer text-sm"
+                                >
+                                  <div className="font-medium">{customer.name}</div>
+                                  {customer.phone && (
+                                    <div className="text-xs text-muted-foreground">{customer.phone}</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
 
                   {invoiceType === 'purchase' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
+                      <div className="space-y-2" ref={vendorDropdownRef}>
                         <Label htmlFor="vendor">Vendor</Label>
-                        <select
-                          id="vendor"
-                          value={selectedCustomer}
-                          onChange={(e) => setSelectedCustomer(e.target.value)}
-                          className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          <option value="">Select vendor (optional)</option>
-                          {vendors?.map((vendor: any) => (
-                            <option key={vendor.id} value={vendor.id}>
-                              {vendor.company_name || vendor.name}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="relative">
+                          <Input
+                            id="vendor"
+                            type="text"
+                            value={vendorSearchTerm}
+                            onChange={(e) => handleVendorSearchChange(e.target.value)}
+                            onFocus={() => setShowVendorDropdown(true)}
+                            placeholder="Search vendor (optional)"
+                            className="h-11"
+                          />
+                          {showVendorDropdown && vendors && vendors.length > 0 && (
+                            <div className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto">
+                              {vendors.map((vendor: any) => (
+                                <div
+                                  key={vendor.id}
+                                  onClick={() => handleVendorSelect(vendor)}
+                                  className="px-3 py-2 hover:bg-accent cursor-pointer text-sm"
+                                >
+                                  <div className="font-medium">{vendor.company_name || vendor.name}</div>
+                                  {vendor.phone && (
+                                    <div className="text-xs text-muted-foreground">{vendor.phone}</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="space-y-2">
