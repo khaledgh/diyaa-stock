@@ -16,6 +16,8 @@ interface InvoicePrintProps {
   locationName?: string;
   items: InvoiceItem[];
   subtotal: number;
+  discountAmount?: number;
+  totalAmount: number;
   paidAmount: number;
   remainingAmount: number;
   paymentMethod: string;
@@ -30,6 +32,8 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
       locationName,
       items,
       subtotal,
+      discountAmount,
+      totalAmount,
       paidAmount,
       remainingAmount,
       paymentMethod,
@@ -52,7 +56,7 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
             }
           `}
         </style>
-        
+
         <div style={{ width: '80mm', fontFamily: 'Cairo, Inter, sans-serif', fontSize: '12px', padding: '5mm', direction: 'ltr' }}>
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: '10px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
@@ -126,6 +130,12 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
               <span style={{ fontWeight: 'bold' }}>Subtotal:</span>
               <span style={{ fontWeight: 'bold' }}>{formatCurrency(subtotal)}</span>
             </div>
+            {discountAmount && discountAmount > 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                <span style={{ fontWeight: 'bold' }}>Discount:</span>
+                <span style={{ color: '#ef4444', fontWeight: 'bold' }}>-{formatCurrency(discountAmount)}</span>
+              </div>
+            ) : null}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
               <span style={{ fontWeight: 'bold' }}>Paid:</span>
               <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{formatCurrency(paidAmount)}</span>
@@ -147,7 +157,7 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
               }}
             >
               <span style={{ fontWeight: 'bold' }}>TOTAL:</span>
-              <span style={{ fontWeight: 'bold' }}>{formatCurrency(subtotal)}</span>
+              <span style={{ fontWeight: 'bold' }}>{formatCurrency(totalAmount)}</span>
             </div>
           </div>
 

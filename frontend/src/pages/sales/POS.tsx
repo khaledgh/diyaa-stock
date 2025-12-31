@@ -31,6 +31,7 @@ interface CartItem {
   sku: string;
   quantity: number;
   unit_price: number;
+  discount_percent: number;
   total: number;
 }
 
@@ -49,6 +50,7 @@ export default function POS() {
   const [lastInvoice, setLastInvoice] = useState<any>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [invoiceDiscountPercent, setInvoiceDiscountPercent] = useState('0');
 
   const toggleFullscreen = () => {
     if (!isFullscreen) {
@@ -139,16 +141,21 @@ export default function POS() {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['location-stock'] });
 
-      const total = calculateTotal();
+      const subtotal = calculateSubtotal();
+      const discountAmount = calculateInvoiceDiscount();
+      const totalAmount = calculateTotal();
+
       const invoiceData = {
         invoiceNumber: response.data.data?.invoice_number,
         invoiceDate: new Date().toISOString(),
         customerName: customers?.find((c: any) => c.id === Number(selectedCustomer))?.name || 'Walk-in Customer',
         locationName: locations?.find((l: any) => l.id === Number(selectedLocation))?.name,
         items: cart,
-        subtotal: total,
+        subtotal: subtotal,
+        discountAmount: discountAmount,
+        totalAmount: totalAmount,
         paidAmount: Number(paidAmount) || 0,
-        remainingAmount: total - (Number(paidAmount) || 0),
+        remainingAmount: totalAmount - (Number(paidAmount) || 0),
         paymentMethod,
       };
       setLastInvoice(invoiceData);
@@ -187,23 +194,31 @@ export default function POS() {
     const existing = cart.find(item => item.product_id === productId);
 
     if (existing) {
-      if (existing.quantity >= stock.quantity) {
+      const newQty = Math.round(Math.min(existing.quantity + 1, stock.quantity) * 100) / 100;
+      if (newQty === existing.quantity && existing.quantity >= stock.quantity) {
         toast.error('Max stock reached');
         return;
       }
       setCart(cart.map(item =>
         item.product_id === productId
-          ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.unit_price }
+          ? {
+            ...item,
+            quantity: newQty,
+            total: Math.round(newQty * item.unit_price * (1 - (item.discount_percent || 0) / 100) * 100) / 100
+          }
           : item
       ));
     } else {
+      const initialQty = Math.round(Math.min(1, stock.quantity) * 100) / 100;
+      const unitPrice = product?.unit_price || 0;
       setCart([...cart, {
         product_id: productId,
-        product_name: product?.name_en || '',
+        product_name: product?.name_ar || product?.name_en || '',
         sku: product?.sku || '',
-        quantity: 1,
-        unit_price: product?.unit_price || 0,
-        total: product?.unit_price || 0,
+        quantity: initialQty,
+        unit_price: unitPrice,
+        discount_percent: 0,
+        total: Math.round(initialQty * unitPrice * 100) / 100,
       }]);
     }
   };
@@ -212,28 +227,33 @@ export default function POS() {
     const existing = cart.find(item => item.product_id === productId);
     if (!existing) return;
 
-    const newQty = existing.quantity + delta;
+    const stock = locationStock?.find((s: any) => s.product_id === productId);
+    let newQty = existing.quantity + delta;
+
+    // Cap at stock
+    if (stock && newQty > stock.quantity) {
+      newQty = stock.quantity;
+      toast.error(`Only ${formatQuantity(stock.quantity)} available`);
+    }
 
     if (newQty <= 0) {
       setCart(cart.filter(item => item.product_id !== productId));
       return;
     }
 
-    const stock = locationStock?.find((s: any) => s.product_id === productId);
-    if (stock && newQty > stock.quantity) {
-      toast.error('Insufficient stock');
-      return;
-    }
-
     setCart(cart.map(item =>
       item.product_id === productId
-        ? { ...item, quantity: Math.round(newQty * 100) / 100, total: (Math.round(newQty * 100) / 100) * item.unit_price }
+        ? {
+          ...item,
+          quantity: Math.round(newQty * 100) / 100,
+          total: Math.round((Math.round(newQty * 100) / 100) * item.unit_price * (1 - (item.discount_percent || 0) / 100) * 100) / 100
+        }
         : item
     ));
   };
 
   const manualQuantityUpdate = (productId: number, value: string) => {
-    const qty = parseFloat(value);
+    let qty = parseFloat(value);
     if (isNaN(qty) || qty < 0) return;
 
     if (qty === 0) {
@@ -243,13 +263,32 @@ export default function POS() {
 
     const stock = locationStock?.find((s: any) => s.product_id === productId);
     if (stock && qty > stock.quantity) {
-      toast.error('Insufficient stock');
-      return;
+      qty = stock.quantity;
+      toast.error(`Only ${formatQuantity(stock.quantity)} available`);
     }
 
     setCart(cart.map(item =>
       item.product_id === productId
-        ? { ...item, quantity: qty, total: qty * item.unit_price }
+        ? {
+          ...item,
+          quantity: Math.round(qty * 100) / 100,
+          total: Math.round((Math.round(qty * 100) / 100) * item.unit_price * (1 - (item.discount_percent || 0) / 100) * 100) / 100
+        }
+        : item
+    ));
+  };
+
+  const updateItemDiscount = (productId: number, value: string) => {
+    const discount = parseFloat(value);
+    if (isNaN(discount) || discount < 0 || discount > 100) return;
+
+    setCart(cart.map(item =>
+      item.product_id === productId
+        ? {
+          ...item,
+          discount_percent: discount,
+          total: Math.round(item.quantity * item.unit_price * (1 - discount / 100) * 100) / 100
+        }
         : item
     ));
   };
@@ -263,7 +302,9 @@ export default function POS() {
     setSearch('');
   };
 
-  const calculateTotal = () => cart.reduce((sum, item) => sum + item.total, 0);
+  const calculateSubtotal = () => Math.round(cart.reduce((sum, item) => sum + item.total, 0) * 100) / 100;
+  const calculateInvoiceDiscount = () => Math.round(((calculateSubtotal() * (Number(invoiceDiscountPercent) || 0)) / 100) * 100) / 100;
+  const calculateTotal = () => Math.round((calculateSubtotal() - calculateInvoiceDiscount()) * 100) / 100;
 
   const handleCompleteSale = () => {
     const total = calculateTotal();
@@ -279,8 +320,9 @@ export default function POS() {
         product_id: item.product_id,
         quantity: item.quantity,
         unit_price: item.unit_price,
-        discount_percent: 0,
+        discount_percent: item.discount_percent,
       })),
+      discount_percent: Number(invoiceDiscountPercent) || 0,
       paid_amount: paid,
       payment_method: paymentMethod,
     };
@@ -444,8 +486,8 @@ export default function POS() {
                   )}
 
                   <div className="relative z-10">
-                    <p className="font-bold text-sm leading-tight text-gray-800 dark:text-gray-100 line-clamp-2 min-h-[2.5rem]">
-                      {product.name_en}
+                    <p className="font-bold text-sm leading-tight text-gray-800 dark:text-gray-100 line-clamp-2 min-h-[2.5rem]" dir="auto">
+                      {product.name_ar || product.name_en}
                     </p>
                     <p className="text-[10px] text-muted-foreground font-mono mt-1 opacity-50 tracking-wide uppercase">
                       {product.sku}
@@ -512,44 +554,77 @@ export default function POS() {
               </div>
             ) : (
               cart.map((item) => (
-                <div key={item.product_id} className="flex items-center justify-between gap-2 p-2 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow group">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="font-bold text-xs leading-tight truncate text-gray-900 dark:text-white max-w-[120px]" title={item.product_name}>{item.product_name}</p>
-                      <span className="font-black text-sm text-green-600">
+                <div key={item.product_id} className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl p-3 shadow-sm hover:shadow-md transition-all group relative">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <p className="font-bold text-sm leading-tight text-gray-900 dark:text-white truncate" dir="auto" title={item.product_name}>
+                        {item.product_name}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground font-mono mt-0.5 opacity-60">
+                        {item.sku}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-sm text-green-600">
                         {formatCurrency(item.total)}
+                      </p>
+                      {item.discount_percent > 0 && (
+                        <p className="text-[9px] font-bold text-red-500">-{item.discount_percent}% OFF</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 mt-4">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Unit Price</span>
+                      <span className="text-xs font-extrabold text-gray-700 dark:text-gray-300">
+                        {formatCurrency(item.unit_price)}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] text-muted-foreground">
-                        {formatCurrency(item.unit_price)}
-                      </p>
-                      <div className="flex items-center bg-gray-50 dark:bg-gray-800 rounded-lg p-0.5 h-6">
+
+                    <div className="flex items-center gap-3">
+                      {/* Item Discount Field */}
+                      <div className="flex items-center bg-gray-50 dark:bg-gray-800/50 rounded-xl px-2 h-9 border border-gray-100 dark:border-gray-800">
+                        <span className="text-[10px] font-black text-muted-foreground mr-1">%</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={item.discount_percent}
+                          onChange={(e) => updateItemDiscount(item.product_id, e.target.value)}
+                          className="w-10 text-center text-xs font-black bg-transparent border-none focus:ring-0 p-0"
+                        />
+                      </div>
+
+                      {/* Quantity Controls */}
+                      <div className="flex items-center bg-gray-900 dark:bg-gray-800 text-white rounded-xl p-0.5 h-9">
                         <button
                           onClick={() => updateQuantity(item.product_id, -1)}
-                          className="w-5 h-full flex items-center justify-center hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors"
+                          className="w-8 h-full flex items-center justify-center hover:bg-white/10 rounded-lg transition-colors"
                         >
-                          <Minus className="h-2.5 w-2.5" />
+                          <Minus className="h-3.5 w-3.5" />
                         </button>
                         <input
                           type="number"
                           step="0.01"
                           value={item.quantity}
                           onChange={(e) => manualQuantityUpdate(item.product_id, e.target.value)}
-                          className="w-8 text-center text-[10px] font-black bg-transparent border-none focus:ring-0 p-0 h-full"
+                          className="w-12 text-center text-xs font-black bg-transparent border-none focus:ring-0 p-0"
                         />
                         <button
                           onClick={() => updateQuantity(item.product_id, 1)}
-                          className="w-5 h-full flex items-center justify-center hover:bg-white dark:hover:bg-gray-700 rounded-md transition-colors"
+                          className="w-8 h-full flex items-center justify-center hover:bg-white/10 rounded-lg transition-colors"
                         >
-                          <Plus className="h-2.5 w-2.5" />
+                          <Plus className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </div>
                   </div>
+
+                  {/* Remove Button */}
                   <button
                     onClick={() => setCart(cart.filter(i => i.product_id !== item.product_id))}
-                    className="self-center p-1 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    className="absolute -top-2 -right-2 h-7 w-7 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-red-500 rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -559,12 +634,42 @@ export default function POS() {
           </div>
 
           {/* Payment Section */}
-          <div className="p-3 border-t bg-white dark:bg-gray-950 space-y-2 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] shrink-0">
-            <div className="flex justify-between items-end px-1 pb-1">
-              <span className="text-xs font-bold text-muted-foreground uppercase">Total</span>
-              <span className="text-2xl font-black text-gray-900 dark:text-white leading-none">
-                {formatCurrency(total)}
-              </span>
+          <div className="p-4 bg-white dark:bg-gray-950 border-t space-y-4 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] shrink-0">
+            <div className="space-y-3">
+              <div className="flex justify-between items-center group">
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Subtotal</span>
+                <span className="text-sm font-black text-gray-700 dark:text-gray-300">
+                  {formatCurrency(calculateSubtotal())}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Discount %</span>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={invoiceDiscountPercent}
+                      onChange={(e) => setInvoiceDiscountPercent(e.target.value)}
+                      className="h-8 w-16 text-center text-xs font-black bg-muted/50 border-none rounded-lg focus:ring-2 focus:ring-blue-500 transition-all"
+                    />
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-black text-red-500">
+                    -{formatCurrency(calculateInvoiceDiscount())}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t-2 border-dashed border-gray-100 dark:border-gray-800 flex justify-between items-end">
+                <span className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-tighter">Total Amount</span>
+                <span className="text-3xl font-black text-blue-600 leading-none tracking-tighter">
+                  {formatCurrency(calculateTotal())}
+                </span>
+              </div>
             </div>
 
             {cart.length > 0 && !showPayment && (
@@ -657,6 +762,8 @@ export default function POS() {
             locationName={lastInvoice.locationName}
             items={lastInvoice.items}
             subtotal={lastInvoice.subtotal}
+            discountAmount={lastInvoice.discountAmount}
+            totalAmount={lastInvoice.totalAmount}
             paidAmount={lastInvoice.paidAmount}
             remainingAmount={lastInvoice.remainingAmount}
             paymentMethod={lastInvoice.paymentMethod}

@@ -828,6 +828,26 @@ export default function CreditNotes() {
                   <p>{new Date(selectedCreditNote.credit_note_date).toLocaleDateString()}</p>
                 </div>
                 <div>
+                  <Label>Type</Label>
+                  <p className="capitalize font-medium">{selectedCreditNote.type || 'purchase'}</p>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(selectedCreditNote.status)}`}>
+                    {selectedCreditNote.status}
+                  </span>
+                </div>
+                {(selectedCreditNote.purchase_invoice || selectedCreditNote.sales_invoice) && (
+                  <div className="col-span-2">
+                    <Label>Related Invoice</Label>
+                    <p className="font-medium text-blue-600">
+                      {selectedCreditNote.type === 'sales' 
+                        ? selectedCreditNote.sales_invoice?.invoice_number 
+                        : selectedCreditNote.purchase_invoice?.invoice_number}
+                    </p>
+                  </div>
+                )}
+                <div>
                   <Label>{selectedCreditNote.type === 'sales' ? 'Customer' : 'Vendor'}</Label>
                   <p>
                     {selectedCreditNote.type === 'sales'
@@ -838,16 +858,6 @@ export default function CreditNotes() {
                 <div>
                   <Label>Location</Label>
                   <p>{selectedCreditNote.location?.name}</p>
-                </div>
-                <div>
-                  <Label>Type</Label>
-                  <p className="capitalize font-medium">{selectedCreditNote.type || 'purchase'}</p>
-                </div>
-                <div>
-                  <Label>Status</Label>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(selectedCreditNote.status)}`}>
-                    {selectedCreditNote.status}
-                  </span>
                 </div>
                 <div>
                   <Label>Total Amount</Label>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Printer, ShoppingCart, MapPin, User, Calendar, DollarSign, Plus, Edit2, Save, X, Users } from 'lucide-react';
+import { ArrowLeft, Printer, ShoppingCart, MapPin, User, Calendar, DollarSign, Plus, Edit2, Save, X, Users, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -115,13 +115,60 @@ export default function SalesInvoiceDetails() {
     window.print();
   };
 
+  const handleDownloadPDF = async () => {
+    if (!invoice) return;
+    try {
+      const companySettings = localStorage.getItem('company_settings');
+      let params = new URLSearchParams({
+        type: 'sales'
+      });
+      
+      if (companySettings) {
+        const settings = JSON.parse(companySettings);
+        if (settings.company_name) params.append('company_name', settings.company_name);
+        if (settings.company_address) params.append('company_address', settings.company_address);
+        if (settings.company_phone) params.append('company_phone', settings.company_phone);
+      }
+
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/pdf/invoice/${invoice.id}?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('PDF generation failed:', response.status, errorText);
+        throw new Error(`Failed to generate PDF: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sales_invoice_${invoice.invoice_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('PDF downloaded successfully');
+    } catch (error) {
+      console.error('PDF export error:', error);
+      toast.error('Failed to generate PDF');
+    }
+  };
+
   const handleAddPayment = () => {
     if (!invoice || !paymentAmount) {
       toast.error('Please enter payment amount');
       return;
     }
 
-    const remaining = invoice.total_amount - invoice.paid_amount;
+    // Calculate remaining with credit notes
+    const cnTotal = invoice.credit_notes?.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0) || 0;
+    const remaining = invoice.total_amount - cnTotal - invoice.paid_amount;
     if (Number(paymentAmount) > remaining) {
       toast.error('Payment amount exceeds remaining balance');
       return;
@@ -224,7 +271,28 @@ export default function SalesInvoiceDetails() {
     );
   }
 
-  const remaining = invoice.total_amount - invoice.paid_amount;
+  // Calculate credit notes total
+  const creditNotesTotal = invoice.credit_notes?.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0) || 0;
+  // Remaining = Total - Credit Notes - Paid
+  const remaining = invoice.total_amount - creditNotesTotal - invoice.paid_amount;
+
+  // Calculate credited quantities per product
+  const getCreditedQuantity = (productId: number) => {
+    if (!invoice.credit_notes || invoice.credit_notes.length === 0) return 0;
+    return invoice.credit_notes.reduce((total: number, cn: any) => {
+      if (cn.status !== 'approved') return total;
+      const cnItems = cn.items || [];
+      const productItems = cnItems.filter((item: any) => item.product_id === productId);
+      return total + productItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+    }, 0);
+  };
+
+  // Calculate remaining total after credit notes for each item
+  const getItemRemainingTotal = (item: any) => {
+    const creditedQty = getCreditedQuantity(item.product_id);
+    const remainingQty = item.quantity - creditedQty;
+    return remainingQty * item.unit_price * (1 - (item.discount_percent || 0) / 100);
+  };
 
   const productOptions = products?.map((product: any) => {
     const stock = locationStock?.find((s: any) => s.product_id === product.id);
@@ -273,6 +341,10 @@ export default function SalesInvoiceDetails() {
           <Button onClick={handlePrint} variant="outline">
             <Printer className="mr-2 h-4 w-4" />
             Print
+          </Button>
+          <Button onClick={handleDownloadPDF} variant="outline">
+            <Download className="mr-2 h-4 w-4" />
+            Download PDF
           </Button>
         </div>
       </div>
@@ -466,9 +538,11 @@ export default function SalesInvoiceDetails() {
                 <TableRow>
                   <TableHead>Product</TableHead>
                   <TableHead className="text-center">Quantity</TableHead>
+                  {creditNotesTotal > 0 && <TableHead className="text-center">Credit Noted</TableHead>}
                   <TableHead className="text-right">Unit Price</TableHead>
                   <TableHead className="text-center">Discount</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  {creditNotesTotal > 0 && <TableHead className="text-right">After Credit</TableHead>}
                   <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -521,6 +595,13 @@ export default function SalesInvoiceDetails() {
                         item.quantity
                       )}
                     </TableCell>
+                    {creditNotesTotal > 0 && (
+                      <TableCell className="text-center">
+                        <span className="text-orange-600 font-medium">
+                          {getCreditedQuantity(item.product_id) > 0 ? getCreditedQuantity(item.product_id) : '-'}
+                        </span>
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
                       {editingItemId === item.id ? (
                         <Input
@@ -556,6 +637,17 @@ export default function SalesInvoiceDetails() {
                         formatCurrency(item.total)
                       )}
                     </TableCell>
+                    {creditNotesTotal > 0 && (
+                      <TableCell className="text-right font-medium">
+                        {editingItemId === item.id ? (
+                          <span>-</span>
+                        ) : (
+                          <span className={getCreditedQuantity(item.product_id) > 0 ? 'text-green-600' : ''}>
+                            {formatCurrency(getItemRemainingTotal(item))}
+                          </span>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="text-center">
                       {editingItemId === item.id ? (
                         <div className="flex items-center gap-2 justify-center">
@@ -592,6 +684,49 @@ export default function SalesInvoiceDetails() {
         </CardContent>
       </Card>
 
+      {/* Credit Notes Card */}
+      {invoice.credit_notes && invoice.credit_notes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-orange-600">Credit Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Credit Note #</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invoice.credit_notes.map((cn: any) => (
+                    <TableRow key={cn.id}>
+                      <TableCell className="font-medium">{cn.credit_note_number}</TableCell>
+                      <TableCell>{formatDateTime(cn.credit_note_date)}</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          cn.status === 'approved' 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                        }`}>
+                          {cn.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-orange-600">
+                        -{formatCurrency(cn.total_amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Totals Card */}
       <Card>
         <CardContent className="pt-6">
@@ -619,6 +754,24 @@ export default function SalesInvoiceDetails() {
               <span>Total:</span>
               <span>{formatCurrency(invoice.total_amount)}</span>
             </div>
+
+            {/* Credit Notes Total */}
+            {creditNotesTotal > 0 && (
+              <div className="flex justify-between text-lg">
+                <span className="text-orange-600">Credit Notes:</span>
+                <span className="font-medium text-orange-600">
+                  -{formatCurrency(creditNotesTotal)}
+                </span>
+              </div>
+            )}
+
+            {/* Adjusted Total (after credit notes) */}
+            {creditNotesTotal > 0 && (
+              <div className="flex justify-between text-lg font-bold">
+                <span>Net Amount:</span>
+                <span>{formatCurrency(invoice.total_amount - creditNotesTotal)}</span>
+              </div>
+            )}
 
             <div className="flex justify-between text-lg border-t pt-3">
               <span className="text-green-600">Paid:</span>

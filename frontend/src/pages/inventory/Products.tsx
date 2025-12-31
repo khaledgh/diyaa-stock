@@ -31,19 +31,19 @@ export default function Products() {
     queryKey: ['products', searchTerm, page],
     queryFn: async () => {
       try {
-        const response = await productApi.getAll({ 
+        const response = await productApi.getAll({
           search: searchTerm,
           page,
           per_page: perPage
         });
-        
+
         console.log('Product API Response:', response.data);
-        
+
         // The API returns: { success: true, message: "Success", data: { data: [], pagination: {} } }
         // So we need response.data.data to get { data: [...], pagination: {...} }
-        
+
         const apiData = response.data.data || response.data;
-        
+
         // Check if apiData has the nested structure
         if (apiData?.data && Array.isArray(apiData.data)) {
           console.log('Correct format detected: nested data array');
@@ -52,13 +52,13 @@ export default function Products() {
             pagination: apiData.pagination || null
           };
         }
-        
+
         // Fallback: if apiData is directly an array (old format)
         if (Array.isArray(apiData)) {
           console.log('Old format: direct array');
           return { data: apiData, pagination: null };
         }
-        
+
         console.log('Unknown format, returning empty. ApiData:', apiData);
         return { data: [], pagination: null };
       } catch (error) {
@@ -70,7 +70,7 @@ export default function Products() {
 
   const products = Array.isArray(productsResponse?.data) ? productsResponse.data : [];
   const pagination = productsResponse?.pagination;
-  
+
   console.log('Products:', products, 'Pagination:', pagination);
 
 
@@ -150,9 +150,16 @@ export default function Products() {
                   products?.map((product: any) => (
                     <TableRow key={product.id}>
                       <TableCell className="font-medium">{product.sku}</TableCell>
-                      <TableCell>{product.name_en}</TableCell>
-                      <TableCell>{product.category?.name_en || '-'}</TableCell>
-                      <TableCell>{product.product_type?.name_en || '-'}</TableCell>
+                      <TableCell dir="auto">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{product.name_ar || product.name_en}</span>
+                          {product.name_ar && product.name_en && (
+                            <span className="text-xs text-muted-foreground">{product.name_en}</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell dir="auto">{product.category?.name_ar || product.category?.name_en || '-'}</TableCell>
+                      <TableCell dir="auto">{product.product_type?.name_ar || product.product_type?.name_en || '-'}</TableCell>
                       <TableCell>{formatCurrency(product.unit_price)}</TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
@@ -173,11 +180,10 @@ export default function Products() {
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            product.is_active
+                          className={`px-2 py-1 rounded-full text-xs ${product.is_active
                               ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'
-                          }`}
+                            }`}
                         >
                           {product.is_active ? t('common.active') : t('common.inactive')}
                         </span>
@@ -208,7 +214,7 @@ export default function Products() {
               </TableBody>
             </Table>
           )}
-          
+
           {pagination && pagination.total_pages > 1 && (
             <Pagination
               currentPage={pagination.current_page}

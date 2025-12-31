@@ -152,6 +152,7 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	pdfHandler := handlers.NewPDFHandler(store)
 	apiGroup.GET("/pdf/customer-statement/:id", pdfHandler.CustomerStatementPDF)
 	apiGroup.GET("/pdf/vendor-statement/:id", pdfHandler.VendorStatementPDF)
+	apiGroup.GET("/pdf/invoice/:id", pdfHandler.InvoicePDF)
 
 	// User routes - matches PHP: /api/users
 	userservice := services.NewUserService(models.User{}, store)

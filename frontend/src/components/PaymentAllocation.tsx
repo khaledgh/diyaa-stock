@@ -70,7 +70,7 @@ export default function PaymentAllocation({
     queryFn: async () => {
       const params: any = {
         invoice_type: type,
-        per_page: 100
+        limit: 1000
       };
 
       if (type === 'sales') {

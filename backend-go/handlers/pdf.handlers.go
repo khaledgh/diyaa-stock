@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,28 @@ type PDFHandler struct {
 
 func NewPDFHandler(db *gorm.DB) *PDFHandler {
 	return &PDFHandler{db: db}
+}
+
+func (h *PDFHandler) getFontPath() string {
+	cwd, _ := os.Getwd()
+	fmt.Printf("Current working directory: %s\n", cwd)
+	fontPath := "fonts/Amiri-Regular.ttf"
+	if _, err := os.Stat(fontPath); os.IsNotExist(err) {
+		fmt.Printf("Font file not found at local path: %s\n", fontPath)
+		// Check common alternative paths
+		// 1. Parent directory (e.g. running from cmd/)
+		if _, err := os.Stat("../fonts/Amiri-Regular.ttf"); err == nil {
+			fmt.Printf("Found font at: ../fonts/Amiri-Regular.ttf\n")
+			return "../fonts/Amiri-Regular.ttf"
+		}
+		// 2. Project root subfolder (if running from root but structure differs)
+		if _, err := os.Stat("backend-go/fonts/Amiri-Regular.ttf"); err == nil {
+			fmt.Printf("Found font at: backend-go/fonts/Amiri-Regular.ttf\n")
+			return "backend-go/fonts/Amiri-Regular.ttf"
+		}
+	}
+	fmt.Printf("Using font path: %s\n", fontPath)
+	return fontPath
 }
 
 // containsArabic checks if text contains Arabic characters
@@ -186,7 +209,7 @@ func (h *PDFHandler) CustomerStatementPDF(c echo.Context) error {
 	pdf.AddPage()
 
 	// Add Amiri font for Arabic support
-	pdf.AddUTF8Font("Amiri", "", "fonts/Amiri-Regular.ttf")
+	pdf.AddUTF8Font("Amiri", "", h.getFontPath())
 
 	// Company Header - Blue background
 	pdf.SetFillColor(59, 130, 246)
@@ -293,7 +316,7 @@ func (h *PDFHandler) CustomerStatementPDF(c echo.Context) error {
 	filename := fmt.Sprintf("Statement_%s_%s_to_%s.pdf",
 		strings.ReplaceAll(customer.Name, " ", "_"), fromDate, toDate)
 	c.Response().Header().Set("Content-Type", "application/pdf")
-	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Response().Header().Set("Content-Length", strconv.Itoa(buf.Len()))
 
 	return c.Blob(http.StatusOK, "application/pdf", buf.Bytes())
@@ -422,7 +445,7 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 	pdf.AddPage()
 
 	// Add Amiri font for Arabic support
-	pdf.AddUTF8Font("Amiri", "", "fonts/Amiri-Regular.ttf")
+	pdf.AddUTF8Font("Amiri", "", h.getFontPath())
 
 	// Company Header - Red background for vendor
 	pdf.SetFillColor(220, 38, 38)
@@ -534,7 +557,419 @@ func (h *PDFHandler) VendorStatementPDF(c echo.Context) error {
 	filename := fmt.Sprintf("Statement_%s_%s_to_%s.pdf",
 		strings.ReplaceAll(vendor.Name, " ", "_"), fromDate, toDate)
 	c.Response().Header().Set("Content-Type", "application/pdf")
-	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Response().Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+
+	return c.Blob(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// InvoicePDF generates PDF for invoice (sales or purchase)
+func (h *PDFHandler) InvoicePDF(c echo.Context) error {
+	invoiceID := c.Param("id")
+	invoiceType := c.QueryParam("type") // "sales" or "purchase"
+	companyName := c.QueryParam("company_name")
+	companyAddress := c.QueryParam("company_address")
+	companyPhone := c.QueryParam("company_phone")
+
+	fmt.Printf("PDF Request - Invoice ID: %s, Type: %s\n", invoiceID, invoiceType)
+
+	if companyName == "" {
+		companyName = "Company Name"
+	}
+
+	if invoiceType == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invoice type is required (sales or purchase)"})
+	}
+
+	// Get invoice details with items and credit notes
+	var invoice struct {
+		ID             uint      `json:"id"`
+		InvoiceNumber  string    `json:"invoice_number"`
+		InvoiceDate    time.Time `json:"invoice_date"`
+		CreatedAt      time.Time `json:"created_at"`
+		Subtotal       float64   `json:"subtotal"`
+		TaxAmount      float64   `json:"tax_amount"`
+		DiscountAmount float64   `json:"discount_amount"`
+		TotalAmount    float64   `json:"total_amount"`
+		PaidAmount     float64   `json:"paid_amount"`
+		PaymentStatus  string    `json:"payment_status"`
+		Notes          string    `json:"notes"`
+		LocationName   string    `json:"location_name"`
+		CustomerName   string    `json:"customer_name"`
+		VendorName     string    `json:"vendor_name"`
+	}
+
+	var items []struct {
+		ProductID       uint    `json:"product_id"`
+		ProductName     string  `json:"product_name"`
+		Quantity        float64 `json:"quantity"`
+		UnitPrice       float64 `json:"unit_price"`
+		DiscountPercent float64 `json:"discount_percent"`
+		Total           float64 `json:"total"`
+	}
+
+	var creditNotes []struct {
+		ID               uint      `json:"id"`
+		CreditNoteNumber string    `json:"credit_note_number"`
+		CreditNoteDate   time.Time `json:"credit_note_date"`
+		Status           string    `json:"status"`
+		TotalAmount      float64   `json:"total_amount"`
+		Items            []struct {
+			ProductID uint    `json:"product_id"`
+			Quantity  float64 `json:"quantity"`
+		} `gorm:"-"`
+	}
+
+	// Get invoice based on type
+	if invoiceType == "sales" {
+		if err := h.db.Table("sales_invoices si").
+			Select("si.*, l.name as location_name, c.name as customer_name").
+			Joins("LEFT JOIN locations l ON si.location_id = l.id").
+			Joins("LEFT JOIN customers c ON si.customer_id = c.id").
+			Where("si.id = ?", invoiceID).
+			First(&invoice).Error; err != nil {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "Invoice not found"})
+		}
+
+		// Get items
+		h.db.Raw(`
+			SELECT sii.product_id, 
+				COALESCE(NULLIF(p.name_ar, ''), p.name_en, 'Unknown') as product_name,
+				sii.quantity, sii.unit_price, sii.discount_percent, sii.total
+			FROM sales_invoice_items sii
+			LEFT JOIN products p ON sii.product_id = p.id
+			WHERE sii.invoice_id = ?
+		`, invoiceID).Scan(&items)
+		fmt.Printf("Sales invoice items fetched: %d items\n", len(items))
+		for i, item := range items {
+			fmt.Printf("  Item %d: ProductID=%d, Name='%s'\n", i, item.ProductID, item.ProductName)
+		}
+
+		// Get credit notes
+		h.db.Raw(`
+			SELECT id, credit_note_number, credit_note_date, status, total_amount
+			FROM credit_notes
+			WHERE sales_invoice_id = ? AND status = 'approved'
+		`, invoiceID).Scan(&creditNotes)
+
+	} else {
+		if err := h.db.Table("purchase_invoices pi").
+			Select("pi.*, l.name as location_name, v.company_name as vendor_name").
+			Joins("LEFT JOIN locations l ON pi.location_id = l.id").
+			Joins("LEFT JOIN vendors v ON pi.vendor_id = v.id").
+			Where("pi.id = ?", invoiceID).
+			First(&invoice).Error; err != nil {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "Invoice not found"})
+		}
+
+		// Get items
+		h.db.Raw(`
+			SELECT pii.product_id,
+				COALESCE(NULLIF(p.name_ar, ''), p.name_en, 'Unknown') as product_name,
+				pii.quantity, pii.unit_price, pii.discount_percent, pii.total
+			FROM purchase_invoice_items pii
+			LEFT JOIN products p ON pii.product_id = p.id
+			WHERE pii.invoice_id = ?
+		`, invoiceID).Scan(&items)
+		fmt.Printf("Purchase invoice items fetched: %d items\n", len(items))
+		for i, item := range items {
+			fmt.Printf("  Item %d: ProductID=%d, Name='%s'\n", i, item.ProductID, item.ProductName)
+		}
+
+		// Get credit notes
+		h.db.Raw(`
+			SELECT id, credit_note_number, credit_note_date, status, total_amount
+			FROM credit_notes
+			WHERE purchase_invoice_id = ? AND status = 'approved'
+		`, invoiceID).Scan(&creditNotes)
+	}
+
+	// Get credit note items for each credit note
+	for i := range creditNotes {
+		h.db.Raw(`
+			SELECT product_id, quantity
+			FROM credit_note_items
+			WHERE credit_note_id = ?
+		`, creditNotes[i].ID).Scan(&creditNotes[i].Items)
+	}
+
+	// Calculate credit notes total and credited quantities
+	creditNotesTotal := 0.0
+	creditedQuantities := make(map[uint]float64)
+	for _, cn := range creditNotes {
+		creditNotesTotal += cn.TotalAmount
+		for _, item := range cn.Items {
+			creditedQuantities[item.ProductID] += item.Quantity
+		}
+	}
+
+	remaining := invoice.TotalAmount - creditNotesTotal - invoice.PaidAmount
+
+	// Create PDF
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(15, 15, 15)
+	pdf.AddPage()
+
+	// Add Amiri font for Arabic support
+	pdf.AddUTF8Font("Amiri", "", h.getFontPath())
+
+	// Company Header
+	headerColor := []int{22, 163, 74} // Green for sales
+	if invoiceType == "purchase" {
+		headerColor = []int{37, 99, 235} // Blue for purchase
+	}
+	pdf.SetFillColor(headerColor[0], headerColor[1], headerColor[2])
+	pdf.Rect(0, 0, 210, 35, "F")
+
+	pdf.SetTextColor(255, 255, 255)
+	pdf.SetFont("Arial", "B", 18)
+	pdf.SetY(10)
+	pdf.CellFormat(180, 8, companyName, "", 1, "C", false, 0, "")
+
+	if companyAddress != "" || companyPhone != "" {
+		pdf.SetFont("Arial", "", 10)
+		contactInfo := ""
+		if companyAddress != "" {
+			contactInfo = companyAddress
+		}
+		if companyPhone != "" {
+			if contactInfo != "" {
+				contactInfo += " | "
+			}
+			contactInfo += "Tel: " + companyPhone
+		}
+		pdf.CellFormat(180, 6, contactInfo, "", 1, "C", false, 0, "")
+	}
+
+	pdf.SetTextColor(0, 0, 0)
+	pdf.Ln(10)
+
+	// Invoice Title
+	pdf.SetFont("Arial", "B", 14)
+	pdf.SetTextColor(headerColor[0], headerColor[1], headerColor[2])
+	title := "SALES INVOICE"
+	if invoiceType == "purchase" {
+		title = "PURCHASE INVOICE"
+	}
+	pdf.CellFormat(180, 8, title, "", 1, "C", false, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+	pdf.Ln(5)
+
+	// Invoice Info
+	pdf.SetFont("Arial", "", 10)
+	pdf.CellFormat(90, 6, fmt.Sprintf("Invoice #: %s", invoice.InvoiceNumber), "", 0, "L", false, 0, "")
+
+	// Handle Arabic location name
+	locationName := invoice.LocationName
+	if containsArabic(locationName) {
+		pdf.SetFont("Amiri", "", 12)
+		locationName = fixArabicText(locationName)
+	}
+	pdf.CellFormat(90, 6, fmt.Sprintf("Location: %s", locationName), "", 1, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 10)
+
+	invoiceDate := invoice.InvoiceDate
+	if invoiceDate.IsZero() {
+		invoiceDate = invoice.CreatedAt
+	}
+	pdf.CellFormat(90, 6, fmt.Sprintf("Date: %s", invoiceDate.Format("2006-01-02")), "", 0, "L", false, 0, "")
+	pdf.CellFormat(90, 6, fmt.Sprintf("Status: %s", invoice.PaymentStatus), "", 1, "L", false, 0, "")
+
+	entityName := invoice.CustomerName
+	entityLabel := "Customer"
+	if invoiceType == "purchase" {
+		entityName = invoice.VendorName
+		entityLabel = "Vendor"
+	}
+	if entityName == "" {
+		entityName = "Walk-in"
+	}
+
+	// Handle Arabic names
+	if containsArabic(entityName) {
+		pdf.SetFont("Amiri", "", 12)
+		entityName = fixArabicText(entityName)
+	}
+	pdf.CellFormat(180, 6, fmt.Sprintf("%s: %s", entityLabel, entityName), "", 1, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 10)
+	pdf.Ln(5)
+
+	// Items Table Header
+	pdf.SetFillColor(headerColor[0], headerColor[1], headerColor[2])
+	pdf.SetTextColor(255, 255, 255)
+	pdf.SetFont("Arial", "B", 8)
+
+	colWidths := []float64{60, 20, 25, 20, 25}
+	headers := []string{"Product", "Qty", "Unit Price", "Disc%", "Total"}
+
+	if creditNotesTotal > 0 {
+		colWidths = []float64{50, 15, 15, 20, 15, 20, 25}
+		headers = []string{"Product", "Qty", "CN Qty", "Unit Price", "Disc%", "Total", "After CN"}
+	}
+
+	for i, header := range headers {
+		pdf.CellFormat(colWidths[i], 8, header, "1", 0, "C", true, 0, "")
+	}
+	pdf.Ln(-1)
+
+	// Items Table Body
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetFont("Arial", "", 8)
+
+	for _, item := range items {
+		productName := item.ProductName
+		if containsArabic(productName) {
+			pdf.SetFont("Amiri", "", 9)
+			productName = fixArabicText(productName)
+		}
+		pdf.CellFormat(colWidths[0], 7, productName, "1", 0, "L", false, 0, "")
+		pdf.SetFont("Arial", "", 8)
+
+		pdf.CellFormat(colWidths[1], 7, fmt.Sprintf("%.0f", item.Quantity), "1", 0, "C", false, 0, "")
+
+		if creditNotesTotal > 0 {
+			creditedQty := creditedQuantities[item.ProductID]
+			cnQtyStr := "-"
+			if creditedQty > 0 {
+				cnQtyStr = fmt.Sprintf("%.0f", creditedQty)
+			}
+			pdf.SetTextColor(234, 88, 12) // Orange
+			pdf.CellFormat(colWidths[2], 7, cnQtyStr, "1", 0, "C", false, 0, "")
+			pdf.SetTextColor(0, 0, 0)
+		}
+
+		priceIdx := 2
+		if creditNotesTotal > 0 {
+			priceIdx = 3
+		}
+		pdf.CellFormat(colWidths[priceIdx], 7, fmt.Sprintf("%.2f", item.UnitPrice), "1", 0, "R", false, 0, "")
+		pdf.CellFormat(colWidths[priceIdx+1], 7, fmt.Sprintf("%.0f%%", item.DiscountPercent), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(colWidths[priceIdx+2], 7, fmt.Sprintf("%.2f", item.Total), "1", 0, "R", false, 0, "")
+
+		if creditNotesTotal > 0 {
+			creditedQty := creditedQuantities[item.ProductID]
+			remainingQty := item.Quantity - creditedQty
+			afterCredit := remainingQty * item.UnitPrice * (1 - item.DiscountPercent/100)
+			if creditedQty > 0 {
+				pdf.SetTextColor(22, 163, 74) // Green
+			}
+			pdf.CellFormat(colWidths[6], 7, fmt.Sprintf("%.2f", afterCredit), "1", 0, "R", false, 0, "")
+			pdf.SetTextColor(0, 0, 0)
+		}
+
+		pdf.Ln(-1)
+	}
+
+	pdf.Ln(5)
+
+	// Credit Notes Table (if any)
+	if len(creditNotes) > 0 {
+		pdf.SetFont("Arial", "B", 10)
+		pdf.SetTextColor(234, 88, 12)
+		pdf.CellFormat(180, 6, "Credit Notes", "", 1, "L", false, 0, "")
+		pdf.SetTextColor(0, 0, 0)
+		pdf.Ln(2)
+
+		pdf.SetFillColor(234, 88, 12)
+		pdf.SetTextColor(255, 255, 255)
+		pdf.SetFont("Arial", "B", 8)
+		pdf.CellFormat(50, 7, "Credit Note #", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(40, 7, "Date", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(30, 7, "Status", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(30, 7, "Amount", "1", 1, "C", true, 0, "")
+
+		pdf.SetTextColor(0, 0, 0)
+		pdf.SetFont("Arial", "", 8)
+		for _, cn := range creditNotes {
+			pdf.CellFormat(50, 6, cn.CreditNoteNumber, "1", 0, "L", false, 0, "")
+			pdf.CellFormat(40, 6, cn.CreditNoteDate.Format("2006-01-02"), "1", 0, "C", false, 0, "")
+			pdf.CellFormat(30, 6, cn.Status, "1", 0, "C", false, 0, "")
+			pdf.SetTextColor(234, 88, 12)
+			pdf.CellFormat(30, 6, fmt.Sprintf("-%.2f", cn.TotalAmount), "1", 1, "R", false, 0, "")
+			pdf.SetTextColor(0, 0, 0)
+		}
+		pdf.Ln(5)
+	}
+
+	// Totals Section
+	pdf.SetFont("Arial", "", 10)
+	xPos := 130.0
+	pdf.SetX(xPos)
+	pdf.CellFormat(30, 6, "Subtotal:", "", 0, "R", false, 0, "")
+	pdf.CellFormat(30, 6, fmt.Sprintf("%.2f", invoice.Subtotal), "", 1, "R", false, 0, "")
+
+	if invoice.TaxAmount > 0 {
+		pdf.SetX(xPos)
+		pdf.CellFormat(30, 6, "Tax:", "", 0, "R", false, 0, "")
+		pdf.CellFormat(30, 6, fmt.Sprintf("%.2f", invoice.TaxAmount), "", 1, "R", false, 0, "")
+	}
+
+	if invoice.DiscountAmount > 0 {
+		pdf.SetX(xPos)
+		pdf.CellFormat(30, 6, "Discount:", "", 0, "R", false, 0, "")
+		pdf.SetTextColor(220, 38, 38)
+		pdf.CellFormat(30, 6, fmt.Sprintf("-%.2f", invoice.DiscountAmount), "", 1, "R", false, 0, "")
+		pdf.SetTextColor(0, 0, 0)
+	}
+
+	pdf.SetFont("Arial", "B", 12)
+	pdf.SetX(xPos)
+	pdf.CellFormat(30, 8, "Total:", "", 0, "R", false, 0, "")
+	pdf.CellFormat(30, 8, fmt.Sprintf("%.2f", invoice.TotalAmount), "", 1, "R", false, 0, "")
+
+	if creditNotesTotal > 0 {
+		pdf.SetFont("Arial", "", 10)
+		pdf.SetX(xPos)
+		pdf.CellFormat(30, 6, "Credit Notes:", "", 0, "R", false, 0, "")
+		pdf.SetTextColor(234, 88, 12)
+		pdf.CellFormat(30, 6, fmt.Sprintf("-%.2f", creditNotesTotal), "", 1, "R", false, 0, "")
+		pdf.SetTextColor(0, 0, 0)
+
+		pdf.SetFont("Arial", "B", 10)
+		pdf.SetX(xPos)
+		pdf.CellFormat(30, 6, "Net Amount:", "", 0, "R", false, 0, "")
+		pdf.CellFormat(30, 6, fmt.Sprintf("%.2f", invoice.TotalAmount-creditNotesTotal), "", 1, "R", false, 0, "")
+	}
+
+	pdf.SetFont("Arial", "", 10)
+	pdf.SetX(xPos)
+	pdf.CellFormat(30, 6, "Paid:", "", 0, "R", false, 0, "")
+	pdf.SetTextColor(22, 163, 74)
+	pdf.CellFormat(30, 6, fmt.Sprintf("%.2f", invoice.PaidAmount), "", 1, "R", false, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+
+	if remaining > 0 {
+		pdf.SetFont("Arial", "B", 10)
+		pdf.SetX(xPos)
+		pdf.CellFormat(30, 6, "Remaining:", "", 0, "R", false, 0, "")
+		pdf.SetTextColor(220, 38, 38)
+		pdf.CellFormat(30, 6, fmt.Sprintf("%.2f", remaining), "", 1, "R", false, 0, "")
+		pdf.SetTextColor(0, 0, 0)
+	}
+
+	// Notes
+	if invoice.Notes != "" {
+		pdf.Ln(5)
+		pdf.SetFont("Arial", "B", 10)
+		pdf.CellFormat(180, 6, "Notes:", "", 1, "L", false, 0, "")
+		pdf.SetFont("Arial", "", 9)
+		pdf.MultiCell(180, 5, invoice.Notes, "", "L", false)
+	}
+
+	// Output PDF
+	var buf bytes.Buffer
+	err := pdf.Output(&buf)
+	if err != nil {
+		fmt.Printf("PDF Generation Error: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to generate PDF"})
+	}
+
+	fmt.Printf("PDF Generated successfully. Buffer length: %d bytes\n", buf.Len())
+
+	// Set headers for PDF download
+	filename := fmt.Sprintf("%s_invoice_%s.pdf", invoiceType, invoice.InvoiceNumber)
+	c.Response().Header().Set("Content-Type", "application/pdf")
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Response().Header().Set("Content-Length", strconv.Itoa(buf.Len()))
 
 	return c.Blob(http.StatusOK, "application/pdf", buf.Bytes())
