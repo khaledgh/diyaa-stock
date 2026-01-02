@@ -51,6 +51,17 @@ export default function POS() {
   const [showPayment, setShowPayment] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [invoiceDiscountPercent, setInvoiceDiscountPercent] = useState('0');
+  const [paymentOption, setPaymentOption] = useState<'full' | 'partial' | 'unpaid'>('full');
+
+  // Sync paid amount based on payment option
+  useEffect(() => {
+    const total = calculateTotal();
+    if (paymentOption === 'full') {
+      setPaidAmount(total.toString());
+    } else if (paymentOption === 'unpaid') {
+      setPaidAmount('0');
+    }
+  }, [cart, invoiceDiscountPercent, paymentOption]);
 
   const toggleFullscreen = () => {
     if (!isFullscreen) {
@@ -136,7 +147,12 @@ export default function POS() {
   };
 
   const createSaleMutation = useMutation({
-    mutationFn: (data: any) => invoiceApi.createSales(data),
+    mutationFn: ({ data, shouldPrint }: { data: any, shouldPrint: boolean }) =>
+      invoiceApi.createSales(data).then(res => {
+        // Tag the response config with print intent so onSuccess can see it
+        res.config.params = { ...res.config.params, print: shouldPrint ? 'true' : 'false' };
+        return res;
+      }),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['location-stock'] });
@@ -150,7 +166,7 @@ export default function POS() {
         invoiceDate: new Date().toISOString(),
         customerName: customers?.find((c: any) => c.id === Number(selectedCustomer))?.name || 'Walk-in Customer',
         locationName: locations?.find((l: any) => l.id === Number(selectedLocation))?.name,
-        items: cart,
+        items: [...cart],
         subtotal: subtotal,
         discountAmount: discountAmount,
         totalAmount: totalAmount,
@@ -164,7 +180,9 @@ export default function POS() {
       handleClearCart();
       setShowPayment(false);
 
-      setTimeout(() => handlePrint(), 500);
+      if (response.config.params?.print === 'true') {
+        setTimeout(() => handlePrint(), 500);
+      }
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to complete sale');
@@ -306,11 +324,15 @@ export default function POS() {
   const calculateInvoiceDiscount = () => Math.round(((calculateSubtotal() * (Number(invoiceDiscountPercent) || 0)) / 100) * 100) / 100;
   const calculateTotal = () => Math.round((calculateSubtotal() - calculateInvoiceDiscount()) * 100) / 100;
 
-  const handleCompleteSale = () => {
+  const handleCompleteSale = (shouldPrint: boolean) => {
     const total = calculateTotal();
     const paid = Number(paidAmount) || 0;
 
-    if (paid < total && !window.confirm(`Customer owes ${formatCurrency(total - paid)}. Continue?`)) {
+    if (paid < total && !selectedCustomer) {
+      if (!window.confirm(`Walk-in customer owes ${formatCurrency(total - paid)}. Continue?`)) {
+        return;
+      }
+    } else if (paid < total && !window.confirm(`Customer owes ${formatCurrency(total - paid)}. Continue?`)) {
       return;
     }
 
@@ -331,7 +353,7 @@ export default function POS() {
       saleData.customer_id = Number(selectedCustomer);
     }
 
-    createSaleMutation.mutate(saleData);
+    createSaleMutation.mutate({ data: saleData, shouldPrint });
   };
 
   const total = calculateTotal();
@@ -675,7 +697,7 @@ export default function POS() {
             {cart.length > 0 && !showPayment && (
               <Button
                 className="w-full h-12 text-base font-bold rounded-xl bg-blue-600 hover:bg-blue-700 shadow-md transition-all"
-                onClick={() => { setShowPayment(true); setPaidAmount(total.toString()); }}
+                onClick={() => { setShowPayment(true); setPaymentOption('full'); }}
               >
                 PAY NOW
               </Button>
@@ -684,6 +706,28 @@ export default function POS() {
             {showPayment && (
               <div className="space-y-4 animate-in slide-in-from-bottom-4">
                 <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Payment Status</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'full', label: 'Paid Totally' },
+                      { id: 'partial', label: 'Paid Partially' },
+                      { id: 'unpaid', label: 'Not Paid' }
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        onClick={() => setPaymentOption(opt.id as any)}
+                        className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border-2
+                          ${paymentOption === opt.id
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                            : 'bg-muted/50 border-transparent hover:border-blue-200'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest opacity-70">Amount Received</Label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
@@ -691,7 +735,10 @@ export default function POS() {
                       <Input
                         type="number"
                         value={paidAmount}
-                        onChange={(e) => setPaidAmount(e.target.value)}
+                        onChange={(e) => {
+                          setPaidAmount(e.target.value);
+                          setPaymentOption('partial');
+                        }}
                         placeholder="0.00"
                         className="pl-10 h-12 text-lg font-black rounded-xl border-2 focus:border-blue-500"
                       />
@@ -699,7 +746,7 @@ export default function POS() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => setPaidAmount(total.toString())}
+                      onClick={() => setPaymentOption('full')}
                       className="h-12 w-12 rounded-xl border-2 hover:bg-blue-50"
                       title="Exact amount"
                     >
@@ -733,16 +780,26 @@ export default function POS() {
                   </div>
                 )}
 
-                <div className="flex gap-3">
-                  <Button variant="outline" className="flex-1 h-12 rounded-xl font-bold" onClick={() => setShowPayment(false)}>
-                    CANCEL
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 h-12 rounded-xl border-green-200 text-green-700 hover:bg-green-50 font-bold text-xs"
+                    onClick={() => handleCompleteSale(false)}
+                    disabled={createSaleMutation.isPending}
+                  >
+                    {createSaleMutation.isPending ? '...' : 'FINISH ONLY'}
                   </Button>
                   <Button
-                    className="flex-1 h-12 rounded-xl bg-green-600 hover:bg-green-700 font-extrabold shadow-lg shadow-green-500/20"
-                    onClick={handleCompleteSale}
-                    disabled={createSaleMutation.isPending || (Number(paidAmount) < total && !selectedCustomer)}
+                    className="flex-[1.5] h-12 rounded-xl bg-green-600 hover:bg-green-700 font-extrabold shadow-lg shadow-green-500/20 text-xs"
+                    onClick={() => handleCompleteSale(true)}
+                    disabled={createSaleMutation.isPending}
                   >
-                    {createSaleMutation.isPending ? '...' : 'FINISH SALE'}
+                    {createSaleMutation.isPending ? '...' : (
+                      <div className="flex items-center gap-2">
+                        <Printer className="h-4 w-4" />
+                        FINISH & PRINT
+                      </div>
+                    )}
                   </Button>
                 </div>
               </div>

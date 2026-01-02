@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Plus, FileText, CheckCircle, XCircle, Trash2, Eye, Search } from 'lucide-react';
+import { Plus, FileText, CheckCircle, XCircle, Trash2, Eye, Search, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +27,7 @@ export default function CreditNotes() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedCreditNote, setSelectedCreditNote] = useState<any>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
@@ -231,6 +232,18 @@ export default function CreditNotes() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number, data: any }) => creditNoteApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['credit-notes'] });
+      toast.success(t('creditNotes.creditNoteUpdated'));
+      handleCloseDialog();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to update credit note');
+    },
+  });
+
   const approveMutation = useMutation({
     mutationFn: (id: number) => creditNoteApi.approve(id),
     onSuccess: () => {
@@ -265,6 +278,8 @@ export default function CreditNotes() {
   });
 
   const handleOpenDialog = () => {
+    setIsEditMode(false);
+    setSelectedCreditNote(null);
     setFormData({
       type: 'purchase',
       vendor_id: '',
@@ -275,6 +290,28 @@ export default function CreditNotes() {
       sales_invoice_id: '',
       notes: '',
       items: [],
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleEdit = (cn: any) => {
+    setSelectedCreditNote(cn);
+    setIsEditMode(true);
+    setFormData({
+      type: cn.type || 'purchase',
+      vendor_id: cn.vendor_id?.toString() || '',
+      customer_id: cn.customer_id?.toString() || '',
+      location_id: cn.location_id?.toString() || '',
+      credit_note_date: new Date(cn.credit_note_date).toISOString().split('T')[0],
+      purchase_invoice_id: cn.purchase_invoice_id?.toString() || '',
+      sales_invoice_id: cn.sales_invoice_id?.toString() || '',
+      notes: cn.notes || '',
+      items: cn.items?.map((item: any) => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        reason: item.reason || '',
+      })) || [],
     });
     setIsDialogOpen(true);
   };
@@ -382,7 +419,8 @@ export default function CreditNotes() {
 
       const existingCreditNotes = creditNotesResponse.data?.data || creditNotesResponse.data || [];
       const invoiceCreditNotes = existingCreditNotes.filter((cn: any) =>
-        (formData.type === 'purchase' ? cn.purchase_invoice_id : cn.sales_invoice_id) === parseInt(invoiceId)
+        (formData.type === 'purchase' ? cn.purchase_invoice_id : cn.sales_invoice_id) === parseInt(invoiceId) &&
+        (!isEditMode || cn.id !== selectedCreditNote?.id)
       );
 
       // Calculate already credited quantity
@@ -450,7 +488,11 @@ export default function CreditNotes() {
       })),
     };
 
-    createMutation.mutate(data);
+    if (isEditMode && selectedCreditNote) {
+      updateMutation.mutate({ id: selectedCreditNote.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
   };
 
   const handleView = async (id: number) => {
@@ -591,6 +633,11 @@ export default function CreditNotes() {
                               <Button variant="ghost" size="sm" onClick={() => handleView(cn.id)}>
                                 <Eye className="h-4 w-4" />
                               </Button>
+                              {(cn.status === 'draft' || cn.status === 'approved') && (
+                                <Button variant="ghost" size="sm" onClick={() => handleEdit(cn)}>
+                                  <Pencil className="h-4 w-4 text-blue-600" />
+                                </Button>
+                              )}
                               {cn.status === 'draft' && (
                                 <>
                                   <Button variant="ghost" size="sm" onClick={() => handleApprove(cn.id)}>
@@ -631,7 +678,7 @@ export default function CreditNotes() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create Credit Note</DialogTitle>
+            <DialogTitle>{isEditMode ? 'Edit Credit Note' : 'Create Credit Note'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -841,8 +888,8 @@ export default function CreditNotes() {
                   <div className="col-span-2">
                     <Label>Related Invoice</Label>
                     <p className="font-medium text-blue-600">
-                      {selectedCreditNote.type === 'sales' 
-                        ? selectedCreditNote.sales_invoice?.invoice_number 
+                      {selectedCreditNote.type === 'sales'
+                        ? selectedCreditNote.sales_invoice?.invoice_number
                         : selectedCreditNote.purchase_invoice?.invoice_number}
                     </p>
                   </div>

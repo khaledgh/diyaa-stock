@@ -151,15 +151,15 @@ func (s *CreditNoteService) Create(creditNote models.CreditNote) (models.CreditN
 	return s.GetByID(strconv.Itoa(int(creditNote.ID)))
 }
 
-// Update updates a credit note (only if status is draft)
+// Update updates a credit note
 func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (models.CreditNote, error) {
 	existing, err := s.GetByID(id)
 	if err != nil {
 		return creditNote, err
 	}
 
-	if existing.Status != "draft" {
-		return creditNote, errors.New("only draft credit notes can be updated")
+	if existing.Status == "cancelled" {
+		return creditNote, errors.New("cancelled credit notes cannot be updated")
 	}
 
 	// Use transaction to prevent race conditions
@@ -170,12 +170,37 @@ func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (mod
 		}
 	}()
 
-	// Validate quantities against original invoice within transaction (exclude current credit note)
-	if creditNote.PurchaseInvoiceID != nil {
-		if err := s.validateQuantitiesAgainstInvoice(creditNote, &existing.ID, tx); err != nil {
+	// If it was already approved, reverse the stock impact first
+	if existing.Status == "approved" {
+		for _, item := range existing.Items {
+			var stock models.Stock
+			if err := tx.Where("product_id = ? AND location_id = ?", item.ProductID, existing.LocationID).First(&stock).Error; err != nil {
+				tx.Rollback()
+				return creditNote, fmt.Errorf("stock not found for product %d at location %d during reversal", item.ProductID, existing.LocationID)
+			}
+
+			if existing.Type == "purchase" {
+				stock.Quantity += item.Quantity // Reverse reduction
+			} else {
+				stock.Quantity -= item.Quantity // Reverse addition
+			}
+
+			if err := tx.Save(&stock).Error; err != nil {
+				tx.Rollback()
+				return creditNote, err
+			}
+		}
+		// Delete old movements
+		if err := tx.Where("reference_id = ? AND (movement_type = ? OR movement_type = ?)", existing.ID, "credit_note_return", "sales_return").Delete(&models.StockMovement{}).Error; err != nil {
 			tx.Rollback()
 			return creditNote, err
 		}
+	}
+
+	// Validate quantities against original invoice within transaction (exclude current credit note)
+	if err := s.validateQuantitiesAgainstInvoice(creditNote, &existing.ID, tx); err != nil {
+		tx.Rollback()
+		return creditNote, err
 	}
 
 	// Update basic fields
@@ -207,6 +232,78 @@ func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (mod
 	if err := tx.Save(&existing).Error; err != nil {
 		tx.Rollback()
 		return creditNote, err
+	}
+
+	// If it was approved, apply new stock impact
+	if existing.Status == "approved" {
+		for _, item := range creditNote.Items {
+			// Check if stock exists or create it if it's a sales return
+			var stock models.Stock
+			err := tx.Where("product_id = ? AND location_id = ?", item.ProductID, existing.LocationID).First(&stock).Error
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) && existing.Type == "sales" {
+					stock = models.Stock{
+						ProductID:  item.ProductID,
+						LocationID: existing.LocationID,
+						Quantity:   0,
+					}
+					if err := tx.Create(&stock).Error; err != nil {
+						tx.Rollback()
+						return creditNote, err
+					}
+				} else {
+					tx.Rollback()
+					return creditNote, fmt.Errorf("stock not found for product %d at location %d", item.ProductID, existing.LocationID)
+				}
+			}
+
+			if existing.Type == "purchase" {
+				if stock.Quantity < item.Quantity {
+					tx.Rollback()
+					return creditNote, fmt.Errorf("insufficient stock for product %d. Available: %.2f, Required: %.2f",
+						item.ProductID, stock.Quantity, item.Quantity)
+				}
+				stock.Quantity -= item.Quantity
+			} else {
+				stock.Quantity += item.Quantity
+			}
+
+			if err := tx.Save(&stock).Error; err != nil {
+				tx.Rollback()
+				return creditNote, err
+			}
+
+			// Create new movement
+			notes := fmt.Sprintf("Credit Note (Updated): %s - %s", existing.CreditNoteNumber, item.Reason)
+			movement := models.StockMovement{
+				ProductID:   item.ProductID,
+				Quantity:    item.Quantity,
+				ReferenceID: &existing.ID,
+				Notes:       &notes,
+				CreatedBy:   existing.CreatedBy,
+			}
+			if existing.Type == "purchase" {
+				movement.FromLocationType = "location"
+				movement.FromLocationID = existing.LocationID
+				movement.ToLocationType = "vendor"
+				movement.MovementType = "credit_note_return"
+				if existing.VendorID != nil {
+					movement.ToLocationID = *existing.VendorID
+				}
+			} else {
+				movement.FromLocationType = "customer"
+				movement.ToLocationType = "location"
+				movement.ToLocationID = existing.LocationID
+				movement.MovementType = "sales_return"
+				if existing.CustomerID != nil {
+					movement.FromLocationID = *existing.CustomerID
+				}
+			}
+			if err := tx.Create(&movement).Error; err != nil {
+				tx.Rollback()
+				return creditNote, err
+			}
+		}
 	}
 
 	// Commit transaction
@@ -242,7 +339,7 @@ func (s *CreditNoteService) Approve(id string, approvedBy uint) (models.CreditNo
 		var stock models.Stock
 		err := tx.Where("product_id = ? AND location_id = ?", item.ProductID, creditNote.LocationID).
 			First(&stock).Error
-		
+
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) && creditNote.Type == "sales" {
 				// For sales return, if stock record doesn't exist, create it
@@ -446,11 +543,11 @@ func (s *CreditNoteService) validateQuantitiesAgainstInvoice(creditNote models.C
 func (s *CreditNoteService) generateCreditNoteNumber() string {
 	prefix := fmt.Sprintf("CN-%s-", time.Now().Format("200601"))
 	var lastCN models.CreditNote
-	
+
 	// Get the last credit note number for this month that matches the prefix
 	// We use Unscoped to include soft-deleted records to avoid duplication if the latest one was deleted
 	err := s.db.Unscoped().Where("credit_note_number LIKE ?", prefix+"%").Order("credit_note_number desc").First(&lastCN).Error
-	
+
 	if err != nil {
 		// If no credit note found for this month, start with 1
 		return fmt.Sprintf("%s%05d", prefix, 1)

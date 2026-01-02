@@ -94,7 +94,7 @@ func (th *TransferHandler) CreateHandler(c echo.Context) error {
 
 	// Validate stock availability
 	for _, item := range req.Items {
-		log.Printf("[TRANSFER] Checking stock for Product ID: %d, Location Type: %s, Location ID: %d, Required Quantity: %d",
+		log.Printf("[TRANSFER] Checking stock for Product ID: %d, Location Type: %s, Location ID: %d, Required Quantity: %.2f",
 			item.ProductID, req.FromLocationType, req.FromLocationID, item.Quantity)
 
 		stock, err := th.StockServices.GetProductStock(item.ProductID, req.FromLocationType, req.FromLocationID)
@@ -115,7 +115,8 @@ func (th *TransferHandler) CreateHandler(c echo.Context) error {
 		log.Printf("[TRANSFER] Found stock - Product ID: %d, Available Quantity: %.2f, Required: %.2f",
 			item.ProductID, stock.Quantity, item.Quantity)
 
-		if stock.Quantity < item.Quantity {
+		// Use a small epsilon to handle floating point precision issues
+		if item.Quantity > stock.Quantity+0.00001 {
 			log.Printf("[TRANSFER] Insufficient quantity - Product ID: %d, Available: %.2f, Required: %.2f",
 				item.ProductID, stock.Quantity, item.Quantity)
 			return ResponseError(c, fmt.Errorf("insufficient stock for product ID %d at %s (ID: %d): available %.2f, required %.2f",

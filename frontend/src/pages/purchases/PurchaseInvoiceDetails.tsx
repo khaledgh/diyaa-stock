@@ -680,7 +680,6 @@ export default function PurchaseInvoiceDetails() {
                   <TableHead className="text-right">Unit Price</TableHead>
                   <TableHead className="text-center">Discount</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  {creditNotesTotal > 0 && <TableHead className="text-right">After Credit</TableHead>}
                   <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -772,20 +771,11 @@ export default function PurchaseInvoiceDetails() {
                       {editingItemId === item.id ? (
                         <span>{formatCurrency((Number(editQuantity) || 0) * (Number(editUnitPrice) || 0) * (1 - (Number(editDiscount) || 0) / 100))}</span>
                       ) : (
-                        formatCurrency(item.total)
+                        <span className={creditNotesTotal > 0 && getCreditedQuantity(item.product_id) > 0 ? 'text-green-600' : ''}>
+                          {formatCurrency(creditNotesTotal > 0 ? getItemRemainingTotal(item) : item.total)}
+                        </span>
                       )}
                     </TableCell>
-                    {creditNotesTotal > 0 && (
-                      <TableCell className="text-right font-medium">
-                        {editingItemId === item.id ? (
-                          <span>-</span>
-                        ) : (
-                          <span className={getCreditedQuantity(item.product_id) > 0 ? 'text-green-600' : ''}>
-                            {formatCurrency(getItemRemainingTotal(item))}
-                          </span>
-                        )}
-                      </TableCell>
-                    )}
                     <TableCell className="text-center">
                       {editingItemId === item.id ? (
                         <div className="flex items-center gap-2 justify-center">
@@ -887,26 +877,15 @@ export default function PurchaseInvoiceDetails() {
               </div>
             )}
 
-            <div className="flex justify-between text-xl font-bold border-t pt-3">
-              <span>Total:</span>
-              <span>{formatCurrency(invoice.total_amount)}</span>
-            </div>
-
-            {/* Credit Notes Total */}
-            {creditNotesTotal > 0 && (
-              <div className="flex justify-between text-lg">
-                <span className="text-orange-600">Credit Notes:</span>
-                <span className="font-medium text-orange-600">
-                  -{formatCurrency(creditNotesTotal)}
-                </span>
-              </div>
-            )}
-
-            {/* Adjusted Total (after credit notes) */}
-            {creditNotesTotal > 0 && (
-              <div className="flex justify-between text-lg font-bold">
-                <span>Net Amount:</span>
+            {creditNotesTotal > 0 ? (
+              <div className="flex justify-between text-xl font-bold border-t pt-3">
+                <span>Total:</span>
                 <span>{formatCurrency(invoice.total_amount - creditNotesTotal)}</span>
+              </div>
+            ) : (
+              <div className="flex justify-between text-xl font-bold border-t pt-3">
+                <span>Total:</span>
+                <span>{formatCurrency(invoice.total_amount)}</span>
               </div>
             )}
 

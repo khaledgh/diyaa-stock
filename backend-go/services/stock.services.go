@@ -171,7 +171,7 @@ func (s *StockService) CreateMovement(productID uint, movementType string, quant
 		CreatedBy:        &createdBy,
 	}
 
-	log.Printf("[STOCK SERVICE] Creating movement - Product: %d, Type: %s, Qty: %d, From: %s(%d), To: %s(%d)",
+	log.Printf("[STOCK SERVICE] Creating movement - Product: %d, Type: %s, Qty: %.2f, From: %s(%d), To: %s(%d)",
 		productID, movementType, quantity, fromLocationType, fromLocationID, toLocationType, toLocationID)
 
 	return s.db.Create(&movement).Error
@@ -290,7 +290,7 @@ func (s *StockService) GetProductStock(productID uint, locationType string, loca
 	s.db.Where("product_id = ?", productID).Find(&allStocks)
 	log.Printf("[STOCK SERVICE] Found %d stock record(s) for Product ID %d:", len(allStocks), productID)
 	for _, s := range allStocks {
-		log.Printf("  - Location Type: %s, Location ID: %d, Quantity: %d", s.LocationType, s.LocationID, s.Quantity)
+		log.Printf("  - Location Type: %s, Location ID: %d, Quantity: %.2f", s.LocationType, s.LocationID, s.Quantity)
 	}
 
 	var stock models.Stock
@@ -307,7 +307,7 @@ func (s *StockService) GetProductStock(productID uint, locationType string, loca
 		return nil, err
 	}
 
-	log.Printf("[STOCK SERVICE] Stock found at requested location - Quantity: %d", stock.Quantity)
+	log.Printf("[STOCK SERVICE] Stock found at requested location - Quantity: %.2f", stock.Quantity)
 	return &stock, nil
 }
 

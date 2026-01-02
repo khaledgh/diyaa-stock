@@ -455,7 +455,8 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 			return ResponseError(c, err)
 		}
 
-		if currentStock.Quantity < item.Quantity {
+		// Use a small epsilon to handle floating point precision issues
+		if item.Quantity > currentStock.Quantity+0.00001 {
 			return ResponseError(c, fmt.Errorf("insufficient stock for product ID %d: available %.2f, required %.2f", item.ProductID, currentStock.Quantity, item.Quantity))
 		}
 	}
