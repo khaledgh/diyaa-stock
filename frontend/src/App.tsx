@@ -40,6 +40,8 @@ import Payments from './pages/finance/Payments';
 import PaymentAllocation from './pages/finance/PaymentAllocation';
 import Transactions from './pages/finance/Transactions';
 import Transfers from './pages/finance/Transfers';
+import Expenses from './pages/expenses/Expenses';
+import ExpenseCategories from './pages/expenses/ExpenseCategories';
 
 // Report Pages
 import ReportsHub from './pages/reports/ReportsHub';
@@ -48,6 +50,7 @@ import PayablesAging from './pages/reports/PayablesAging';
 import SalesByCustomer from './pages/reports/SalesByCustomer';
 import SalesByItem from './pages/reports/SalesByItem';
 import LocationSalesReport from './pages/reports/LocationSalesReport';
+import ProfitLoss from './pages/reports/ProfitLoss';
 
 // Settings Pages
 import Settings from './pages/settings/Settings';
@@ -130,6 +133,8 @@ function App() {
             <Route path="payment-allocation" element={<PaymentAllocation />} />
             <Route path="transactions" element={<Transactions />} />
             <Route path="transfers" element={<Transfers />} />
+            <Route path="expenses" element={<Expenses />} />
+            <Route path="expenses/categories" element={<ExpenseCategories />} />
 
             {/* Reports */}
             <Route path="reports" element={<ReportsHub />} />
@@ -137,6 +142,7 @@ function App() {
             <Route path="reports/payables-aging" element={<PayablesAging />} />
             <Route path="reports/sales-by-customer" element={<SalesByCustomer />} />
             <Route path="reports/sales-by-item" element={<SalesByItem />} />
+            <Route path="reports/profit-loss" element={<ProfitLoss />} />
             <Route path="reports/inventory-valuation" element={<InventoryValuation />} />
             <Route path="reports/location-sales" element={<LocationSalesReport />} />
 

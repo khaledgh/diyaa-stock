@@ -72,6 +72,7 @@ const navigation = {
     icon: BankingIcon,
     children: [
       { name: 'payments', href: '/payments', icon: PaymentsIcon },
+      { name: 'expenses', href: '/expenses', icon: PaymentsIcon }, // Using PaymentsIcon temporarily, or import a better one
     ],
   },
   locations: {

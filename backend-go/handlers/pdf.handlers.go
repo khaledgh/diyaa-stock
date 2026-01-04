@@ -803,8 +803,8 @@ func (h *PDFHandler) InvoicePDF(c echo.Context) error {
 	headers := []string{"Product", "Qty", "Unit Price", "Disc%", "Total"}
 
 	if creditNotesTotal > 0 {
-		colWidths = []float64{55, 15, 20, 25, 15, 30}
-		headers = []string{"Product", "Qty", "CN Qty", "Unit Price", "Disc%", "Total"}
+		colWidths = []float64{50, 15, 15, 15, 25, 15, 25}
+		headers = []string{"Product", "Qty", "CN Qty", "Net Qty", "Unit Price", "Disc%", "Total"}
 	}
 
 	for i, header := range headers {
@@ -835,12 +835,16 @@ func (h *PDFHandler) InvoicePDF(c echo.Context) error {
 			}
 			pdf.SetTextColor(234, 88, 12) // Orange
 			pdf.CellFormat(colWidths[2], 7, cnQtyStr, "1", 0, "C", false, 0, "")
+
+			// Net Qty
+			remainingQty := item.Quantity - creditedQty
 			pdf.SetTextColor(0, 0, 0)
+			pdf.CellFormat(colWidths[3], 7, fmt.Sprintf("%.0f", remainingQty), "1", 0, "C", false, 0, "")
 		}
 
 		priceIdx := 2
 		if creditNotesTotal > 0 {
-			priceIdx = 3
+			priceIdx = 4
 		}
 		pdf.CellFormat(colWidths[priceIdx], 7, fmt.Sprintf("%.2f", item.UnitPrice), "1", 0, "R", false, 0, "")
 		pdf.CellFormat(colWidths[priceIdx+1], 7, fmt.Sprintf("%.0f%%", item.DiscountPercent), "1", 0, "C", false, 0, "")
@@ -852,7 +856,7 @@ func (h *PDFHandler) InvoicePDF(c echo.Context) error {
 			if creditedQty > 0 {
 				pdf.SetTextColor(22, 163, 74) // Green
 			}
-			pdf.CellFormat(colWidths[5], 7, fmt.Sprintf("%.2f", afterCredit), "1", 0, "R", false, 0, "")
+			pdf.CellFormat(colWidths[6], 7, fmt.Sprintf("%.2f", afterCredit), "1", 0, "R", false, 0, "")
 			pdf.SetTextColor(0, 0, 0)
 		} else {
 			pdf.CellFormat(colWidths[priceIdx+2], 7, fmt.Sprintf("%.2f", item.Total), "1", 0, "R", false, 0, "")

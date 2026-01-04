@@ -676,7 +676,8 @@ export default function PurchaseInvoiceDetails() {
                 <TableRow>
                   <TableHead>Product</TableHead>
                   <TableHead className="text-center">Quantity</TableHead>
-                  {creditNotesTotal > 0 && <TableHead className="text-center">Credit Noted</TableHead>}
+                  {creditNotesTotal > 0 && <TableHead className="text-center">CN Qty</TableHead>}
+                  {creditNotesTotal > 0 && <TableHead className="text-center">Net Qty</TableHead>}
                   <TableHead className="text-right">Unit Price</TableHead>
                   <TableHead className="text-center">Discount</TableHead>
                   <TableHead className="text-right">Total</TableHead>
@@ -736,6 +737,13 @@ export default function PurchaseInvoiceDetails() {
                       <TableCell className="text-center">
                         <span className="text-orange-600 font-medium">
                           {getCreditedQuantity(item.product_id) > 0 ? getCreditedQuantity(item.product_id) : '-'}
+                        </span>
+                      </TableCell>
+                    )}
+                    {creditNotesTotal > 0 && (
+                      <TableCell className="text-center">
+                        <span className="font-medium">
+                          {item.quantity - getCreditedQuantity(item.product_id)}
                         </span>
                       </TableCell>
                     )}

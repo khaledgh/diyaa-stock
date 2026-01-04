@@ -147,6 +147,7 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.GET("/reports/payables-aging", reportHandler.PayablesAgingHandler)
 	apiGroup.GET("/reports/sales-by-customer", reportHandler.SalesByCustomerHandler)
 	apiGroup.GET("/reports/sales-by-item", reportHandler.SalesByItemHandler)
+	apiGroup.GET("/reports/profit-loss", reportHandler.ProfitAndLossReportHandler)
 
 	// PDF Export routes
 	pdfHandler := handlers.NewPDFHandler(store)
@@ -280,4 +281,20 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.POST("/users/remove-role", roleHandler.RemoveRoleFromUser)
 	apiGroup.GET("/users-with-roles", roleHandler.GetUsersWithRoles)
 	apiGroup.GET("/check-permission", roleHandler.CheckPermission)
+	// Expense Category routes
+	expenseCategoryService := services.NewExpenseCategoryService(store)
+	expenseCategoryHandler := handlers.NewExpenseCategoryHandler(expenseCategoryService)
+	apiGroup.GET("/expense-categories", expenseCategoryHandler.GetAllHandler)
+	apiGroup.POST("/expense-categories", expenseCategoryHandler.CreateHandler)
+	apiGroup.PUT("/expense-categories/:id", expenseCategoryHandler.UpdateHandler)
+	apiGroup.DELETE("/expense-categories/:id", expenseCategoryHandler.DeleteHandler)
+
+	// Expense routes
+	expenseService := services.NewExpenseService(store)
+	expenseHandler := handlers.NewExpenseHandler(expenseService)
+	apiGroup.GET("/expenses", expenseHandler.GetAllHandler)
+	apiGroup.GET("/expenses/:id", expenseHandler.GetByIDHandler)
+	apiGroup.POST("/expenses", expenseHandler.CreateHandler)
+	apiGroup.PUT("/expenses/:id", expenseHandler.UpdateHandler)
+	apiGroup.DELETE("/expenses/:id", expenseHandler.DeleteHandler)
 }

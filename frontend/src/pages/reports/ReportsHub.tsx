@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { 
-  BarChart3, 
-  Package, 
-  TrendingUp, 
+import {
+  BarChart3,
+  Package,
+  TrendingUp,
   TrendingDown,
   Clock,
   DollarSign
@@ -38,21 +38,21 @@ export default function ReportsHub() {
       bgColor: 'bg-green-50 dark:bg-green-900/20',
       description: 'Track money owed by customers',
       reports: [
-        { 
-          name: 'Receivables Aging Summary', 
+        {
+          name: 'Receivables Aging Summary',
           href: '/reports/receivables-aging',
           description: 'Outstanding invoices by age',
-          stat: receivablesData?.summary?.grand_total 
-            ? formatCurrency(receivablesData.summary.grand_total) 
+          stat: receivablesData?.summary?.grand_total
+            ? formatCurrency(receivablesData.summary.grand_total)
             : null
         },
-        { 
-          name: 'Customer Statement', 
+        {
+          name: 'Customer Statement',
           href: '/customers',
           description: 'Detailed account statements'
         },
-        { 
-          name: 'Customer Balances', 
+        {
+          name: 'Customer Balances',
           href: '/reports/sales-by-customer',
           description: 'All customer balances'
         },
@@ -65,16 +65,16 @@ export default function ReportsHub() {
       bgColor: 'bg-red-50 dark:bg-red-900/20',
       description: 'Track money owed to vendors',
       reports: [
-        { 
-          name: 'Payables Aging Summary', 
+        {
+          name: 'Payables Aging Summary',
           href: '/reports/payables-aging',
           description: 'Outstanding bills by age',
-          stat: payablesData?.summary?.grand_total 
-            ? formatCurrency(payablesData.summary.grand_total) 
+          stat: payablesData?.summary?.grand_total
+            ? formatCurrency(payablesData.summary.grand_total)
             : null
         },
-        { 
-          name: 'Vendor Balances', 
+        {
+          name: 'Vendor Balances',
           href: '/vendors',
           description: 'All vendor balances'
         },
@@ -87,20 +87,25 @@ export default function ReportsHub() {
       bgColor: 'bg-blue-50 dark:bg-blue-900/20',
       description: 'Analyze sales performance',
       reports: [
-        { 
-          name: 'Sales by Customer', 
+        {
+          name: 'Sales by Customer',
           href: '/reports/sales-by-customer',
           description: 'Customer sales breakdown'
         },
-        { 
-          name: 'Sales by Item', 
+        {
+          name: 'Sales by Item',
           href: '/reports/sales-by-item',
           description: 'Product sales breakdown'
         },
-        { 
-          name: 'Sales by Location', 
+        {
+          name: 'Sales by Location',
           href: '/reports/location-sales',
           description: 'Location performance'
+        },
+        {
+          name: 'Profit & Loss',
+          href: '/reports/profit-loss',
+          description: 'Financial performance'
         },
       ]
     },
@@ -111,18 +116,18 @@ export default function ReportsHub() {
       bgColor: 'bg-purple-50 dark:bg-purple-900/20',
       description: 'Monitor stock levels',
       reports: [
-        { 
-          name: 'Inventory Valuation', 
+        {
+          name: 'Inventory Valuation',
           href: '/reports/inventory-valuation',
           description: 'Total stock value'
         },
-        { 
-          name: 'Stock Summary', 
+        {
+          name: 'Stock Summary',
           href: '/inventory',
           description: 'All products by location'
         },
-        { 
-          name: 'Low Stock Alert', 
+        {
+          name: 'Low Stock Alert',
           href: '/low-stock',
           description: 'Products below reorder point'
         },
@@ -203,7 +208,7 @@ export default function ReportsHub() {
                 <p className="text-sm text-muted-foreground">Net Position</p>
                 <p className="text-2xl font-bold text-blue-600">
                   {formatCurrency(
-                    (receivablesData?.summary?.grand_total || 0) - 
+                    (receivablesData?.summary?.grand_total || 0) -
                     (payablesData?.summary?.grand_total || 0)
                   )}
                 </p>

@@ -1023,3 +1023,109 @@ func (rh *ReportHandler) SalesByItemHandler(c echo.Context) error {
 
 	return ResponseOK(c, result, "data")
 }
+
+// ProfitAndLossReportHandler generates a P&L statement
+func (rh *ReportHandler) ProfitAndLossReportHandler(c echo.Context) error {
+	fromDate := c.QueryParam("from_date")
+	toDate := c.QueryParam("to_date")
+
+	if fromDate == "" {
+		fromDate = time.Now().AddDate(0, 0, -30).Format("2006-01-02")
+	}
+	if toDate == "" {
+		toDate = time.Now().Format("2006-01-02")
+	}
+
+	// 1. Calculate Total Revenue (Sales - Sales Returns)
+	var totalSales float64
+	rh.db.Raw(`
+		SELECT COALESCE(SUM(total_amount), 0)
+		FROM sales_invoices
+		WHERE deleted_at IS NULL
+		AND DATE(created_at) BETWEEN ? AND ?
+	`, fromDate, toDate).Scan(&totalSales)
+
+	var totalSalesReturns float64
+	rh.db.Raw(`
+		SELECT COALESCE(SUM(total_amount), 0)
+		FROM credit_notes
+		WHERE type = 'sales' 
+		AND status = 'approved' 
+		AND deleted_at IS NULL
+		AND DATE(credit_note_date) BETWEEN ? AND ?
+	`, fromDate, toDate).Scan(&totalSalesReturns)
+
+	netSales := totalSales - totalSalesReturns
+
+	// 2. Calculate Cost of Goods Sold (COGS)
+	var cogs float64
+	rh.db.Raw(`
+		SELECT COALESCE(SUM(sii.quantity * p.cost_price), 0)
+		FROM sales_invoice_items sii
+		JOIN sales_invoices si ON sii.invoice_id = si.id
+		JOIN products p ON sii.product_id = p.id
+		WHERE si.deleted_at IS NULL
+		AND DATE(si.created_at) BETWEEN ? AND ?
+	`, fromDate, toDate).Scan(&cogs)
+
+	var cogsReturns float64
+	rh.db.Raw(`
+		SELECT COALESCE(SUM(cni.quantity * p.cost_price), 0)
+		FROM credit_note_items cni
+		JOIN credit_notes cn ON cni.credit_note_id = cn.id
+		JOIN products p ON cni.product_id = p.id
+		WHERE cn.type = 'sales' 
+		AND cn.status = 'approved' 
+		AND cn.deleted_at IS NULL
+		AND DATE(cn.created_at) BETWEEN ? AND ?
+	`, fromDate, toDate).Scan(&cogsReturns)
+
+	netCogs := cogs - cogsReturns
+
+	// 3. Gross Profit
+	grossProfit := netSales - netCogs
+
+	// 4. Operating Expenses
+	// Fetch expenses grouped by category
+	type ExpenseSummary struct {
+		CategoryName string  `json:"category_name"`
+		Amount       float64 `json:"amount"`
+	}
+	var expenseBreakdown []ExpenseSummary
+	rh.db.Raw(`
+		SELECT 
+			ec.name_en as category_name,
+			COALESCE(SUM(e.amount), 0) as amount
+		FROM expenses e
+		JOIN expense_categories ec ON e.expense_category_id = ec.id
+		WHERE e.deleted_at IS NULL
+		AND DATE(e.expense_date) BETWEEN ? AND ?
+		GROUP BY ec.id, ec.name_en
+		ORDER BY amount DESC
+	`, fromDate, toDate).Scan(&expenseBreakdown)
+
+	var totalExpenses float64
+	for _, exp := range expenseBreakdown {
+		totalExpenses += exp.Amount
+	}
+
+	// 5. Net Profit
+	netProfit := grossProfit - totalExpenses
+
+	result := map[string]interface{}{
+		"from_date":          fromDate,
+		"to_date":            toDate,
+		"total_sales":        totalSales,
+		"sales_returns":      totalSalesReturns,
+		"net_sales":          netSales,
+		"cogs":               cogs,
+		"cogs_returns":       cogsReturns,
+		"net_cogs":           netCogs,
+		"gross_profit":       grossProfit,
+		"expenses_breakdown": expenseBreakdown,
+		"total_expenses":     totalExpenses,
+		"net_profit":         netProfit,
+	}
+
+	return ResponseOK(c, result, "data")
+}

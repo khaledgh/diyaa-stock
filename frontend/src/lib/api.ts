@@ -147,6 +147,7 @@ export const reportApi = {
   payablesAging: (params?: any) => api.get('/reports/payables-aging', { params }),
   salesByCustomer: (params?: any) => api.get('/reports/sales-by-customer', { params }),
   salesByItem: (params?: any) => api.get('/reports/sales-by-item', { params }),
+  profitLoss: (params?: any) => api.get('/reports/profit-loss', { params }),
 };
 
 export const userApi = {
@@ -181,4 +182,19 @@ export const paymentAllocationApi = {
   getInvoiceAllocations: (invoiceId: number, invoiceType: string) => 
     api.get(`/invoices/${invoiceId}/allocations`, { params: { invoice_type: invoiceType } }),
   getAllocationSummary: (paymentId: number) => api.get(`/payment-allocations/${paymentId}/allocation-summary`),
+};
+
+export const expenseCategoryApi = {
+  getAll: (params?: any) => api.get('/expense-categories', { params }),
+  create: (data: any) => api.post('/expense-categories', data),
+  update: (id: number, data: any) => api.put(`/expense-categories/${id}`, data),
+  delete: (id: number) => api.delete(`/expense-categories/${id}`),
+};
+
+export const expenseApi = {
+  getAll: (params?: any) => api.get('/expenses', { params }),
+  getById: (id: number) => api.get(`/expenses/${id}`),
+  create: (data: any) => api.post('/expenses', data),
+  update: (id: number, data: any) => api.put(`/expenses/${id}`, data),
+  delete: (id: number) => api.delete(`/expenses/${id}`),
 };
