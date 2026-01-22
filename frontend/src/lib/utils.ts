@@ -44,14 +44,9 @@ export function formatDateTime(date: string | Date | null | undefined): string {
   }
 }
 
-export function formatQuantity(quantity: number): string {
-  // Fix floating point precision issues and format nicely
-  // Round to 2 decimal places to avoid floating point errors
-  const rounded = Math.round(quantity * 100) / 100;
-  // If it's a whole number, show without decimals
-  if (Number.isInteger(rounded)) {
-    return rounded.toString();
-  }
-  // Otherwise show up to 2 decimal places, removing trailing zeros
-  return rounded.toFixed(2).replace(/\.?0+$/, '');
+export function formatQuantity(quantity: number | string | undefined | null): string {
+  if (quantity === undefined || quantity === null) return '0.00';
+  const num = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
+  if (isNaN(num)) return '0.00';
+  return num.toFixed(2);
 }

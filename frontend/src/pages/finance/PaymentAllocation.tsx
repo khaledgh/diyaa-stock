@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { DollarSign, FileText, CheckCircle } from 'lucide-react';
+import { DollarSign, FileText, CheckCircle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -149,32 +150,32 @@ export default function PaymentAllocation() {
 
   // Filter customers/vendors to only show those with unpaid invoices
   const entitiesWithUnpaidInvoices = invoiceType === 'sales'
-    ? customers.filter((c: any) => 
-        invoices.some((inv: any) => inv.customer_id === c.id)
-      )
-    : vendors.filter((v: any) => 
-        invoices.some((inv: any) => inv.vendor_id === v.id)
-      );
+    ? customers.filter((c: any) =>
+      invoices.some((inv: any) => inv.customer_id === c.id)
+    )
+    : vendors.filter((v: any) =>
+      invoices.some((inv: any) => inv.vendor_id === v.id)
+    );
 
   console.log('Entities with unpaid invoices:', entitiesWithUnpaidInvoices);
 
   // Calculate total unpaid amount for each entity (including credit notes for purchase invoices)
   const entityOptions = entitiesWithUnpaidInvoices.map((entity: any) => {
-    const entityInvoices = invoices.filter((inv: any) => 
+    const entityInvoices = invoices.filter((inv: any) =>
       invoiceType === 'sales' ? inv.customer_id === entity.id : inv.vendor_id === entity.id
     );
-    
+
     // For purchase invoices, subtract credit notes from total
     const totalUnpaid = entityInvoices.reduce((sum: number, inv: any) => {
       const creditNotesTotal = inv.credit_notes?.reduce((cnSum: number, cn: any) => cnSum + (cn.total_amount || 0), 0) || 0;
       const netAmount = inv.total_amount - creditNotesTotal - inv.paid_amount;
       return sum + Math.max(0, netAmount);
     }, 0);
-    
+
     const invoiceCount = entityInvoices.length;
-    
+
     return {
-      value: entity.id?.toString() || '', 
+      value: entity.id?.toString() || '',
       label: `${entity.company_name || entity.name || entity.name_en || entity.name_ar || 'Unknown'} (${invoiceCount} invoices, ${formatCurrency(totalUnpaid)} due)`
     };
   });
@@ -196,7 +197,7 @@ export default function PaymentAllocation() {
     },
     onSuccess: (data) => {
       setAllocationPreview(data);
-      
+
       // Check if there's unallocated amount
       const payment = data.payment;
       if (payment && payment.unallocated_amount > 0) {
@@ -205,7 +206,7 @@ export default function PaymentAllocation() {
       } else {
         toast.success(t('paymentAllocation.paymentAllocated'));
       }
-      
+
       // Reset form
       setSelectedEntity('');
       setAmount('');
@@ -324,7 +325,7 @@ export default function PaymentAllocation() {
                     setSelectedEntity(value);
                     // Calculate max amount for selected entity
                     if (value) {
-                      const entityInvoices = invoices.filter((inv: any) => 
+                      const entityInvoices = invoices.filter((inv: any) =>
                         invoiceType === 'sales' ? inv.customer_id === parseInt(value) : inv.vendor_id === parseInt(value)
                       );
                       // For purchase invoices, subtract credit notes from total
@@ -510,19 +511,31 @@ export default function PaymentAllocation() {
                       </TableHeader>
                       <TableBody>
                         {allocationPreview.data?.allocations?.map((allocation: any, index: number) => (
-                          <TableRow key={index}>
+                          <TableRow
+                            key={index}
+                            className={allocation.invoice_number === 'Invoice Deleted' ? 'text-red-500 line-through opacity-70 hover:bg-red-50/50' : ''}
+                          >
                             <TableCell className="font-medium">
-                              Invoice #{allocation.invoice_id}
+                              {allocation.invoice_number === 'Invoice Deleted' ? (
+                                <span className="font-medium italic">Invoice Deleted</span>
+                              ) : (
+                                <Link
+                                  to={`/invoices/${invoiceType === 'sales' ? 'sales' : 'purchase'}/${allocation.invoice_id}`}
+                                  className="flex items-center gap-1 text-blue-600 hover:underline"
+                                >
+                                  {allocation.invoice_number || `Invoice #${allocation.invoice_id}`}
+                                  <ExternalLink className="h-3 w-3" />
+                                </Link>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               {formatCurrency(Math.abs(allocation.allocated_amount || 0))}
                             </TableCell>
                             <TableCell>
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                allocation.invoice_status === 'paid'
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                              }`}>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${allocation.invoice_status === 'paid'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                }`}>
                                 {allocation.invoice_status || 'partial'}
                               </span>
                             </TableCell>

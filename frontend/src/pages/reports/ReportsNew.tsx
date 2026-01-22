@@ -17,7 +17,7 @@ export default function ReportsNew() {
     queryFn: async () => {
       const response = await invoiceApi.getAll({ invoice_type: 'sales' });
       const payload = response?.data;
-      
+
       // Handle different response structures
       if (!payload) return [];
       if (Array.isArray(payload)) return payload;
@@ -37,7 +37,7 @@ export default function ReportsNew() {
     queryFn: async () => {
       const response = await invoiceApi.getAll({ invoice_type: 'purchase' });
       const payload = response?.data;
-      
+
       // Handle different response structures
       if (!payload) return [];
       if (Array.isArray(payload)) return payload;
@@ -79,7 +79,7 @@ export default function ReportsNew() {
 
   // Calculate profit
   const grossProfit = totalSales - totalPurchases;
-  const profitMargin = totalSales > 0 ? ((grossProfit / totalSales) * 100).toFixed(2) : '0';
+  const profitMargin = totalSales > 0 ? ((grossProfit / totalSales) * 100).toFixed(2) : '0.00';
 
   // Sales by customer
   const salesByCustomer = salesData?.reduce((acc: any, inv: any) => {
@@ -117,7 +117,7 @@ export default function ReportsNew() {
       return true; // No stock at all
     }
     // Check if any location has low stock
-    const hasLowStock = p.stock_by_location.some((stock: any) => 
+    const hasLowStock = p.stock_by_location.some((stock: any) =>
       stock.quantity < (p.min_stock_level || 10)
     );
     return hasLowStock;
@@ -278,13 +278,12 @@ export default function ReportsNew() {
                           <TableCell className="text-right">{formatCurrency(invoice.total_amount)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(invoice.paid_amount)}</TableCell>
                           <TableCell>
-                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                              invoice.payment_status === 'paid' 
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${invoice.payment_status === 'paid'
                                 ? 'bg-green-100 text-green-800'
                                 : invoice.payment_status === 'partial'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}>
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
                               {invoice.payment_status}
                             </span>
                           </TableCell>
@@ -341,13 +340,12 @@ export default function ReportsNew() {
                           <TableCell className="text-right text-red-600">-{formatCurrency(invoice.total_amount)}</TableCell>
                           <TableCell className="text-right text-red-600">-{formatCurrency(invoice.paid_amount)}</TableCell>
                           <TableCell>
-                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                              invoice.payment_status === 'paid' 
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${invoice.payment_status === 'paid'
                                 ? 'bg-green-100 text-green-800'
                                 : invoice.payment_status === 'partial'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}>
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
                               {invoice.payment_status}
                             </span>
                           </TableCell>
@@ -498,7 +496,7 @@ export default function ReportsNew() {
                     ) : (
                       lowStockProducts.flatMap((product: any) => {
                         const minStock = product.min_stock_level || 10;
-                        
+
                         if (!product.stock_by_location || product.stock_by_location.length === 0) {
                           return (
                             <TableRow key={product.id}>
@@ -515,7 +513,7 @@ export default function ReportsNew() {
                             </TableRow>
                           );
                         }
-                        
+
                         return product.stock_by_location
                           .filter((stock: any) => stock.quantity < minStock)
                           .map((stock: any, idx: number) => (

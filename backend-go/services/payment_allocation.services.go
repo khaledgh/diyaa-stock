@@ -258,6 +258,34 @@ func (s *PaymentAllocationService) AllocatePaymentFIFO(
 		return nil, nil, err
 	}
 
+	// Populate invoice numbers before returning
+	for i := range allocations {
+		if allocations[i].InvoiceType == "sales" {
+			var inv models.SalesInvoice
+			if err := s.db.Select("invoice_number").First(&inv, allocations[i].InvoiceID).Error; err == nil {
+				allocations[i].InvoiceNumber = inv.InvoiceNumber
+			}
+		} else {
+			var inv models.PurchaseInvoice
+			if err := s.db.Select("invoice_number").First(&inv, allocations[i].InvoiceID).Error; err == nil {
+				allocations[i].InvoiceNumber = inv.InvoiceNumber
+			}
+		}
+	}
+
+	// Populate invoice number for the main payment record too
+	if payment.InvoiceType == "sales" {
+		var inv models.SalesInvoice
+		if err := s.db.Select("invoice_number").First(&inv, payment.InvoiceID).Error; err == nil {
+			payment.InvoiceNumber = inv.InvoiceNumber
+		}
+	} else {
+		var inv models.PurchaseInvoice
+		if err := s.db.Select("invoice_number").First(&inv, payment.InvoiceID).Error; err == nil {
+			payment.InvoiceNumber = inv.InvoiceNumber
+		}
+	}
+
 	return &payment, allocations, nil
 }
 
@@ -267,6 +295,9 @@ func (s *PaymentAllocationService) GetPaymentAllocations(paymentID uint) ([]mode
 	if err := s.db.Where("payment_id = ?", paymentID).Find(&allocations).Error; err != nil {
 		return nil, err
 	}
+
+	s.populateInvoiceNumbers(allocations)
+
 	return allocations, nil
 }
 
@@ -278,6 +309,9 @@ func (s *PaymentAllocationService) GetInvoiceAllocations(invoiceID uint, invoice
 		Find(&allocations).Error; err != nil {
 		return nil, err
 	}
+
+	s.populateInvoiceNumbers(allocations)
+
 	return allocations, nil
 }
 
@@ -307,4 +341,24 @@ func min(a, b float64) float64 {
 		return a
 	}
 	return b
+}
+
+func (s *PaymentAllocationService) populateInvoiceNumbers(allocations []models.PaymentAllocation) {
+	for i := range allocations {
+		if allocations[i].InvoiceType == "sales" {
+			var inv models.SalesInvoice
+			if err := s.db.Select("invoice_number").First(&inv, allocations[i].InvoiceID).Error; err == nil {
+				allocations[i].InvoiceNumber = inv.InvoiceNumber
+			} else {
+				allocations[i].InvoiceNumber = "Invoice Deleted"
+			}
+		} else {
+			var inv models.PurchaseInvoice
+			if err := s.db.Select("invoice_number").First(&inv, allocations[i].InvoiceID).Error; err == nil {
+				allocations[i].InvoiceNumber = inv.InvoiceNumber
+			} else {
+				allocations[i].InvoiceNumber = "Invoice Deleted"
+			}
+		}
+	}
 }

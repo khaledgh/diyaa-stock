@@ -22,5 +22,5 @@ type TransferItem struct {
 	TransferID uint     `json:"transfer_id" gorm:"not null"`
 	ProductID  uint     `json:"product_id" gorm:"not null"`
 	Product    *Product `json:"product,omitempty" gorm:"foreignKey:ProductID"`
-	Quantity   float64  `json:"quantity" gorm:"not null"`
+	Quantity   float64  `json:"quantity" gorm:"type:decimal(15,2);not null"`
 }

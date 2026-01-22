@@ -11,6 +11,7 @@ type PaymentAllocation struct {
 	InvoiceStatus   string    `json:"invoice_status" gorm:"size:20"` // paid, partial - status after allocation
 	AllocationDate  time.Time `json:"allocation_date" gorm:"not null"`
 	CreatedAt       time.Time `json:"created_at"`
+	InvoiceNumber   string    `json:"invoice_number" gorm:"-"`
 
 	// Relationships
 	Payment Payment `json:"payment,omitempty" gorm:"foreignKey:PaymentID"`

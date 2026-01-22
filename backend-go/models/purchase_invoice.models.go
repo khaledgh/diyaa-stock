@@ -10,8 +10,8 @@ type PurchaseInvoice struct {
 	LocationID    uint                  `json:"location_id" gorm:"not null"`
 	Location      *Location             `json:"location,omitempty" gorm:"foreignKey:LocationID"`
 	InvoiceDate   time.Time             `json:"invoice_date" gorm:"not null"`
-	TotalAmount   float64               `json:"total_amount" gorm:"not null"`
-	PaidAmount    float64               `json:"paid_amount" gorm:"default:0"`
+	TotalAmount   float64               `json:"total_amount" gorm:"type:decimal(15,2);not null"`
+	PaidAmount    float64               `json:"paid_amount" gorm:"type:decimal(15,2);default:0"`
 	PaymentStatus string                `json:"payment_status" gorm:"size:20;default:unpaid"` // unpaid, partial, paid
 	PaymentMethod *string               `json:"payment_method" gorm:"size:20"`
 	Notes         *string               `json:"notes" gorm:"type:text"`
@@ -29,8 +29,8 @@ type PurchaseInvoiceItem struct {
 	InvoiceID       uint     `json:"invoice_id" gorm:"not null"`
 	ProductID       uint     `json:"product_id" gorm:"not null"`
 	Product         *Product `json:"product,omitempty" gorm:"foreignKey:ProductID"`
-	Quantity        float64  `json:"quantity" gorm:"not null"`
-	UnitPrice       float64  `json:"unit_price" gorm:"not null"`
-	DiscountPercent float64  `json:"discount_percent" gorm:"default:0"`
-	Total           float64  `json:"total" gorm:"not null"`
+	Quantity        float64  `json:"quantity" gorm:"type:decimal(15,2);not null"`
+	UnitPrice       float64  `json:"unit_price" gorm:"type:decimal(15,2);not null"`
+	DiscountPercent float64  `json:"discount_percent" gorm:"type:decimal(15,2);default:0"`
+	Total           float64  `json:"total" gorm:"type:decimal(15,2);not null"`
 }

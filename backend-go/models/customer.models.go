@@ -9,7 +9,7 @@ type Customer struct {
 	Email       *string    `json:"email" gorm:"size:100"`
 	Address     *string    `json:"address" gorm:"type:text"`
 	TaxNumber   *string    `json:"tax_number" gorm:"size:50"`
-	CreditLimit float64    `json:"credit_limit" gorm:"default:0"`
+	CreditLimit float64    `json:"credit_limit" gorm:"type:decimal(15,2);default:0"`
 	IsActive    bool       `json:"is_active" gorm:"default:true"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`

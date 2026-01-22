@@ -44,7 +44,7 @@ func (rh *ReportHandler) SalesReportHandler(c echo.Context) error {
 		LEFT JOIN customers c ON i.customer_id = c.id
 		LEFT JOIN vans v ON i.van_id = v.id
 		LEFT JOIN users u ON i.created_by = u.id
-		WHERE DATE(i.created_at) BETWEEN ? AND ?
+		WHERE i.deleted_at IS NULL AND DATE(i.created_at) BETWEEN ? AND ?
 	`
 
 	args := []interface{}{fromDate, toDate}
@@ -199,6 +199,7 @@ func (rh *ReportHandler) ProductPerformanceReportHandler(c echo.Context) error {
 		FROM products p
 		LEFT JOIN sales_invoice_items ii ON p.id = ii.product_id
 		LEFT JOIN sales_invoices i ON ii.invoice_id = i.id
+			AND i.deleted_at IS NULL
 			AND DATE(i.created_at) BETWEEN ? AND ?
 		LEFT JOIN categories c ON p.category_id = c.id
 		GROUP BY p.id
@@ -236,6 +237,7 @@ func (rh *ReportHandler) LocationSalesReportHandler(c echo.Context) error {
 			COUNT(DISTINCT ii.product_id) as products_sold
 		FROM locations l
 		LEFT JOIN sales_invoices i ON l.id = i.location_id
+			AND i.deleted_at IS NULL
 			AND DATE(i.created_at) BETWEEN ? AND ?
 		LEFT JOIN sales_invoice_items ii ON i.id = ii.invoice_id
 		WHERE l.is_active = true
@@ -302,7 +304,7 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 	rh.db.Raw(`
 		SELECT COUNT(*) as count, SUM(total_amount) as total
 		FROM sales_invoices
-		WHERE DATE(created_at) = CURDATE()
+		WHERE deleted_at IS NULL AND DATE(created_at) = CURDATE()
 	`).Scan(&todaySales)
 	dashboard["today_sales_count"] = todaySales.Count
 	dashboard["today_sales_total"] = todaySales.Total
@@ -429,7 +431,7 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 			0 as credit,
 			'Sales Invoice' as description
 		FROM sales_invoices
-		WHERE customer_id = ?
+		WHERE customer_id = ? AND deleted_at IS NULL
 		AND DATE(created_at) BETWEEN ? AND ?
 	`
 	var invoices []map[string]interface{}
@@ -447,6 +449,7 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 			p.amount as credit,
 			CONCAT('Payment (', p.payment_method, ')') as description
 		FROM payments p
+		JOIN sales_invoices si ON p.invoice_id = si.id AND si.deleted_at IS NULL
 		WHERE p.customer_id = ?
 		AND p.invoice_type = 'sales'
 		AND DATE(p.created_at) BETWEEN ? AND ?
@@ -479,11 +482,11 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 	var openingBalance float64
 	rh.db.Raw(`
 		SELECT COALESCE(
-			(SELECT SUM(total_amount) FROM sales_invoices WHERE customer_id = ? AND DATE(created_at) < ?), 0
+			(SELECT SUM(total_amount) FROM sales_invoices WHERE customer_id = ? AND deleted_at IS NULL AND DATE(created_at) < ?), 0
 		) - COALESCE(
-			(SELECT SUM(amount) FROM payments WHERE customer_id = ? AND invoice_type = 'sales' AND DATE(created_at) < ?), 0
+			(SELECT SUM(p.amount) FROM payments p JOIN sales_invoices si ON p.invoice_id = si.id WHERE p.customer_id = ? AND si.deleted_at IS NULL AND p.invoice_type = 'sales' AND DATE(p.created_at) < ?), 0
 		) - COALESCE(
-			(SELECT SUM(total_amount) FROM credit_notes WHERE customer_id = ? AND type = 'sales' AND status = 'approved' AND DATE(credit_note_date) < ?), 0
+			(SELECT SUM(total_amount) FROM credit_notes WHERE customer_id = ? AND deleted_at IS NULL AND type = 'sales' AND status = 'approved' AND DATE(credit_note_date) < ?), 0
 		) as opening_balance
 	`, customerID, fromDate, customerID, fromDate, customerID, fromDate).Scan(&openingBalance)
 
@@ -550,7 +553,7 @@ func (rh *ReportHandler) VendorStatementHandler(c echo.Context) error {
 			0 as debit,
 			'Purchase Invoice' as description
 		FROM purchase_invoices
-		WHERE vendor_id = ?
+		WHERE vendor_id = ? AND deleted_at IS NULL
 		AND DATE(created_at) BETWEEN ? AND ?
 	`
 
@@ -565,6 +568,7 @@ func (rh *ReportHandler) VendorStatementHandler(c echo.Context) error {
 			0 as credit,
 			CONCAT('Payment (', p.payment_method, ')') as description
 		FROM payments p
+		JOIN purchase_invoices pi ON p.invoice_id = pi.id AND pi.deleted_at IS NULL
 		WHERE p.vendor_id = ?
 		AND p.invoice_type = 'purchase'
 		AND DATE(p.created_at) BETWEEN ? AND ?
@@ -592,13 +596,13 @@ func (rh *ReportHandler) VendorStatementHandler(c echo.Context) error {
 	var openingBalance float64
 	rh.db.Raw(`
 		SELECT COALESCE(
-			(SELECT SUM(total_amount) FROM purchase_invoices WHERE vendor_id = ? AND DATE(created_at) < ?), 0
+			(SELECT SUM(total_amount) FROM purchase_invoices WHERE vendor_id = ? AND deleted_at IS NULL AND DATE(created_at) < ?), 0
 		) - COALESCE(
-			(SELECT SUM(ABS(amount)) FROM payments WHERE vendor_id = ? AND invoice_type = 'purchase' AND DATE(created_at) < ?), 0
+			(SELECT SUM(ABS(p.amount)) FROM payments p JOIN purchase_invoices pi ON p.invoice_id = pi.id WHERE p.vendor_id = ? AND pi.deleted_at IS NULL AND p.invoice_type = 'purchase' AND DATE(p.created_at) < ?), 0
 		) - COALESCE(
 			(SELECT SUM(cn.total_amount) FROM credit_notes cn
 			 LEFT JOIN purchase_invoices pi ON cn.purchase_invoice_id = pi.id
-			 WHERE (cn.vendor_id = ? OR pi.vendor_id = ?) AND cn.type = 'purchase' AND cn.status = 'approved' AND DATE(cn.created_at) < ?), 0
+			 WHERE (cn.vendor_id = ? OR pi.vendor_id = ?) AND cn.type = 'purchase' AND cn.status = 'approved' AND cn.deleted_at IS NULL AND DATE(cn.created_at) < ?), 0
 		) as opening_balance
 	`, vendorID, fromDate, vendorID, fromDate, vendorID, vendorID, fromDate).Scan(&openingBalance)
 

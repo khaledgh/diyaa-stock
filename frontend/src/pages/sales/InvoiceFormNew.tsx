@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Plus, Trash2, ShoppingCart, Package, AlertCircle, Edit2, X } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, ShoppingCart, Package, AlertCircle, Edit2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,15 +32,12 @@ export default function InvoiceFormNew() {
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [selectedVendor, setSelectedVendor] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [unitPrice, setUnitPrice] = useState('');
-  const [discount, setDiscount] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [productSearch, setProductSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -126,7 +123,7 @@ export default function InvoiceFormNew() {
 
   const createInvoiceMutation = useMutation({
     mutationFn: (data: any) => {
-      return invoiceType === 'purchase' 
+      return invoiceType === 'purchase'
         ? invoiceApi.createPurchase(data)
         : invoiceApi.createSales(data);
     },
@@ -141,57 +138,6 @@ export default function InvoiceFormNew() {
     },
   });
 
-  // Auto-fill unit price when product is selected
-  useEffect(() => {
-    if (selectedProduct) {
-      const product = products?.find((p: any) => p.id === Number(selectedProduct));
-      if (product) {
-        setUnitPrice(invoiceType === 'purchase' ? product.cost_price : product.unit_price);
-      }
-    }
-  }, [selectedProduct, products, invoiceType]);
-
-  const handleAddItem = () => {
-    if (!selectedProduct || !quantity || !unitPrice) {
-      toast.error('Please fill all item fields');
-      return;
-    }
-
-    if (!selectedLocation) {
-      toast.error('Please select a location first');
-      return;
-    }
-
-    const product = products?.find((p: any) => p.id === Number(selectedProduct));
-    
-    // Check stock for sales
-    if (invoiceType === 'sales') {
-      const stock = locationStock?.find((s: any) => s.product_id === Number(selectedProduct));
-      if (!stock || stock.quantity < Number(quantity)) {
-        toast.error('Insufficient stock in selected location');
-        return;
-      }
-    }
-
-    const itemTotal = Number(quantity) * Number(unitPrice);
-    const discountAmount = itemTotal * (Number(discount) || 0) / 100;
-    const finalTotal = itemTotal - discountAmount;
-
-    const newItem: InvoiceItem = {
-      product_id: Number(selectedProduct),
-      product_name: product?.name_ar || product?.name_en || product?.name || 'Unknown Product',
-      quantity: Number(quantity),
-      unit_price: Number(unitPrice),
-      discount_percent: Number(discount) || 0,
-      total: finalTotal,
-    };
-
-    setInvoiceItems([...invoiceItems, newItem]);
-    setSelectedProduct('');
-    setQuantity('');
-    setUnitPrice('');
-    setDiscount('');
-  };
 
   const handleRemoveItem = (index: number) => {
     setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
@@ -229,7 +175,7 @@ export default function InvoiceFormNew() {
     }
 
     const product = products?.find((p: any) => p.id === Number(editProductId));
-    
+
     // Check stock for sales
     if (invoiceType === 'sales') {
       const stock = locationStock?.find((s: any) => s.product_id === Number(editProductId));
@@ -263,7 +209,7 @@ export default function InvoiceFormNew() {
   };
 
   const validateForm = () => {
-    const newErrors: {[key: string]: string} = {};
+    const newErrors: { [key: string]: string } = {};
 
     if (!selectedLocation) {
       newErrors.location = 'Location is required';
@@ -359,8 +305,8 @@ export default function InvoiceFormNew() {
             )}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {invoiceType === 'purchase' 
-              ? 'Create a purchase invoice - adds stock to selected location' 
+            {invoiceType === 'purchase'
+              ? 'Create a purchase invoice - adds stock to selected location'
               : 'Create a sales invoice - reduces stock from selected location'}
           </p>
         </div>
@@ -388,7 +334,7 @@ export default function InvoiceFormNew() {
                         value={selectedLocation}
                         onChange={(value) => {
                           setSelectedLocation(value);
-                          setErrors({...errors, location: ''});
+                          setErrors({ ...errors, location: '' });
                           setInvoiceItems([]); // Clear items when changing location
                           cancelEdit(); // Cancel any ongoing edits
                         }}
@@ -470,106 +416,34 @@ export default function InvoiceFormNew() {
               </CardContent>
             </Card>
 
-            {/* Add Items */}
+            {/* Items Table */}
             <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle>Add Items</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Invoice Items</CardTitle>
+                {errors.items && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {errors.items}
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-                  <div className="md:col-span-2 space-y-2">
-                    <Label htmlFor="product">Product</Label>
-                    <Combobox
-                      options={[
-                        { value: '', label: 'Select product...' },
-                        ...productOptions,
-                      ]}
-                      value={selectedProduct}
-                      onChange={(value) => {
-                        setSelectedProduct(value);
-                        // Auto-populate unit price based on invoice type
-                        if (value) {
-                          const selectedProduct = products?.find((p: any) => p.id.toString() === value);
-                          if (selectedProduct) {
-                            const price = invoiceType === 'sales' ? selectedProduct.unit_price : selectedProduct.cost_price;
-                            setUnitPrice(price?.toString() || '');
-                          }
-                        } else {
-                          setUnitPrice('');
-                        }
-                      }}
-                      onSearchChange={setProductSearch}
-                      placeholder="Select product"
-                      searchPlaceholder="Search products..."
-                      emptyText={selectedLocation ? 'No products found' : 'Select location first'}
-                      disabled={!selectedLocation}
-                    />
+                {!selectedLocation ? (
+                  <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-2 border-dashed">
+                    <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400">Please select a location to start adding items</p>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      min="1"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="unitPrice">Unit Price</Label>
-                    <Input
-                      id="unitPrice"
-                      type="number"
-                      step="0.01"
-                      value={unitPrice}
-                      onChange={(e) => setUnitPrice(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="discount">Discount %</Label>
-                    <Input
-                      id="discount"
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={discount}
-                      onChange={(e) => setDiscount(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
-                </div>
-
-                <Button type="button" onClick={handleAddItem} className="w-full md:w-auto">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Item
-                </Button>
-
-                {errors.items && (
-                  <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                    <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4" />
-                      {errors.items}
-                    </p>
-                  </div>
-                )}
-
-                {/* Items Table */}
-                {invoiceItems.length > 0 && (
-                  <div className="mt-6">
+                ) : (
+                  <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Product</TableHead>
-                          <TableHead>Quantity</TableHead>
-                          <TableHead>Unit Price</TableHead>
-                          <TableHead>Discount</TableHead>
-                          <TableHead>Total</TableHead>
-                          <TableHead className="text-center">Actions</TableHead>
+                          <TableHead className="w-[300px]">Product</TableHead>
+                          <TableHead className="w-[100px]">Quantity</TableHead>
+                          <TableHead className="w-[150px]">Unit Price</TableHead>
+                          <TableHead className="w-[100px]">Discount %</TableHead>
+                          <TableHead className="w-[120px]">Total</TableHead>
+                          <TableHead className="w-[80px] text-center">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -585,15 +459,12 @@ export default function InvoiceFormNew() {
                                   value={editProductId}
                                   onChange={(value) => {
                                     setEditProductId(value);
-                                    // Auto-populate unit price based on invoice type
                                     if (value) {
-                                      const selectedProduct = products?.find((p: any) => p.id.toString() === value);
-                                      if (selectedProduct) {
-                                        const price = invoiceType === 'sales' ? selectedProduct.unit_price : selectedProduct.cost_price;
+                                      const product = products?.find((p: any) => p.id.toString() === value);
+                                      if (product) {
+                                        const price = invoiceType === 'sales' ? product.unit_price : product.cost_price;
                                         setEditUnitPrice(price?.toString() || '');
                                       }
-                                    } else {
-                                      setEditUnitPrice('');
                                     }
                                   }}
                                   placeholder="Select product"
@@ -601,20 +472,20 @@ export default function InvoiceFormNew() {
                                   emptyText="No products found"
                                 />
                               ) : (
-                                item.product_name
+                                <div className="font-medium">{item.product_name}</div>
                               )}
                             </TableCell>
                             <TableCell>
                               {editingItemIndex === index ? (
                                 <Input
                                   type="number"
-                                  min="1"
+                                  min="0.01"
+                                  step="0.01"
                                   value={editQuantity}
                                   onChange={(e) => setEditQuantity(e.target.value)}
-                                  className="w-20"
                                 />
                               ) : (
-                                item.quantity
+                                Number(item.quantity).toFixed(2)
                               )}
                             </TableCell>
                             <TableCell>
@@ -625,7 +496,6 @@ export default function InvoiceFormNew() {
                                   min="0"
                                   value={editUnitPrice}
                                   onChange={(e) => setEditUnitPrice(e.target.value)}
-                                  className="w-24"
                                 />
                               ) : (
                                 formatCurrency(item.unit_price)
@@ -637,15 +507,15 @@ export default function InvoiceFormNew() {
                                   type="number"
                                   min="0"
                                   max="100"
+                                  step="0.01"
                                   value={editDiscount}
                                   onChange={(e) => setEditDiscount(e.target.value)}
-                                  className="w-20"
                                 />
                               ) : (
-                                `${item.discount_percent}%`
+                                `${Number(item.discount_percent || 0).toFixed(2)}%`
                               )}
                             </TableCell>
-                            <TableCell className="font-semibold">
+                            <TableCell className="font-semibold text-primary">
                               {editingItemIndex === index ? (
                                 formatCurrency((Number(editQuantity) || 0) * (Number(editUnitPrice) || 0) * (1 - (Number(editDiscount) || 0) / 100))
                               ) : (
@@ -660,16 +530,18 @@ export default function InvoiceFormNew() {
                                       type="button"
                                       size="sm"
                                       onClick={saveEdit}
+                                      className="p-1 h-8 w-8"
                                     >
-                                      <Save className="h-3 w-3" />
+                                      <Save className="h-4 w-4" />
                                     </Button>
                                     <Button
                                       type="button"
                                       size="sm"
                                       variant="outline"
                                       onClick={cancelEdit}
+                                      className="p-1 h-8 w-8 text-gray-500"
                                     >
-                                      <X className="h-3 w-3" />
+                                      <X className="h-4 w-4" />
                                     </Button>
                                   </>
                                 ) : (
@@ -677,18 +549,20 @@ export default function InvoiceFormNew() {
                                     <Button
                                       type="button"
                                       size="sm"
-                                      variant="outline"
+                                      variant="ghost"
                                       onClick={() => startEdit(index)}
+                                      className="p-1 h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                                     >
-                                      <Edit2 className="h-3 w-3" />
+                                      <Edit2 className="h-4 w-4" />
                                     </Button>
                                     <Button
                                       type="button"
                                       size="sm"
-                                      variant="outline"
+                                      variant="ghost"
                                       onClick={() => handleRemoveItem(index)}
+                                      className="p-1 h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                                     >
-                                      <Trash2 className="h-3 w-3 text-red-600" />
+                                      <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </>
                                 )}
@@ -696,6 +570,71 @@ export default function InvoiceFormNew() {
                             </TableCell>
                           </TableRow>
                         ))}
+
+                        {/* New Item Row (Auto-add) */}
+                        <TableRow className="bg-muted/30">
+                          <TableCell>
+                            <Combobox
+                              options={[
+                                { value: '', label: 'Search and add product...' },
+                                ...productOptions,
+                              ]}
+                              value={selectedProduct}
+                              onChange={(value) => {
+                                if (value) {
+                                  // Auto-add product when selected
+                                  const prod = products?.find((p: any) => p.id.toString() === value);
+                                  if (prod) {
+                                    const price = invoiceType === 'sales' ? prod.unit_price : prod.cost_price;
+
+                                    // Default values for auto-add
+                                    const qty = 1;
+                                    const disc = 0;
+
+                                    // Stock check for sales
+                                    if (invoiceType === 'sales') {
+                                      const stock = locationStock?.find((s: any) => s.product_id === prod.id);
+                                      if (!stock || stock.quantity < qty) {
+                                        toast.error('Insufficient stock in selected location');
+                                        return;
+                                      }
+                                    }
+
+                                    const itemTotal = qty * (price || 0);
+                                    const finalTotal = itemTotal - (itemTotal * disc / 100);
+
+                                    const newItem: InvoiceItem = {
+                                      product_id: prod.id,
+                                      product_name: prod.name_ar || prod.name_en || prod.name || 'Unknown Product',
+                                      quantity: qty,
+                                      unit_price: price || 0,
+                                      discount_percent: disc,
+                                      total: finalTotal,
+                                    };
+
+                                    setInvoiceItems([...invoiceItems, newItem]);
+                                    setErrors({ ...errors, items: '' });
+                                    // Clear product search to be ready for next one
+                                    setProductSearch('');
+                                    setSelectedProduct('');
+                                  }
+                                }
+                              }}
+                              onSearchChange={setProductSearch}
+                              placeholder="Type to search product..."
+                              searchPlaceholder="Search products by SKU or Name..."
+                              emptyText="No products found"
+                              className="border-none bg-transparent shadow-none"
+                            />
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">-</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">-</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">-</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">-</TableCell>
+                          <TableCell className="text-center">
+                            <Package className="h-4 w-4 text-muted-foreground mx-auto" />
+                          </TableCell>
+                        </TableRow>
                       </TableBody>
                     </Table>
                   </div>
@@ -767,7 +706,7 @@ export default function InvoiceFormNew() {
                     min="0"
                     max={total}
                     value={paidAmount}
-                    onChange={(e) => {setPaidAmount(e.target.value); setErrors({...errors, paidAmount: ''})}}
+                    onChange={(e) => { setPaidAmount(e.target.value); setErrors({ ...errors, paidAmount: '' }) }}
                     className={`h-11 ${errors.paidAmount ? 'border-red-500' : ''}`}
                   />
                   {errors.paidAmount && (
@@ -796,8 +735,8 @@ export default function InvoiceFormNew() {
                 </div>
 
                 <div className="flex flex-col gap-3 pt-4">
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     disabled={createInvoiceMutation.isPending || invoiceItems.length === 0}
                     size="lg"
                     className="w-full"
@@ -805,9 +744,9 @@ export default function InvoiceFormNew() {
                     <Save className="mr-2 h-4 w-4" />
                     {createInvoiceMutation.isPending ? 'Creating...' : 'Create Invoice'}
                   </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={() => navigate(`/invoices/${invoiceType}`)}
                     size="lg"
                     className="w-full"

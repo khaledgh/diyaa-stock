@@ -41,6 +41,8 @@ func (s *PaymentService) GetALL(invoiceID string, limit int) ([]models.Payment, 
 		return nil, err
 	}
 
+	s.populateInvoiceNumbers(payments)
+
 	return payments, nil
 }
 
@@ -79,6 +81,8 @@ func (s *PaymentService) GetPaginated(limit, page int, orderBy, sortBy, invoiceI
 		return PaginationResponse{}, err
 	}
 
+	s.populateInvoiceNumbers(payments)
+
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
 
 	return PaginationResponse{
@@ -90,10 +94,32 @@ func (s *PaymentService) GetPaginated(limit, page int, orderBy, sortBy, invoiceI
 	}, nil
 }
 
-func (s *PaymentService) DeleteByInvoiceID(invoiceID uint) error {
+func (s *PaymentService) DeleteByInvoiceID(invoiceID uint, invoiceType string) error {
 	// Delete all payments for the given invoice
-	if err := s.db.Where("invoice_id = ?", invoiceID).Delete(&models.Payment{}).Error; err != nil {
+	if err := s.db.Where("invoice_id = ? AND invoice_type = ?", invoiceID, invoiceType).Delete(&models.Payment{}).Error; err != nil {
 		return err
 	}
 	return nil
+}
+
+func (s *PaymentService) populateInvoiceNumbers(payments []models.Payment) {
+	for i := range payments {
+		if payments[i].InvoiceType == "sales" {
+			var inv models.SalesInvoice
+			if err := s.db.Select("invoice_number").First(&inv, payments[i].InvoiceID).Error; err == nil {
+				payments[i].InvoiceNumber = inv.InvoiceNumber
+			} else {
+				payments[i].InvoiceNumber = "Invoice Deleted"
+			}
+		} else if payments[i].InvoiceType == "purchase" {
+			var inv models.PurchaseInvoice
+			if err := s.db.Select("invoice_number").First(&inv, payments[i].InvoiceID).Error; err == nil {
+				payments[i].InvoiceNumber = inv.InvoiceNumber
+			} else {
+				payments[i].InvoiceNumber = "Invoice Deleted"
+			}
+		} else {
+			payments[i].InvoiceNumber = "Invoice Deleted"
+		}
+	}
 }

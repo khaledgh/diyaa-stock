@@ -176,31 +176,30 @@ export default function Inventory() {
       const parts = item.split(':');
       if (parts.length >= 3) {
         // New format: id:name:quantity
-        return { 
+        return {
           id: parseInt(parts[0]) || 0,
-          name: parts[1], 
-          quantity: parseFloat(parts[2]) || 0 
+          name: parts[1],
+          quantity: parseFloat(parts[2]) || 0
         };
       } else if (parts.length === 2) {
         // Old format: name:quantity (fallback)
-        return { 
+        return {
           id: 0,
-          name: parts[0], 
-          quantity: parseFloat(parts[1]) || 0 
+          name: parts[0],
+          quantity: parseFloat(parts[1]) || 0
         };
       }
       return null;
     }).filter(item => item && item.name); // Filter out any empty entries
   };
 
-  const formatQuantity = (quantity: number | null | undefined) => {
+  const formatQuantity = (quantity: any) => {
     if (quantity === null || quantity === undefined) {
-      return '0';
+      return '0.00';
     }
-    if (quantity === Math.floor(quantity)) {
-      return quantity.toString(); // Show as integer if no decimal part
-    }
-    return quantity.toFixed(2); // Show 2 decimal places if has decimals
+    const num = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
+    if (isNaN(num)) return '0.00';
+    return num.toFixed(2);
   };
 
   return (
@@ -270,8 +269,8 @@ export default function Inventory() {
                 />
               </div>
 
-              <Button 
-                onClick={handleAddStock} 
+              <Button
+                onClick={handleAddStock}
                 className="w-full"
                 disabled={addStockMutation.isPending}
               >
@@ -316,14 +315,14 @@ export default function Inventory() {
               </div>
 
               <div className="flex gap-2">
-                <Button 
-                  onClick={handleEditStock} 
+                <Button
+                  onClick={handleEditStock}
                   className="flex-1"
                   disabled={adjustStockMutation.isPending}
                 >
                   {adjustStockMutation.isPending ? 'Saving...' : 'Update Stock'}
                 </Button>
-                <Button 
+                <Button
                   variant="outline"
                   onClick={closeEditDialog}
                   className="flex-1"
@@ -518,8 +517,8 @@ export default function Inventory() {
                       filteredWarehouseStock?.map((item: any) => {
                         const isLowStock = item.quantity <= item.min_stock_level;
                         return (
-                          <TableRow 
-                            key={item.id} 
+                          <TableRow
+                            key={item.id}
                             className={`hover:bg-gray-50 dark:hover:bg-gray-800 ${isLowStock ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
                           >
                             <TableCell className="font-medium">{item.sku}</TableCell>

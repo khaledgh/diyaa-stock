@@ -952,7 +952,7 @@ func (ih *InvoiceHandler) DeleteInvoiceHandler(c echo.Context) error {
 	}
 
 	// Delete associated payments
-	if err := ih.PaymentServices.DeleteByInvoiceID(uint(invoiceIDUint)); err != nil {
+	if err := ih.PaymentServices.DeleteByInvoiceID(uint(invoiceIDUint), invoiceTypeStr); err != nil {
 		tx.Rollback()
 		log.Printf("[DELETE INVOICE] Error deleting payments: %v", err)
 		return ResponseError(c, err)

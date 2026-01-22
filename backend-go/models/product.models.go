@@ -13,8 +13,8 @@ type Product struct {
 	Category      *Category    `json:"category" gorm:"foreignKey:CategoryID"`
 	TypeID        *uint        `json:"type_id"`
 	ProductType   *ProductType `json:"product_type" gorm:"foreignKey:TypeID"`
-	UnitPrice     float64      `json:"unit_price" gorm:"not null"`
-	CostPrice     float64      `json:"cost_price" gorm:"not null"`
+	UnitPrice     float64      `json:"unit_price" gorm:"type:decimal(15,2);not null"`
+	CostPrice     float64      `json:"cost_price" gorm:"type:decimal(15,2);not null"`
 	Unit          string       `json:"unit" gorm:"size:20;default:piece"`
 	MinStockLevel int          `json:"min_stock_level" gorm:"default:0"`
 	IsActive      bool         `json:"is_active" gorm:"default:true"`

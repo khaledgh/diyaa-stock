@@ -279,8 +279,8 @@ export default function LocationSalesReport() {
             <CardContent>
               {(() => {
                 const collectionRate = summary.total_sales > 0
-                  ? ((summary.total_paid / summary.total_sales) * 100).toFixed(1)
-                  : '0.0';
+                  ? ((summary.total_paid / summary.total_sales) * 100).toFixed(2)
+                  : '0.00';
                 return (
                   <div>
                     <p className="text-lg font-semibold">{collectionRate}%</p>

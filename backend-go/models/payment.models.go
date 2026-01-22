@@ -8,7 +8,7 @@ type Payment struct {
 	InvoiceType       string    `json:"invoice_type" gorm:"size:20"` // sales, purchase
 	CustomerID        *uint     `json:"customer_id"`
 	VendorID          *uint     `json:"vendor_id"`
-	Amount            float64   `json:"amount" gorm:"not null"`
+	Amount            float64   `json:"amount" gorm:"type:decimal(15,2);not null"`
 	PaymentMethod     string    `json:"payment_method" gorm:"size:20;not null"` // cash, card, bank_transfer
 	ReferenceNumber   *string   `json:"reference_number" gorm:"size:100"`
 	Notes             *string   `json:"notes" gorm:"type:text"`
@@ -19,6 +19,7 @@ type Payment struct {
 	CreatedByUser     *User     `json:"created_by_user" gorm:"foreignKey:CreatedBy"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+	InvoiceNumber     string    `json:"invoice_number" gorm:"-"`
 
 	// Relationships
 	Customer    *Customer           `json:"customer,omitempty" gorm:"foreignKey:CustomerID"`

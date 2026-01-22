@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { CreditCard, Receipt } from 'lucide-react';
+import { CreditCard, Receipt, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { paymentApi } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 
@@ -18,6 +20,16 @@ export default function Payments() {
   });
 
   const totalPayments = payments?.reduce((sum: number, payment: any) => sum + Number(payment.amount), 0) || 0;
+
+  const getInvoiceLink = (payment: any) => {
+    if (payment.invoice_type === 'sales') {
+      return `/invoices/sales/${payment.invoice_id}`;
+    }
+    if (payment.invoice_type === 'purchase') {
+      return `/invoices/purchase/${payment.invoice_id}`;
+    }
+    return '#';
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -50,6 +62,7 @@ export default function Payments() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t('common.date') || 'Date'}</TableHead>
+                    <TableHead className="hidden md:table-cell">Invoice Type</TableHead>
                     <TableHead className="hidden md:table-cell">Invoice #</TableHead>
                     <TableHead className="text-right">{t('common.amount') || 'Amount'}</TableHead>
                     <TableHead className="hidden sm:table-cell">{t('payments.paymentMethod') || 'Method'}</TableHead>
@@ -60,18 +73,40 @@ export default function Payments() {
                 <TableBody>
                   {payments?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No payments found
                       </TableCell>
                     </TableRow>
                   ) : (
                     payments?.map((payment: any) => (
-                      <TableRow key={payment.id}>
+                      <TableRow
+                        key={payment.id}
+                        className={payment.invoice_number === 'Invoice Deleted' ? 'text-red-500 line-through opacity-70 hover:bg-red-50/50' : ''}
+                      >
                         <TableCell>{formatDateTime(payment.created_at)}</TableCell>
-                        <TableCell className="hidden md:table-cell font-mono text-sm">
-                          #{payment.invoice_id}
+                        <TableCell className="hidden md:table-cell">
+                          {payment.invoice_type ? (
+                            <Badge variant={payment.invoice_type === 'sales' ? 'default' : 'outline'} className="capitalize">
+                              {payment.invoice_type}
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="bg-red-100 text-red-600 border-red-200">Deleted</Badge>
+                          )}
                         </TableCell>
-                        <TableCell className={`text-right font-bold ${payment.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        <TableCell className="hidden md:table-cell">
+                          {payment.invoice_number === 'Invoice Deleted' ? (
+                            <span className="font-medium italic">Invoice Deleted</span>
+                          ) : (
+                            <Link
+                              to={getInvoiceLink(payment)}
+                              className="flex items-center gap-1 text-primary hover:underline font-mono text-sm"
+                            >
+                              {payment.invoice_number || `#${payment.invoice_id}`}
+                              <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          )}
+                        </TableCell>
+                        <TableCell className={`text-right font-bold ${payment.invoice_number === 'Invoice Deleted' ? '' : (payment.amount < 0 ? 'text-red-600' : 'text-green-600')}`}>
                           {formatCurrency(payment.amount)}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">

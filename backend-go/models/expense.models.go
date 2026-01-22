@@ -20,8 +20,8 @@ type Expense struct {
 	ExpenseCategory   *ExpenseCategory `json:"expense_category,omitempty" gorm:"foreignKey:ExpenseCategoryID"`
 	VendorID          *uint            `json:"vendor_id"`
 	Vendor            *Vendor          `json:"vendor,omitempty" gorm:"foreignKey:VendorID"`
-	Amount            float64          `json:"amount" gorm:"not null"`
-	TaxAmount         float64          `json:"tax_amount" gorm:"default:0"`
+	Amount            float64          `json:"amount" gorm:"type:decimal(15,2);not null"`
+	TaxAmount         float64          `json:"tax_amount" gorm:"type:decimal(15,2);default:0"`
 	ExpenseDate       time.Time        `json:"expense_date" gorm:"not null"`
 	PaymentMethod     string           `json:"payment_method" gorm:"size:20;not null"` // cash, card, bank_transfer
 	ReferenceNumber   *string          `json:"reference_number" gorm:"size:100"`

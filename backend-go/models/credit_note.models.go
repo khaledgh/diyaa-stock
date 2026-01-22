@@ -34,7 +34,7 @@ type CreditNoteItem struct {
 	ID           uint      `json:"id" gorm:"primaryKey"`
 	CreditNoteID uint      `json:"credit_note_id" gorm:"not null;index"`
 	ProductID    uint      `json:"product_id" gorm:"not null;index"`
-	Quantity     float64   `json:"quantity" gorm:"not null"`
+	Quantity     float64   `json:"quantity" gorm:"type:decimal(15,2);not null"`
 	UnitPrice    float64   `json:"unit_price" gorm:"type:decimal(15,2);not null"`
 	Total        float64   `json:"total" gorm:"type:decimal(15,2);not null"`
 	Reason       string    `json:"reason" gorm:"size:255"`
