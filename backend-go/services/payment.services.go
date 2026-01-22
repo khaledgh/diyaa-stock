@@ -30,6 +30,9 @@ func (s *PaymentService) GetALL(invoiceID string, limit int) ([]models.Payment, 
 		query = query.Where("invoice_id = ?", invoiceID)
 	}
 
+	// Filter out payments related to deleted invoices
+	query = query.Where("(invoice_type = 'sales' AND EXISTS (SELECT 1 FROM sales_invoices si WHERE si.id = payments.invoice_id AND si.deleted_at IS NULL)) OR (invoice_type = 'purchase' AND EXISTS (SELECT 1 FROM purchase_invoices pi WHERE pi.id = payments.invoice_id AND pi.deleted_at IS NULL))")
+
 	if limit > 0 {
 		query = query.Limit(limit)
 	} else {
@@ -73,6 +76,9 @@ func (s *PaymentService) GetPaginated(limit, page int, orderBy, sortBy, invoiceI
 	if invoiceID != "" {
 		query = query.Where("invoice_id = ?", invoiceID)
 	}
+
+	// Filter out payments related to deleted invoices
+	query = query.Where("(invoice_type = 'sales' AND EXISTS (SELECT 1 FROM sales_invoices si WHERE si.id = payments.invoice_id AND si.deleted_at IS NULL)) OR (invoice_type = 'purchase' AND EXISTS (SELECT 1 FROM purchase_invoices pi WHERE pi.id = payments.invoice_id AND pi.deleted_at IS NULL))")
 
 	query.Count(&total)
 

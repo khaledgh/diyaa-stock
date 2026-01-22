@@ -6,7 +6,8 @@ import {
   TrendingUp,
   TrendingDown,
   Clock,
-  DollarSign
+  DollarSign,
+  CreditCard
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { reportApi } from '@/lib/api';
@@ -106,6 +107,25 @@ export default function ReportsHub() {
           name: 'Profit & Loss',
           href: '/reports/profit-loss',
           description: 'Financial performance'
+        },
+      ]
+    },
+    {
+      title: 'Finance & Payments',
+      icon: CreditCard,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-50 dark:bg-orange-900/20',
+      description: 'Review payments and collections',
+      reports: [
+        {
+          name: 'Payments Report',
+          href: '/reports/payments',
+          description: 'Daily/Monthly payments by entity'
+        },
+        {
+          name: 'Expenses',
+          href: '/expenses',
+          description: 'Company expenses'
         },
       ]
     },

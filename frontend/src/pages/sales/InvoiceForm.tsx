@@ -43,7 +43,7 @@ export default function InvoiceForm() {
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [purchaseLocationType, setPurchaseLocationType] = useState('warehouse');
   const [purchaseLocationVan, setPurchaseLocationVan] = useState('');
 
@@ -107,7 +107,7 @@ export default function InvoiceForm() {
 
   const createInvoiceMutation = useMutation({
     mutationFn: (data: any) => {
-      return invoiceType === 'purchase' 
+      return invoiceType === 'purchase'
         ? invoiceApi.createPurchase(data)
         : invoiceApi.createSales(data);
     },
@@ -182,7 +182,7 @@ export default function InvoiceForm() {
     }
 
     const product = products?.find((p: any) => p.id === Number(selectedProduct));
-    
+
     // Check stock for sales
     if (invoiceType === 'sales') {
       const stock = vanStock?.find((s: any) => s.product_id === Number(selectedProduct));
@@ -221,7 +221,7 @@ export default function InvoiceForm() {
   };
 
   const validateForm = () => {
-    const newErrors: {[key: string]: string} = {};
+    const newErrors: { [key: string]: string } = {};
 
     if (invoiceType === 'sales' && !selectedVan) {
       newErrors.van = 'Van is required for sales invoices';
@@ -288,7 +288,7 @@ export default function InvoiceForm() {
   const remaining = total - (Number(paidAmount) || 0);
 
   return (
-    <div className="space-y-6 p-6 max-w-7xl mx-auto">
+    <div className="space-y-6 p-6  mx-auto">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate('/invoices')}>
           <ArrowLeft className="h-5 w-5" />
@@ -302,8 +302,8 @@ export default function InvoiceForm() {
             )}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {invoiceType === 'purchase' 
-              ? 'Create a new purchase invoice - adds stock to warehouse or van' 
+            {invoiceType === 'purchase'
+              ? 'Create a new purchase invoice - adds stock to warehouse or van'
               : 'Create a new sales invoice for customer orders'}
           </p>
         </div>
@@ -327,7 +327,7 @@ export default function InvoiceForm() {
                         <select
                           id="van"
                           value={selectedVan}
-                          onChange={(e) => {setSelectedVan(e.target.value); setErrors({...errors, van: ''})}}
+                          onChange={(e) => { setSelectedVan(e.target.value); setErrors({ ...errors, van: '' }) }}
                           className={`flex h-11 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.van ? 'border-red-500' : 'border-input'}`}
                           required
                         >
@@ -421,7 +421,7 @@ export default function InvoiceForm() {
                             setPurchaseLocationType(e.target.value);
                             if (e.target.value === 'warehouse') {
                               setPurchaseLocationVan('');
-                              setErrors({...errors, purchaseLocation: ''});
+                              setErrors({ ...errors, purchaseLocation: '' });
                             }
                           }}
                           className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -437,7 +437,7 @@ export default function InvoiceForm() {
                           <select
                             id="purchaseVan"
                             value={purchaseLocationVan}
-                            onChange={(e) => {setPurchaseLocationVan(e.target.value); setErrors({...errors, purchaseLocation: ''})}}
+                            onChange={(e) => { setPurchaseLocationVan(e.target.value); setErrors({ ...errors, purchaseLocation: '' }) }}
                             className={`flex h-11 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.purchaseLocation ? 'border-red-500' : 'border-input'}`}
                           >
                             <option value="">Select van</option>
@@ -642,7 +642,7 @@ export default function InvoiceForm() {
                     min="0"
                     max={total}
                     value={paidAmount}
-                    onChange={(e) => {setPaidAmount(e.target.value); setErrors({...errors, paidAmount: ''})}}
+                    onChange={(e) => { setPaidAmount(e.target.value); setErrors({ ...errors, paidAmount: '' }) }}
                     className={`h-11 ${errors.paidAmount ? 'border-red-500' : ''}`}
                   />
                   {errors.paidAmount && (
@@ -671,8 +671,8 @@ export default function InvoiceForm() {
                 </div>
 
                 <div className="flex flex-col gap-3 pt-4">
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     disabled={createInvoiceMutation.isPending || invoiceItems.length === 0}
                     size="lg"
                     className="w-full"
@@ -680,9 +680,9 @@ export default function InvoiceForm() {
                     <Save className="mr-2 h-4 w-4" />
                     {createInvoiceMutation.isPending ? 'Creating...' : 'Create Invoice'}
                   </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={() => navigate('/invoices')}
                     size="lg"
                     className="w-full"

@@ -231,44 +231,59 @@ func (rh *ReportHandler) LocationSalesReportHandler(c echo.Context) error {
 			l.id as location_id,
 			l.name as location_name,
 			COUNT(DISTINCT i.id) as invoice_count,
-			SUM(i.total_amount) as total_sales,
-			SUM(i.paid_amount) as total_paid,
-			SUM(i.total_amount - i.paid_amount) as total_unpaid,
+			COALESCE(SUM(i.total_amount), 0) as total_sales,
+			COALESCE(SUM(i.paid_amount), 0) as total_paid,
+			COALESCE(SUM(i.total_amount - i.paid_amount), 0) as total_unpaid,
+			COALESCE(SUM(ii.quantity * (ii.unit_price - p.cost_price)), 0) as gross_profit,
+			COALESCE((
+				SELECT SUM(cn.total_amount) 
+				FROM credit_notes cn 
+				WHERE cn.location_id = l.id 
+				AND cn.type = 'sales' 
+				AND cn.status = 'approved' 
+				AND cn.deleted_at IS NULL
+				AND DATE(cn.credit_note_date) BETWEEN ? AND ?
+			), 0) as total_credit_notes,
 			COUNT(DISTINCT ii.product_id) as products_sold
 		FROM locations l
 		LEFT JOIN sales_invoices i ON l.id = i.location_id
 			AND i.deleted_at IS NULL
 			AND DATE(i.created_at) BETWEEN ? AND ?
 		LEFT JOIN sales_invoice_items ii ON i.id = ii.invoice_id
+		LEFT JOIN products p ON ii.product_id = p.id
 		WHERE l.is_active = true
 		GROUP BY l.id, l.name
 		ORDER BY total_sales DESC
 	`
 
 	var locationSales []map[string]interface{}
-	if err := rh.db.Raw(query, fromDate, toDate).Scan(&locationSales).Error; err != nil {
+	if err := rh.db.Raw(query, fromDate, toDate, fromDate, toDate).Scan(&locationSales).Error; err != nil {
 		return ResponseError(c, err)
 	}
 
 	// Calculate summary
 	var totalLocations, totalInvoices int64
-	var totalSales, totalPaid, totalUnpaid float64
+	var totalSales, totalPaid, totalUnpaid, totalProfit, totalCreditNotes float64
 	for _, location := range locationSales {
 		totalLocations++
 		totalInvoices += int64(ToFloat64(location["invoice_count"]))
 		totalSales += ToFloat64(location["total_sales"])
 		totalPaid += ToFloat64(location["total_paid"])
 		totalUnpaid += ToFloat64(location["total_unpaid"])
+		totalProfit += ToFloat64(location["gross_profit"])
+		totalCreditNotes += ToFloat64(location["total_credit_notes"])
 	}
 
 	summary := map[string]interface{}{
-		"total_locations": totalLocations,
-		"total_invoices":  totalInvoices,
-		"total_sales":     totalSales,
-		"total_paid":      totalPaid,
-		"total_unpaid":    totalUnpaid,
-		"date_from":       fromDate,
-		"date_to":         toDate,
+		"total_locations":    totalLocations,
+		"total_invoices":     totalInvoices,
+		"total_sales":        totalSales,
+		"total_paid":         totalPaid,
+		"total_unpaid":       totalUnpaid,
+		"total_profit":       totalProfit,
+		"total_credit_notes": totalCreditNotes,
+		"date_from":          fromDate,
+		"date_to":            toDate,
 	}
 
 	result := map[string]interface{}{
@@ -308,6 +323,22 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 	`).Scan(&todaySales)
 	dashboard["today_sales_count"] = todaySales.Count
 	dashboard["today_sales_total"] = todaySales.Total
+
+	// Today's collections (Payments)
+	var todayCollections float64
+	rh.db.Raw(`
+		SELECT COALESCE(SUM(p.amount), 0)
+		FROM payments p
+		LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
+		LEFT JOIN purchase_invoices pi ON p.invoice_id = pi.id AND p.invoice_type = 'purchase'
+		WHERE DATE(p.created_at) = CURDATE()
+		AND (
+			p.invoice_id IS NULL OR p.invoice_id = 0 OR
+			(p.invoice_type = 'sales' AND si.deleted_at IS NULL) OR
+			(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL)
+		)
+	`).Scan(&todayCollections)
+	dashboard["today_collections"] = todayCollections
 
 	// Pending payments (Receivables)
 	var pendingPayments float64
@@ -352,10 +383,11 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 	rh.db.Raw(`
 		SELECT
 			COUNT(*) as total_count,
-			COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count,
+			COUNT(CASE WHEN status = 'draft' THEN 1 END) as pending_count,
 			COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_count,
-			COALESCE(SUM(total_amount), 0) as total_amount
+			COALESCE(SUM(CASE WHEN status = 'approved' THEN total_amount ELSE 0 END), 0) as total_amount
 		FROM credit_notes
+		WHERE deleted_at IS NULL
 	`).Scan(&creditNotes)
 	dashboard["credit_notes_total"] = creditNotes.TotalCount
 	dashboard["credit_notes_pending"] = creditNotes.PendingCount
@@ -373,18 +405,37 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 			COUNT(DISTINCT ii.product_id) as top_products
 		FROM sales_invoice_items ii
 		JOIN sales_invoices i ON ii.invoice_id = i.id
-		WHERE MONTH(i.created_at) = MONTH(CURDATE())
+		WHERE i.deleted_at IS NULL 
+		AND MONTH(i.created_at) = MONTH(CURDATE())
 		AND YEAR(i.created_at) = YEAR(CURDATE())
 	`).Scan(&productRevenue)
 	dashboard["product_revenue"] = productRevenue.TotalRevenue
 	dashboard["top_products_count"] = productRevenue.TopProducts
+
+	// Monthly collections
+	var monthlyCollections float64
+	rh.db.Raw(`
+		SELECT COALESCE(SUM(p.amount), 0)
+		FROM payments p
+		LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
+		LEFT JOIN purchase_invoices pi ON p.invoice_id = pi.id AND p.invoice_type = 'purchase'
+		WHERE MONTH(p.created_at) = MONTH(CURDATE())
+		AND YEAR(p.created_at) = YEAR(CURDATE())
+		AND (
+			p.invoice_id IS NULL OR p.invoice_id = 0 OR
+			(p.invoice_type = 'sales' AND si.deleted_at IS NULL) OR
+			(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL)
+		)
+	`).Scan(&monthlyCollections)
+	dashboard["monthly_collections"] = monthlyCollections
 
 	// Recent sales chart (last 7 days)
 	var salesChart []map[string]interface{}
 	rh.db.Raw(`
 		SELECT DATE(created_at) as date, SUM(total_amount) as total
 		FROM sales_invoices
-		WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+		WHERE deleted_at IS NULL 
+		AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
 		GROUP BY DATE(created_at)
 		ORDER BY date ASC
 	`).Scan(&salesChart)
@@ -1132,4 +1183,140 @@ func (rh *ReportHandler) ProfitAndLossReportHandler(c echo.Context) error {
 	}
 
 	return ResponseOK(c, result, "data")
+}
+
+// PaymentsReportHandler generates a report of payments
+func (rh *ReportHandler) PaymentsReportHandler(c echo.Context) error {
+	fromDate := c.QueryParam("from_date")
+	toDate := c.QueryParam("to_date")
+	groupBy := c.QueryParam("group_by") // day, month, year
+
+	if fromDate == "" {
+		fromDate = time.Now().AddDate(0, 0, -30).Format("2006-01-02")
+	}
+	if toDate == "" {
+		toDate = time.Now().Format("2006-01-02")
+	}
+
+	dateTrunc := "DATE(p.created_at)"
+	if groupBy == "month" {
+		dateTrunc = "DATE_FORMAT(p.created_at, '%Y-%m')"
+	} else if groupBy == "year" {
+		dateTrunc = "DATE_FORMAT(p.created_at, '%Y')"
+	}
+
+	entityFilter := c.QueryParam("entity_name")
+	typeFilter := c.QueryParam("payment_type") // Received, Payed
+
+	query := `
+		SELECT 
+			` + dateTrunc + ` as date,
+			CASE WHEN p.invoice_type = 'sales' THEN 'Received' ELSE 'Payed' END as payment_type,
+			COALESCE(c.name, v.company_name, v.name, 'Unallocated') as entity_name,
+			SUM(p.amount) as total_amount,
+			COUNT(*) as payment_count
+		FROM payments p
+		LEFT JOIN customers c ON p.customer_id = c.id
+		LEFT JOIN vendors v ON p.vendor_id = v.id
+		LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
+		LEFT JOIN purchase_invoices pi ON p.invoice_id = pi.id AND p.invoice_type = 'purchase'
+		WHERE DATE(p.created_at) BETWEEN ? AND ?
+		AND (
+			p.invoice_id IS NULL OR p.invoice_id = 0 OR
+			(p.invoice_type = 'sales' AND si.deleted_at IS NULL AND si.id IS NOT NULL) OR 
+			(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL AND pi.id IS NOT NULL)
+		)
+	`
+	args := []interface{}{fromDate, toDate}
+
+	if entityFilter != "" {
+		query += " AND (c.name LIKE ? OR v.company_name LIKE ? OR v.name LIKE ?)"
+		pattern := "%" + entityFilter + "%"
+		args = append(args, pattern, pattern, pattern)
+	}
+
+	if typeFilter != "" {
+		if typeFilter == "Received" {
+			query += " AND p.invoice_type = 'sales'"
+		} else if typeFilter == "Payed" {
+			query += " AND p.invoice_type = 'purchase'"
+		}
+	}
+
+	query += " GROUP BY date, payment_type, entity_name ORDER BY date DESC"
+
+	var reports []map[string]interface{}
+	if err := rh.db.Raw(query, args...).Scan(&reports).Error; err != nil {
+		return ResponseError(c, err)
+	}
+
+	return ResponseOK(c, reports, "data")
+}
+
+// PaymentsReportDetailsHandler returns individual payments for a specific report row
+func (rh *ReportHandler) PaymentsReportDetailsHandler(c echo.Context) error {
+	dateStr := c.QueryParam("date")
+	entityName := c.QueryParam("entity_name")
+	paymentType := c.QueryParam("payment_type")
+	groupBy := c.QueryParam("group_by")
+
+	// If date comes in ISO format like 2026-01-12T00:00:00Z, take only the date part
+	if len(dateStr) > 10 {
+		dateStr = dateStr[:10]
+	}
+
+	query := `
+		SELECT 
+			p.*,
+			COALESCE(si.invoice_number, pi.invoice_number, '-') as invoice_number,
+			COALESCE(c.name, v.company_name, v.name, 'Unallocated') as entity_name,
+			CASE WHEN p.invoice_type = 'sales' THEN 'Received' ELSE 'Payed' END as type_label,
+			COALESCE(CONCAT(u.first_name, ' ', u.last_name), u.email, 'System') as creator_name
+		FROM payments p
+		LEFT JOIN customers c ON p.customer_id = c.id
+		LEFT JOIN vendors v ON p.vendor_id = v.id
+		LEFT JOIN users u ON p.created_by = u.id
+		LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
+		LEFT JOIN purchase_invoices pi ON p.invoice_id = pi.id AND p.invoice_type = 'purchase'
+		WHERE 1=1
+		AND (
+			p.invoice_id IS NULL OR p.invoice_id = 0 OR
+			(p.invoice_type = 'sales' AND si.deleted_at IS NULL AND si.id IS NOT NULL) OR 
+			(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL AND pi.id IS NOT NULL)
+		)
+	`
+	var args []interface{}
+
+	if groupBy == "month" {
+		query += " AND DATE_FORMAT(p.created_at, '%Y-%m') = ?"
+	} else if groupBy == "year" {
+		query += " AND DATE_FORMAT(p.created_at, '%Y') = ?"
+	} else {
+		query += " AND DATE(p.created_at) = ?"
+	}
+	args = append(args, dateStr)
+
+	if entityName != "" {
+		if entityName == "Unallocated" {
+			query += " AND p.customer_id IS NULL AND p.vendor_id IS NULL"
+		} else {
+			query += " AND (c.name = ? OR v.company_name = ? OR v.name = ?)"
+			args = append(args, entityName, entityName, entityName)
+		}
+	}
+
+	if paymentType != "" {
+		if paymentType == "Received" {
+			query += " AND p.invoice_type = 'sales'"
+		} else if paymentType == "Payed" {
+			query += " AND p.invoice_type = 'purchase'"
+		}
+	}
+
+	var payments []map[string]interface{}
+	if err := rh.db.Raw(query, args...).Scan(&payments).Error; err != nil {
+		return ResponseError(c, err)
+	}
+
+	return ResponseOK(c, payments, "data")
 }

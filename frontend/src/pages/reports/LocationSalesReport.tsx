@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, DollarSign, ShoppingCart, CreditCard, Calendar, Download, TrendingUp, AlertCircle } from 'lucide-react';
+import { MapPin, DollarSign, ShoppingCart, Calendar, Download, TrendingUp, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -153,15 +153,30 @@ export default function LocationSalesReport() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding Amount</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Gross Profit</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-orange-600">{formatCurrency(summary.total_unpaid || 0)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Unpaid sales</p>
+                <p className="text-2xl font-bold text-blue-600">{formatCurrency(summary.total_profit || 0)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Total profit margin</p>
               </div>
-              <CreditCard className="h-8 w-8 text-orange-600" />
+              <TrendingUp className="h-8 w-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Sales Returns</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(summary.total_credit_notes || 0)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Total credit notes</p>
+              </div>
+              <AlertCircle className="h-8 w-8 text-red-600" />
             </div>
           </CardContent>
         </Card>
@@ -189,6 +204,8 @@ export default function LocationSalesReport() {
                   <TableHead>Location</TableHead>
                   <TableHead className="text-right">Invoices</TableHead>
                   <TableHead className="text-right">Total Sales</TableHead>
+                  <TableHead className="text-right">Returns</TableHead>
+                  <TableHead className="text-right">Gross Profit</TableHead>
                   <TableHead className="text-right">Paid</TableHead>
                   <TableHead className="text-right">Unpaid</TableHead>
                   <TableHead className="text-right">Products Sold</TableHead>
@@ -218,6 +235,12 @@ export default function LocationSalesReport() {
                         </TableCell>
                         <TableCell className="text-right font-medium text-green-600">
                           {formatCurrency(location.total_sales || 0)}
+                        </TableCell>
+                        <TableCell className="text-right text-red-600">
+                          {formatCurrency(location.total_credit_notes || 0)}
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-blue-600">
+                          {formatCurrency(location.gross_profit || 0)}
                         </TableCell>
                         <TableCell className="text-right text-blue-600">
                           {formatCurrency(location.total_paid || 0)}

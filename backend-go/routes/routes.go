@@ -139,6 +139,8 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.GET("/reports/receivables", reportHandler.ReceivablesReportHandler)
 	apiGroup.GET("/reports/product-performance", reportHandler.ProductPerformanceReportHandler)
 	apiGroup.GET("/reports/location-sales", reportHandler.LocationSalesReportHandler)
+	apiGroup.GET("/reports/payments", reportHandler.PaymentsReportHandler)
+	apiGroup.GET("/reports/payments/details", reportHandler.PaymentsReportDetailsHandler)
 	apiGroup.GET("/reports/dashboard", reportHandler.DashboardReportHandler)
 	apiGroup.GET("/reports/customer-statement/:id", reportHandler.CustomerStatementHandler)
 	apiGroup.GET("/reports/vendor-statement/:id", reportHandler.VendorStatementHandler)

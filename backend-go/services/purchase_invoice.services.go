@@ -90,7 +90,26 @@ func (s *PurchaseInvoiceService) GetID(id string) (models.PurchaseInvoice, error
 		s.db.Model(&invoice).Update("invoice_date", invoice.InvoiceDate)
 	}
 
+	s.populateReturnableQuantities(&invoice)
+
 	return invoice, nil
+}
+
+func (s *PurchaseInvoiceService) populateReturnableQuantities(invoice *models.PurchaseInvoice) {
+	for i := range invoice.Items {
+		var returnedQuantity float64
+		s.db.Raw(`
+			SELECT COALESCE(SUM(cni.quantity), 0)
+			FROM credit_note_items cni
+			JOIN credit_notes cn ON cni.credit_note_id = cn.id
+			WHERE cn.purchase_invoice_id = ? 
+			AND cni.product_id = ?
+			AND cn.status = 'approved'
+			AND cn.deleted_at IS NULL
+		`, invoice.ID, invoice.Items[i].ProductID).Scan(&returnedQuantity)
+
+		invoice.Items[i].ReturnableQty = invoice.Items[i].Quantity - returnedQuantity
+	}
 }
 
 func (s *PurchaseInvoiceService) GetCount() (int64, error) {
@@ -208,11 +227,11 @@ func (s *PurchaseInvoiceService) UpdatePaymentStatus(id uint, paidAmount float64
 func (s *PurchaseInvoiceService) generateInvoiceNumber() string {
 	prefix := fmt.Sprintf("PI-%s-", time.Now().Format("200601"))
 	var lastInvoice models.PurchaseInvoice
-	
+
 	// Get the last invoice number for this month that matches the prefix
 	// We use Unscoped to include soft-deleted records to avoid duplication if the latest one was deleted
 	err := s.db.Unscoped().Where("invoice_number LIKE ?", prefix+"%").Order("invoice_number desc").First(&lastInvoice).Error
-	
+
 	if err != nil {
 		// If no invoice found for this month, start with 1
 		return fmt.Sprintf("%s%05d", prefix, 1)

@@ -1,15 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { 
-  Package, 
-  DollarSign, 
-  AlertCircle, 
-  TrendingDown, 
-  TrendingUp, 
-  Bell, 
-  X, 
-  Receipt, 
+import {
+  Package,
+  DollarSign,
+  AlertCircle,
+  TrendingDown,
+  TrendingUp,
+  Bell,
+  X,
+  Receipt,
   BarChart3,
   ArrowUpRight,
   ArrowDownRight,
@@ -22,13 +22,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { reportApi, productApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer
 } from 'recharts';
 import { useState } from 'react';
@@ -203,7 +203,7 @@ export default function Dashboard() {
       </div>
 
       {/* Secondary Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -226,7 +226,21 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{formatCurrency(dashboardData?.today_sales_total || 0)}</p>
-                <p className="text-xs text-muted-foreground">{t('dashboard.todaySales')}</p>
+                <p className="text-xs text-muted-foreground">Today's Sales</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                <DollarSign className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{formatCurrency(dashboardData?.monthly_collections || 0)}</p>
+                <p className="text-xs text-muted-foreground">Monthly Collections</p>
               </div>
             </div>
           </CardContent>
@@ -276,27 +290,27 @@ export default function Dashboard() {
               <AreaChart data={dashboardData?.sales_chart || []}>
                 <defs>
                   <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(210, 78%, 39%)" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(210, 78%, 39%)" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="hsl(210, 78%, 39%)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(210, 78%, 39%)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }} 
+                  }}
                 />
-                <Area 
-                  type="monotone" 
-                  dataKey="total" 
-                  stroke="hsl(210, 78%, 39%)" 
+                <Area
+                  type="monotone"
+                  dataKey="total"
+                  stroke="hsl(210, 78%, 39%)"
                   strokeWidth={2}
-                  fill="url(#colorSales)" 
+                  fill="url(#colorSales)"
                 />
               </AreaChart>
             </ResponsiveContainer>

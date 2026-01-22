@@ -621,7 +621,7 @@ func (ih *InvoiceHandler) UpdateSalesInvoiceItem(c echo.Context) error {
 		}
 
 		// Create stock movement record
-		notes := fmt.Sprintf("Updated sales invoice #%s item", invoice.ID)
+		notes := fmt.Sprintf("Updated sales invoice #%d item", invoice.ID)
 		var movementQuantity float64
 		if productChanged {
 			movementQuantity = req.Quantity
@@ -730,7 +730,7 @@ func (ih *InvoiceHandler) UpdatePurchaseInvoiceItem(c echo.Context) error {
 		}
 
 		// Create stock movement record
-		notes := fmt.Sprintf("Updated purchase invoice #%s item", invoice.ID)
+		notes := fmt.Sprintf("Updated purchase invoice #%d item", invoice.ID)
 		var movementQuantity float64
 		if productChanged {
 			movementQuantity = req.Quantity
@@ -805,7 +805,7 @@ func (ih *InvoiceHandler) AddSalesInvoiceItem(c echo.Context) error {
 	}
 
 	// Create stock movement record
-	notes := fmt.Sprintf("Added item to sales invoice #%s", invoice.ID)
+	notes := fmt.Sprintf("Added item to sales invoice #%d", invoice.ID)
 	if err := ih.StockServices.CreateMovement(
 		req.ProductID,
 		"sale",
@@ -873,7 +873,7 @@ func (ih *InvoiceHandler) AddPurchaseInvoiceItem(c echo.Context) error {
 	}
 
 	// Create stock movement record
-	notes := fmt.Sprintf("Added item to purchase invoice #%s", invoice.ID)
+	notes := fmt.Sprintf("Added item to purchase invoice #%d", invoice.ID)
 	if err := ih.StockServices.CreateMovement(
 		req.ProductID,
 		"purchase",

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Trash2, ShoppingCart, Package, AlertCircle, Edit2, X } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, ShoppingCart, Package, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,12 +45,7 @@ export default function InvoiceFormNew() {
   const [vendorSearch, setVendorSearch] = useState('');
   const [debouncedVendorSearch, setDebouncedVendorSearch] = useState('');
 
-  // Item editing state
-  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
-  const [editProductId, setEditProductId] = useState('');
-  const [editQuantity, setEditQuantity] = useState('');
-  const [editUnitPrice, setEditUnitPrice] = useState('');
-  const [editDiscount, setEditDiscount] = useState('');
+  // No longer using separate editing state as cells are always editable
 
   // Debounce product search
   useEffect(() => {
@@ -143,65 +138,21 @@ export default function InvoiceFormNew() {
     setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
   };
 
-  // Item editing functions
-  const startEdit = (index: number) => {
-    const item = invoiceItems[index];
-    setEditingItemIndex(index);
-    setEditProductId(item.product_id.toString());
-    setEditQuantity(item.quantity.toString());
-    setEditUnitPrice(item.unit_price.toString());
-    setEditDiscount((item.discount_percent || 0).toString());
-  };
-
-  const cancelEdit = () => {
-    setEditingItemIndex(null);
-    setEditProductId('');
-    setEditQuantity('');
-    setEditUnitPrice('');
-    setEditDiscount('');
-  };
-
-  const saveEdit = () => {
-    if (editingItemIndex === null) return;
-
-    if (!editProductId || !editQuantity || !editUnitPrice) {
-      toast.error('Please fill all required fields');
-      return;
-    }
-
-    if (!selectedLocation) {
-      toast.error('Please select a location first');
-      return;
-    }
-
-    const product = products?.find((p: any) => p.id === Number(editProductId));
-
-    // Check stock for sales
-    if (invoiceType === 'sales') {
-      const stock = locationStock?.find((s: any) => s.product_id === Number(editProductId));
-      if (!stock || stock.quantity < Number(editQuantity)) {
-        toast.error('Insufficient stock in selected location');
-        return;
-      }
-    }
-
-    const itemTotal = Number(editQuantity) * Number(editUnitPrice);
-    const discountAmount = itemTotal * (Number(editDiscount) || 0) / 100;
-    const finalTotal = itemTotal - discountAmount;
-
-    const updatedItem: InvoiceItem = {
-      product_id: Number(editProductId),
-      product_name: product?.name_ar || product?.name_en || product?.name || 'Unknown Product',
-      quantity: Number(editQuantity),
-      unit_price: Number(editUnitPrice),
-      discount_percent: Number(editDiscount) || 0,
-      total: finalTotal,
-    };
-
+  const handleItemChange = (index: number, field: keyof InvoiceItem, value: any) => {
     const newItems = [...invoiceItems];
-    newItems[editingItemIndex] = updatedItem;
+    const item = { ...newItems[index] };
+
+    if (field === 'quantity') item.quantity = Number(value);
+    if (field === 'unit_price') item.unit_price = Number(value);
+    if (field === 'discount_percent') item.discount_percent = Number(value);
+
+    // Recalculate total for this item
+    const itemTotal = item.quantity * item.unit_price;
+    const discountAmount = itemTotal * (item.discount_percent || 0) / 100;
+    item.total = itemTotal - discountAmount;
+
+    newItems[index] = item;
     setInvoiceItems(newItems);
-    cancelEdit();
   };
 
   const calculateTotal = () => {
@@ -217,6 +168,20 @@ export default function InvoiceFormNew() {
 
     if (invoiceItems.length === 0) {
       newErrors.items = 'Please add at least one item to the invoice';
+    } else {
+      const hasZeroQty = invoiceItems.some(item => (item.quantity || 0) <= 0);
+      if (hasZeroQty) {
+        newErrors.items = 'All items must have a quantity greater than zero';
+      } else if (invoiceType === 'sales') {
+        // Check stock for all items
+        for (const item of invoiceItems) {
+          const stock = locationStock?.find((s: any) => s.product_id === item.product_id);
+          if (!stock || stock.quantity < item.quantity) {
+            newErrors.items = `Insufficient stock for ${item.product_name} (Available: ${stock?.quantity || 0})`;
+            break;
+          }
+        }
+      }
     }
 
     if (paidAmount && Number(paidAmount) < 0) {
@@ -291,7 +256,7 @@ export default function InvoiceFormNew() {
   }) || [];
 
   return (
-    <div className="space-y-6 p-6 max-w-7xl mx-auto">
+    <div className="space-y-6 p-6  mx-auto">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(`/invoices/${invoiceType}`)}>
           <ArrowLeft className="h-5 w-5" />
@@ -336,7 +301,6 @@ export default function InvoiceFormNew() {
                           setSelectedLocation(value);
                           setErrors({ ...errors, location: '' });
                           setInvoiceItems([]); // Clear items when changing location
-                          cancelEdit(); // Cancel any ongoing edits
                         }}
                         placeholder="Select location"
                         searchPlaceholder="Search locations..."
@@ -450,122 +414,53 @@ export default function InvoiceFormNew() {
                         {invoiceItems.map((item, index) => (
                           <TableRow key={index}>
                             <TableCell>
-                              {editingItemIndex === index ? (
-                                <Combobox
-                                  options={[
-                                    { value: '', label: 'Select product...' },
-                                    ...productOptions,
-                                  ]}
-                                  value={editProductId}
-                                  onChange={(value) => {
-                                    setEditProductId(value);
-                                    if (value) {
-                                      const product = products?.find((p: any) => p.id.toString() === value);
-                                      if (product) {
-                                        const price = invoiceType === 'sales' ? product.unit_price : product.cost_price;
-                                        setEditUnitPrice(price?.toString() || '');
-                                      }
-                                    }
-                                  }}
-                                  placeholder="Select product"
-                                  searchPlaceholder="Search products..."
-                                  emptyText="No products found"
-                                />
-                              ) : (
-                                <div className="font-medium">{item.product_name}</div>
-                              )}
+                              <div className="font-medium">{item.product_name}</div>
                             </TableCell>
                             <TableCell>
-                              {editingItemIndex === index ? (
-                                <Input
-                                  type="number"
-                                  min="0.01"
-                                  step="0.01"
-                                  value={editQuantity}
-                                  onChange={(e) => setEditQuantity(e.target.value)}
-                                />
-                              ) : (
-                                Number(item.quantity).toFixed(2)
-                              )}
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.quantity}
+                                onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                                className="h-9"
+                              />
                             </TableCell>
                             <TableCell>
-                              {editingItemIndex === index ? (
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={editUnitPrice}
-                                  onChange={(e) => setEditUnitPrice(e.target.value)}
-                                />
-                              ) : (
-                                formatCurrency(item.unit_price)
-                              )}
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.unit_price}
+                                onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
+                                className="h-9"
+                              />
                             </TableCell>
                             <TableCell>
-                              {editingItemIndex === index ? (
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="0.01"
-                                  value={editDiscount}
-                                  onChange={(e) => setEditDiscount(e.target.value)}
-                                />
-                              ) : (
-                                `${Number(item.discount_percent || 0).toFixed(2)}%`
-                              )}
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={item.discount_percent}
+                                onChange={(e) => handleItemChange(index, 'discount_percent', e.target.value)}
+                                className="h-9"
+                              />
                             </TableCell>
                             <TableCell className="font-semibold text-primary">
-                              {editingItemIndex === index ? (
-                                formatCurrency((Number(editQuantity) || 0) * (Number(editUnitPrice) || 0) * (1 - (Number(editDiscount) || 0) / 100))
-                              ) : (
-                                formatCurrency(item.total || 0)
-                              )}
+                              {formatCurrency(item.total || 0)}
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2 justify-center">
-                                {editingItemIndex === index ? (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      onClick={saveEdit}
-                                      className="p-1 h-8 w-8"
-                                    >
-                                      <Save className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={cancelEdit}
-                                      className="p-1 h-8 w-8 text-gray-500"
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </Button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => startEdit(index)}
-                                      className="p-1 h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                    >
-                                      <Edit2 className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => handleRemoveItem(index)}
-                                      className="p-1 h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </>
-                                )}
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleRemoveItem(index)}
+                                  className="p-1 h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -588,17 +483,8 @@ export default function InvoiceFormNew() {
                                     const price = invoiceType === 'sales' ? prod.unit_price : prod.cost_price;
 
                                     // Default values for auto-add
-                                    const qty = 1;
+                                    const qty = 0;
                                     const disc = 0;
-
-                                    // Stock check for sales
-                                    if (invoiceType === 'sales') {
-                                      const stock = locationStock?.find((s: any) => s.product_id === prod.id);
-                                      if (!stock || stock.quantity < qty) {
-                                        toast.error('Insufficient stock in selected location');
-                                        return;
-                                      }
-                                    }
 
                                     const itemTotal = qty * (price || 0);
                                     const finalTotal = itemTotal - (itemTotal * disc / 100);

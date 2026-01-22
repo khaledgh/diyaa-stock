@@ -66,28 +66,15 @@ func (s *StockService) GetLocationStock(locationID string) ([]map[string]interfa
 
 	log.Printf("[STOCK SERVICE] GetLocationStock called for location ID: %s", locationID)
 
-	// Get the location type from the database
-	var location struct {
-		Type string `gorm:"column:type"`
-	}
-	err := s.db.Table("locations").Select("type").Where("id = ?", locationID).First(&location).Error
+	// We'll query by location_id primarily.
+	// The location_type in the stocks table should match the location's type,
+	// but querying by both can be brittle if there's a naming mismatch (e.g., 'branch' vs 'location').
+	// Since location_id is unique in the locations table, it should be unique in the stocks table as well for a given product.
 
-	var locationType string
-
-	if err != nil {
-		log.Printf("[STOCK SERVICE] Error getting location type: %v, defaulting to 'location'", err)
-		locationType = "location"
-	} else {
-		locationType = location.Type
-		log.Printf("[STOCK SERVICE] Location %s has type '%s', querying with location_type='%s' and location_id=%s",
-			locationID, location.Type, locationType, locationID)
-	}
-
-	err = s.db.Table("stocks").
+	err := s.db.Table("stocks").
 		Select("stocks.*, products.sku, products.name_en, products.name_ar, products.unit, products.unit_price, products.barcode, products.min_stock_level, categories.name_en as category_name_en, categories.name_ar as category_name_ar").
 		Joins("LEFT JOIN products ON stocks.product_id = products.id").
 		Joins("LEFT JOIN categories ON products.category_id = categories.id").
-		Where("stocks.location_type = ?", locationType).
 		Where("stocks.location_id = ?", locationID).
 		Scan(&results).Error
 
@@ -96,7 +83,7 @@ func (s *StockService) GetLocationStock(locationID string) ([]map[string]interfa
 		return nil, err
 	}
 
-	log.Printf("[STOCK SERVICE] Found %d stock records for location %s (type: %s)", len(results), locationID, locationType)
+	log.Printf("[STOCK SERVICE] Found %d stock records for location %s", len(results), locationID)
 	return results, nil
 }
 

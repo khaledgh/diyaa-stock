@@ -34,6 +34,7 @@ import PurchaseInvoiceDetails from './pages/purchases/PurchaseInvoiceDetails';
 import Vendors from './pages/purchases/Vendors';
 import VendorStatement from './pages/purchases/VendorStatement';
 import CreditNotes from './pages/purchases/CreditNotes';
+import CreditNoteForm from './pages/purchases/CreditNoteForm';
 
 // Finance Pages
 import Payments from './pages/finance/Payments';
@@ -51,6 +52,7 @@ import SalesByCustomer from './pages/reports/SalesByCustomer';
 import SalesByItem from './pages/reports/SalesByItem';
 import LocationSalesReport from './pages/reports/LocationSalesReport';
 import ProfitLoss from './pages/reports/ProfitLoss';
+import PaymentsReport from './pages/reports/PaymentsReport';
 
 // Settings Pages
 import Settings from './pages/settings/Settings';
@@ -127,6 +129,8 @@ function App() {
             <Route path="vendors/:id/statement" element={<VendorStatement />} />
             <Route path="invoices/purchase/:id" element={<PurchaseInvoiceDetails />} />
             <Route path="credit-notes" element={<CreditNotes />} />
+            <Route path="credit-notes/new" element={<CreditNoteForm />} />
+            <Route path="credit-notes/edit/:id" element={<CreditNoteForm />} />
 
             {/* Finance */}
             <Route path="payments" element={<Payments />} />
@@ -145,6 +149,7 @@ function App() {
             <Route path="reports/profit-loss" element={<ProfitLoss />} />
             <Route path="reports/inventory-valuation" element={<InventoryValuation />} />
             <Route path="reports/location-sales" element={<LocationSalesReport />} />
+            <Route path="reports/payments" element={<PaymentsReport />} />
 
             {/* Settings */}
             <Route path="settings" element={<Settings />} />

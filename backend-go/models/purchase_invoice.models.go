@@ -33,4 +33,5 @@ type PurchaseInvoiceItem struct {
 	UnitPrice       float64  `json:"unit_price" gorm:"type:decimal(15,2);not null"`
 	DiscountPercent float64  `json:"discount_percent" gorm:"type:decimal(15,2);default:0"`
 	Total           float64  `json:"total" gorm:"type:decimal(15,2);not null"`
+	ReturnableQty   float64  `json:"returnable_qty" gorm:"-"`
 }
