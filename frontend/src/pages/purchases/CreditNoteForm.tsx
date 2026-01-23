@@ -371,8 +371,7 @@ export default function CreditNoteForm() {
                                     <TableRow>
                                         <TableHead className="pl-6">Product</TableHead>
                                         <TableHead className="text-right">Inv Qty</TableHead>
-                                        <TableHead className="text-right">Balance</TableHead>
-                                        {formData.type === 'purchase' && <TableHead className="text-right text-orange-600">In Stock</TableHead>}
+                                        <TableHead className="text-right">Loc Stock</TableHead>
                                         <TableHead className="text-center w-32">Return Qty</TableHead>
                                         <TableHead className="text-right pr-6">Price</TableHead>
                                     </TableRow>
@@ -393,35 +392,36 @@ export default function CreditNoteForm() {
                                                 : item.returnable_qty;
 
                                             return (
-                                                <TableRow key={index}>
+                                                <TableRow key={index} className="hover:bg-muted/30">
                                                     <TableCell className="pl-6">
-                                                        <div className="font-medium">{item.product_name}</div>
+                                                        <div className="font-medium text-sm">{item.product_name}</div>
                                                         <div className="text-[10px] text-muted-foreground">ID: {item.product_id}</div>
                                                     </TableCell>
-                                                    <TableCell className="text-right">{item.invoice_qty}</TableCell>
-                                                    <TableCell className="text-right font-bold text-blue-600">{item.returnable_qty}</TableCell>
-                                                    {formData.type === 'purchase' && (
-                                                        <TableCell className={`text-right font-medium ${item.current_stock <= 0 ? 'text-red-500' : 'text-orange-600'}`}>
+                                                    <TableCell className="text-right text-sm font-mono">{item.invoice_qty}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleQuantityChange(index, item.current_stock.toString())}
+                                                            className={`hover:underline font-bold font-mono ${item.current_stock <= 0 ? 'text-red-500' : 'text-orange-600'}`}
+                                                            title="Click to fill current stock"
+                                                        >
                                                             {item.current_stock}
-                                                        </TableCell>
-                                                    )}
+                                                        </button>
+                                                    </TableCell>
                                                     <TableCell>
                                                         <div className="flex flex-col items-center">
                                                             <Input
                                                                 type="number"
                                                                 value={item.quantity || ''}
                                                                 onChange={(e) => handleQuantityChange(index, e.target.value)}
-                                                                className="h-8 text-center font-bold"
+                                                                className="h-8 text-center font-bold w-20"
                                                                 min="0"
                                                                 max={maxAllowed}
                                                                 placeholder="0"
                                                             />
-                                                            <div className="text-[9px] mt-1 text-muted-foreground text-center">
-                                                                Max: <span className="font-bold">{maxAllowed}</span>
-                                                            </div>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right pr-6 font-mono">
+                                                    <TableCell className="text-right pr-6 font-mono text-sm">
                                                         {formatCurrency(item.unit_price)}
                                                     </TableCell>
                                                 </TableRow>

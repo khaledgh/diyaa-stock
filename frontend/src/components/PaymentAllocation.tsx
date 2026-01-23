@@ -258,7 +258,13 @@ export default function PaymentAllocation({
             <div>
               <p className="font-medium">{entityName}</p>
               <p className="text-sm text-muted-foreground">
-                Outstanding: <span className="font-medium text-red-600">{formatCurrency(totalOutstanding)}</span>
+                Outstanding: <button
+                  type="button"
+                  onClick={() => setTotalAmount(totalOutstanding.toString())}
+                  className="font-medium text-red-600 hover:underline"
+                >
+                  {formatCurrency(totalOutstanding)}
+                </button>
               </p>
             </div>
           </div>
@@ -378,8 +384,14 @@ export default function PaymentAllocation({
                         </div>
 
                         <div className="text-right text-sm">
-                          <p className="text-muted-foreground">Remaining</p>
-                          <p className="font-medium text-red-600">{formatCurrency(invoice.remaining)}</p>
+                          <p className="text-muted-foreground text-xs">Remaining</p>
+                          <button
+                            type="button"
+                            onClick={() => updateAllocation(invoice.id, invoice.remaining.toString())}
+                            className="font-medium text-red-600 hover:underline"
+                          >
+                            {formatCurrency(invoice.remaining)}
+                          </button>
                         </div>
 
                         <div className="w-28">

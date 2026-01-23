@@ -1199,48 +1199,69 @@ func (rh *ReportHandler) PaymentsReportHandler(c echo.Context) error {
 	}
 
 	dateTrunc := "DATE(p.created_at)"
+	dateTruncE := "DATE(e.expense_date)"
 	if groupBy == "month" {
 		dateTrunc = "DATE_FORMAT(p.created_at, '%Y-%m')"
+		dateTruncE = "DATE_FORMAT(e.expense_date, '%Y-%m')"
 	} else if groupBy == "year" {
 		dateTrunc = "DATE_FORMAT(p.created_at, '%Y')"
+		dateTruncE = "DATE_FORMAT(e.expense_date, '%Y')"
 	}
 
 	entityFilter := c.QueryParam("entity_name")
-	typeFilter := c.QueryParam("payment_type") // Received, Payed
+	typeFilter := c.QueryParam("payment_type") // Received, Payed, Expense
 
 	query := `
 		SELECT 
-			` + dateTrunc + ` as date,
-			CASE WHEN p.invoice_type = 'sales' THEN 'Received' ELSE 'Payed' END as payment_type,
-			COALESCE(c.name, v.company_name, v.name, 'Unallocated') as entity_name,
-			SUM(p.amount) as total_amount,
+			date,
+			payment_type,
+			entity_name,
+			SUM(amount) as total_amount,
 			COUNT(*) as payment_count
-		FROM payments p
-		LEFT JOIN customers c ON p.customer_id = c.id
-		LEFT JOIN vendors v ON p.vendor_id = v.id
-		LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
-		LEFT JOIN purchase_invoices pi ON p.invoice_id = pi.id AND p.invoice_type = 'purchase'
-		WHERE DATE(p.created_at) BETWEEN ? AND ?
-		AND (
-			p.invoice_id IS NULL OR p.invoice_id = 0 OR
-			(p.invoice_type = 'sales' AND si.deleted_at IS NULL AND si.id IS NOT NULL) OR 
-			(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL AND pi.id IS NOT NULL)
-		)
+		FROM (
+			-- Payments
+			SELECT 
+				` + dateTrunc + ` as date,
+				CASE WHEN p.invoice_type = 'sales' THEN 'Received' ELSE 'Payed' END as payment_type,
+				COALESCE(c.name, v.company_name, v.name, 'Unallocated') as entity_name,
+				p.amount
+			FROM payments p
+			LEFT JOIN customers c ON p.customer_id = c.id
+			LEFT JOIN vendors v ON p.vendor_id = v.id
+			LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
+			LEFT JOIN purchase_invoices pi ON p.invoice_id = pi.id AND p.invoice_type = 'purchase'
+			WHERE DATE(p.created_at) BETWEEN ? AND ?
+			AND (
+				p.invoice_id IS NULL OR p.invoice_id = 0 OR
+				(p.invoice_type = 'sales' AND si.deleted_at IS NULL AND si.id IS NOT NULL) OR 
+				(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL AND pi.id IS NOT NULL)
+			)
+
+			UNION ALL
+
+			-- Expenses
+			SELECT
+				` + dateTruncE + ` as date,
+				'Expense' as payment_type,
+				ec.name_en as entity_name,
+				e.amount
+			FROM expenses e
+			JOIN expense_categories ec ON e.expense_category_id = ec.id
+			WHERE DATE(e.expense_date) BETWEEN ? AND ?
+			AND e.deleted_at IS NULL
+		) as combined
+		WHERE 1=1
 	`
-	args := []interface{}{fromDate, toDate}
+	args := []interface{}{fromDate, toDate, fromDate, toDate}
 
 	if entityFilter != "" {
-		query += " AND (c.name LIKE ? OR v.company_name LIKE ? OR v.name LIKE ?)"
-		pattern := "%" + entityFilter + "%"
-		args = append(args, pattern, pattern, pattern)
+		query += " AND entity_name LIKE ?"
+		args = append(args, "%"+entityFilter+"%")
 	}
 
-	if typeFilter != "" {
-		if typeFilter == "Received" {
-			query += " AND p.invoice_type = 'sales'"
-		} else if typeFilter == "Payed" {
-			query += " AND p.invoice_type = 'purchase'"
-		}
+	if typeFilter != "" && typeFilter != "all" {
+		query += " AND payment_type = ?"
+		args = append(args, typeFilter)
 	}
 
 	query += " GROUP BY date, payment_type, entity_name ORDER BY date DESC"
@@ -1266,57 +1287,73 @@ func (rh *ReportHandler) PaymentsReportDetailsHandler(c echo.Context) error {
 	}
 
 	query := `
-		SELECT 
-			p.*,
-			COALESCE(si.invoice_number, pi.invoice_number, '-') as invoice_number,
-			COALESCE(c.name, v.company_name, v.name, 'Unallocated') as entity_name,
-			CASE WHEN p.invoice_type = 'sales' THEN 'Received' ELSE 'Payed' END as type_label,
-			COALESCE(CONCAT(u.first_name, ' ', u.last_name), u.email, 'System') as creator_name
-		FROM payments p
-		LEFT JOIN customers c ON p.customer_id = c.id
-		LEFT JOIN vendors v ON p.vendor_id = v.id
-		LEFT JOIN users u ON p.created_by = u.id
-		LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
-		LEFT JOIN purchase_invoices pi ON p.invoice_id = pi.id AND p.invoice_type = 'purchase'
+		SELECT * FROM (
+			SELECT 
+				p.id, p.amount, p.payment_method, p.reference_number, p.notes, p.created_at,
+				COALESCE(si.invoice_number, pi.invoice_number, '-') as invoice_number,
+				COALESCE(c.name, v.company_name, v.name, 'Unallocated') as entity_name,
+				CASE WHEN p.invoice_type = 'sales' THEN 'Received' ELSE 'Payed' END as type_label,
+				COALESCE(CONCAT(u.first_name, ' ', u.last_name), u.email, 'System') as creator_name,
+				p.invoice_id, p.invoice_type
+			FROM payments p
+			LEFT JOIN customers c ON p.customer_id = c.id
+			LEFT JOIN vendors v ON p.vendor_id = v.id
+			LEFT JOIN users u ON p.created_by = u.id
+			LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
+			LEFT JOIN purchase_invoices pi ON p.invoice_id = pi.id AND p.invoice_type = 'purchase'
+			WHERE (
+				p.invoice_id IS NULL OR p.invoice_id = 0 OR
+				(p.invoice_type = 'sales' AND si.deleted_at IS NULL AND si.id IS NOT NULL) OR 
+				(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL AND pi.id IS NOT NULL)
+			)
+
+			UNION ALL
+
+			SELECT
+				e.id, e.amount, e.payment_method, e.reference_number, e.notes, e.expense_date as created_at,
+				e.expense_number as invoice_number,
+				ec.name_en as entity_name,
+				'Expense' as type_label,
+				COALESCE(CONCAT(u.first_name, ' ', u.last_name), u.email, 'System') as creator_name,
+				0 as invoice_id, 'expense' as invoice_type
+			FROM expenses e
+			JOIN expense_categories ec ON e.expense_category_id = ec.id
+			LEFT JOIN users u ON e.created_by = u.id
+			WHERE e.deleted_at IS NULL
+		) as combined
 		WHERE 1=1
-		AND (
-			p.invoice_id IS NULL OR p.invoice_id = 0 OR
-			(p.invoice_type = 'sales' AND si.deleted_at IS NULL AND si.id IS NOT NULL) OR 
-			(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL AND pi.id IS NOT NULL)
-		)
 	`
 	var args []interface{}
 
 	if groupBy == "month" {
-		query += " AND DATE_FORMAT(p.created_at, '%Y-%m') = ?"
+		query += " AND DATE_FORMAT(created_at, '%Y-%m') = ?"
 	} else if groupBy == "year" {
-		query += " AND DATE_FORMAT(p.created_at, '%Y') = ?"
+		query += " AND DATE_FORMAT(created_at, '%Y') = ?"
 	} else {
-		query += " AND DATE(p.created_at) = ?"
+		query += " AND DATE(created_at) = ?"
 	}
 	args = append(args, dateStr)
 
 	if entityName != "" {
 		if entityName == "Unallocated" {
-			query += " AND p.customer_id IS NULL AND p.vendor_id IS NULL"
+			query += " AND entity_name = 'Unallocated'"
 		} else {
-			query += " AND (c.name = ? OR v.company_name = ? OR v.name = ?)"
-			args = append(args, entityName, entityName, entityName)
+			query += " AND entity_name = ?"
+			args = append(args, entityName)
 		}
 	}
 
 	if paymentType != "" {
-		if paymentType == "Received" {
-			query += " AND p.invoice_type = 'sales'"
-		} else if paymentType == "Payed" {
-			query += " AND p.invoice_type = 'purchase'"
-		}
+		query += " AND type_label = ?"
+		args = append(args, paymentType)
 	}
 
-	var payments []map[string]interface{}
-	if err := rh.db.Raw(query, args...).Scan(&payments).Error; err != nil {
+	query += " ORDER BY created_at DESC"
+
+	var results []map[string]interface{}
+	if err := rh.db.Raw(query, args...).Scan(&results).Error; err != nil {
 		return ResponseError(c, err)
 	}
 
-	return ResponseOK(c, payments, "data")
+	return ResponseOK(c, results, "data")
 }

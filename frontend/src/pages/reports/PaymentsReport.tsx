@@ -116,7 +116,7 @@ export default function PaymentsReport() {
                 <div>
                     <h1 className="text-2xl md:text-3xl font-bold">Payments Report</h1>
                     <p className="text-sm text-muted-foreground mt-1">
-                        Detailed summary of Received and Payed transactions
+                        Detailed summary of Received, Payed and Expense transactions
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -178,6 +178,7 @@ export default function PaymentsReport() {
                                     <SelectItem value="all">All Types</SelectItem>
                                     <SelectItem value="Received">Received</SelectItem>
                                     <SelectItem value="Payed">Payed</SelectItem>
+                                    <SelectItem value="Expense">Expense</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -274,7 +275,9 @@ export default function PaymentsReport() {
                                                 <TableCell>
                                                     <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${p.payment_type === 'Received'
                                                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                        : p.payment_type === 'Expense'
+                                                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                                                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                                         }`}>
                                                         {p.payment_type}
                                                     </span>
@@ -287,7 +290,7 @@ export default function PaymentsReport() {
                                                 </TableCell>
                                                 <TableCell className="text-right font-mono">{p.payment_count}</TableCell>
                                                 <TableCell className="text-right font-bold">
-                                                    <span className={p.payment_type === 'Received' ? 'text-green-600' : 'text-red-600'}>
+                                                    <span className={p.payment_type === 'Received' ? 'text-green-600' : p.payment_type === 'Expense' ? 'text-orange-600' : 'text-red-600'}>
                                                         {p.payment_type === 'Received' ? '' : '-'}{formatCurrency(p.total_amount)}
                                                     </span>
                                                 </TableCell>
@@ -328,7 +331,7 @@ export default function PaymentsReport() {
                                 <div><span className="font-semibold text-foreground">Entity:</span> {selectedRow.entity_name}</div>
                                 <div>
                                     <span className="font-semibold text-foreground">Type:</span>
-                                    <span className={selectedRow.payment_type === 'Received' ? 'text-green-600 ml-1' : 'text-red-600 ml-1 font-bold'}>
+                                    <span className={selectedRow.payment_type === 'Received' ? 'text-green-600 ml-1' : selectedRow.payment_type === 'Expense' ? 'text-orange-600 ml-1 font-bold' : 'text-red-600 ml-1 font-bold'}>
                                         {selectedRow.payment_type}
                                     </span>
                                 </div>
@@ -368,7 +371,9 @@ export default function PaymentsReport() {
                                                     {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </TableCell>
                                                 <TableCell className="text-xs">
-                                                    {item.invoice_id && item.invoice_id !== 0 ? (
+                                                    {item.invoice_type === 'expense' ? (
+                                                        <span className="font-medium">{item.invoice_number}</span>
+                                                    ) : item.invoice_id && item.invoice_id !== 0 ? (
                                                         <Link
                                                             to={`/invoices/${item.invoice_type}/${item.invoice_id}`}
                                                             className="text-primary hover:underline font-medium"
@@ -384,7 +389,7 @@ export default function PaymentsReport() {
                                                 <TableCell className="text-xs max-w-[200px] truncate" title={item.notes}>{item.notes || '-'}</TableCell>
                                                 <TableCell className="text-xs">{item.creator_name || '-'}</TableCell>
                                                 <TableCell className="text-right font-bold">
-                                                    <span className={item.type_label === 'Received' ? 'text-green-600' : 'text-red-600'}>
+                                                    <span className={item.type_label === 'Received' ? 'text-green-600' : item.type_label === 'Expense' ? 'text-orange-600' : 'text-red-600'}>
                                                         {item.type_label === 'Received' ? '' : '-'}{formatCurrency(item.amount)}
                                                     </span>
                                                 </TableCell>
