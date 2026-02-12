@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FileText, Eye, Plus, Search, ChevronLeft, ChevronRight, ShoppingCart, Package, Trash2, DollarSign } from 'lucide-react';
+import { FileText, Eye, Plus, Search, ChevronLeft, ChevronRight, ShoppingCart, Package, Trash2, DollarSign, Edit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -365,14 +365,24 @@ export default function InvoicesNew() {
                             {formatCurrency(invoice.paid_amount)}
                           </TableCell>
                           <TableCell>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${invoice.payment_status === 'paid'
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                              : invoice.payment_status === 'partial'
-                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                              }`}>
-                              {invoice.payment_status}
-                            </span>
+                            <div className="flex flex-col gap-1">
+                              {/* Invoice Status Badge */}
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase w-fit ${invoice.status === 'draft'
+                                ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                                : 'bg-blue-100 text-blue-700 border border-blue-200'
+                                }`}>
+                                {invoice.status || 'draft'}
+                              </span>
+                              {/* Payment Status Badge */}
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium w-fit ${invoice.payment_status === 'paid'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : invoice.payment_status === 'partial'
+                                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                }`}>
+                                {invoice.payment_status}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
@@ -383,6 +393,14 @@ export default function InvoicesNew() {
                                 title="View Details"
                               >
                                 <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate(`/invoices/${invoice.id}/edit?type=${invoiceType}`)}
+                                title="Edit"
+                              >
+                                <Edit2 className="h-4 w-4" />
                               </Button>
                               {invoice.payment_status !== 'paid' && (
                                 <Button

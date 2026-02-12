@@ -34,13 +34,13 @@ func (s *CustomerService) GetALL(limit, page int, orderBy, sortBy, searchTerm st
 
 	// Validate sortBy to prevent SQL injection and errors
 	validSortFields := map[string]bool{
-		"id": true, "name": true, "phone": true, "email": true, 
+		"id": true, "name": true, "phone": true, "email": true,
 		"address": true, "created_at": true, "updated_at": true,
 	}
 	if !validSortFields[sortBy] {
 		sortBy = "id"
 	}
-	
+
 	// Validate orderBy
 	if orderBy != "asc" && orderBy != "desc" {
 		orderBy = "asc"
@@ -92,4 +92,19 @@ func (s *CustomerService) Delete(customer models.Customer) error {
 		return err
 	}
 	return nil
+}
+
+func (s *CustomerService) GetAllSimple() ([]map[string]interface{}, error) {
+	var customers []models.Customer
+	if err := s.db.Select("id, name").Find(&customers).Error; err != nil {
+		return nil, err
+	}
+	var result []map[string]interface{}
+	for _, c := range customers {
+		result = append(result, map[string]interface{}{
+			"id":   c.ID,
+			"name": c.Name,
+		})
+	}
+	return result, nil
 }

@@ -129,6 +129,15 @@ func (s *CreditNoteService) Create(creditNote models.CreditNote) (models.CreditN
 	creditNote.CreditNoteNumber = s.generateCreditNoteNumber()
 	creditNote.Status = "draft"
 
+	// Auto-set stock adjustment based on type if not set
+	if creditNote.StockAdjustment == "" {
+		if creditNote.Type == "purchase" {
+			creditNote.StockAdjustment = "plus" // Subtract from stock (return to vendor)
+		} else {
+			creditNote.StockAdjustment = "minus" // Add to stock (return from customer)
+		}
+	}
+
 	// Calculate total amount from items
 	var totalAmount float64
 	for i := range creditNote.Items {
@@ -213,6 +222,13 @@ func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (mod
 	existing.SalesInvoiceID = creditNote.SalesInvoiceID
 	existing.Type = creditNote.Type
 
+	// Ensure stock adjustment is correct for the type
+	if creditNote.Type == "purchase" {
+		existing.StockAdjustment = "plus"
+	} else {
+		existing.StockAdjustment = "minus"
+	}
+
 	// Delete existing items within transaction
 	if err := tx.Where("credit_note_id = ?", existing.ID).Delete(&models.CreditNoteItem{}).Error; err != nil {
 		tx.Rollback()
@@ -257,7 +273,7 @@ func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (mod
 				}
 			}
 
-			if existing.Type == "purchase" {
+			if existing.StockAdjustment == "plus" {
 				if stock.Quantity < item.Quantity {
 					tx.Rollback()
 					return creditNote, fmt.Errorf("insufficient stock for product %d. Available: %.2f, Required: %.2f",
@@ -265,6 +281,7 @@ func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (mod
 				}
 				stock.Quantity -= item.Quantity
 			} else {
+				// Default or "minus" -> Add to stock
 				stock.Quantity += item.Quantity
 			}
 
@@ -282,11 +299,11 @@ func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (mod
 				Notes:       &notes,
 				CreatedBy:   existing.CreatedBy,
 			}
-			if existing.Type == "purchase" {
+			if existing.StockAdjustment == "plus" {
 				movement.FromLocationType = "location"
 				movement.FromLocationID = existing.LocationID
 				movement.ToLocationType = "vendor"
-				movement.MovementType = "credit_note_return"
+				movement.MovementType = "credit_note_removal"
 				if existing.VendorID != nil {
 					movement.ToLocationID = *existing.VendorID
 				}
@@ -294,7 +311,7 @@ func (s *CreditNoteService) Update(id string, creditNote models.CreditNote) (mod
 				movement.FromLocationType = "customer"
 				movement.ToLocationType = "location"
 				movement.ToLocationID = existing.LocationID
-				movement.MovementType = "sales_return"
+				movement.MovementType = "credit_note_return"
 				if existing.CustomerID != nil {
 					movement.FromLocationID = *existing.CustomerID
 				}
@@ -323,6 +340,13 @@ func (s *CreditNoteService) Approve(id string, approvedBy uint) (models.CreditNo
 
 	if creditNote.Status != "draft" {
 		return creditNote, errors.New("only draft credit notes can be approved")
+	}
+
+	// Double check stock adjustment for the type
+	if creditNote.Type == "purchase" {
+		creditNote.StockAdjustment = "plus"
+	} else {
+		creditNote.StockAdjustment = "minus"
 	}
 
 	// Start transaction
@@ -358,8 +382,8 @@ func (s *CreditNoteService) Approve(id string, approvedBy uint) (models.CreditNo
 			}
 		}
 
-		if creditNote.Type == "purchase" {
-			// Check if sufficient quantity for purchase return
+		if creditNote.StockAdjustment == "plus" {
+			// Check if sufficient quantity for removal
 			if stock.Quantity < item.Quantity {
 				tx.Rollback()
 				return creditNote, fmt.Errorf("insufficient stock for product %d. Available: %.2f, Required: %.2f",
@@ -368,7 +392,7 @@ func (s *CreditNoteService) Approve(id string, approvedBy uint) (models.CreditNo
 			// Reduce stock
 			stock.Quantity -= item.Quantity
 		} else {
-			// Increase stock for sales return
+			// Increase stock (default or "minus")
 			stock.Quantity += item.Quantity
 		}
 
@@ -387,11 +411,11 @@ func (s *CreditNoteService) Approve(id string, approvedBy uint) (models.CreditNo
 			CreatedBy:   &approvedBy,
 		}
 
-		if creditNote.Type == "purchase" {
+		if creditNote.StockAdjustment == "plus" {
 			movement.FromLocationType = "location"
 			movement.FromLocationID = creditNote.LocationID
 			movement.ToLocationType = "vendor"
-			movement.MovementType = "credit_note_return"
+			movement.MovementType = "credit_note_removal"
 			if creditNote.VendorID != nil {
 				movement.ToLocationID = *creditNote.VendorID
 			}
@@ -399,7 +423,7 @@ func (s *CreditNoteService) Approve(id string, approvedBy uint) (models.CreditNo
 			movement.FromLocationType = "customer"
 			movement.ToLocationType = "location"
 			movement.ToLocationID = creditNote.LocationID
-			movement.MovementType = "sales_return"
+			movement.MovementType = "credit_note_return"
 			if creditNote.CustomerID != nil {
 				movement.FromLocationID = *creditNote.CustomerID
 			}
@@ -449,18 +473,92 @@ func (s *CreditNoteService) Cancel(id string) (models.CreditNote, error) {
 	return s.GetByID(id)
 }
 
-// Delete soft deletes a credit note (only if draft or cancelled)
+// Delete soft deletes a credit note and reverses stock impact if approved
 func (s *CreditNoteService) Delete(id string) error {
 	creditNote, err := s.GetByID(id)
 	if err != nil {
 		return err
 	}
 
+	// Start transaction
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// If approved, reverse stock impact
 	if creditNote.Status == "approved" {
-		return errors.New("approved credit notes cannot be deleted")
+		for _, item := range creditNote.Items {
+			var stock models.Stock
+			if err := tx.Where("product_id = ? AND location_id = ?", item.ProductID, creditNote.LocationID).First(&stock).Error; err != nil {
+				tx.Rollback()
+				return fmt.Errorf("stock not found for product %d at location %d during deletion reversal", item.ProductID, creditNote.LocationID)
+			}
+
+			// Reverse stock impact:
+			// If it was a purchase return (minus stock), we add it back (+)
+			// If it was a sales return (plus stock), we remove it (-)
+			if creditNote.Type == "purchase" {
+				stock.Quantity += item.Quantity
+			} else {
+				// Safety check for sales return reversal
+				if stock.Quantity < item.Quantity {
+					tx.Rollback()
+					return fmt.Errorf("insufficient stock to reverse sales return for product %d. Available: %.2f, Required: %.2f",
+						item.ProductID, stock.Quantity, item.Quantity)
+				}
+				stock.Quantity -= item.Quantity
+			}
+
+			if err := tx.Save(&stock).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+
+			// Record reversal movement
+			notes := fmt.Sprintf("Credit Note Deletion Reversal: %s", creditNote.CreditNoteNumber)
+			movement := models.StockMovement{
+				ProductID:   item.ProductID,
+				Quantity:    item.Quantity,
+				ReferenceID: &creditNote.ID,
+				Notes:       &notes,
+			}
+			if creditNote.Type == "purchase" {
+				// Reversing a vendor removal -> Adding back to location
+				movement.FromLocationType = "vendor"
+				movement.ToLocationType = "location"
+				movement.ToLocationID = creditNote.LocationID
+				movement.MovementType = "credit_note_reversal"
+			} else {
+				// Reversing a customer return -> Removing from location
+				movement.FromLocationType = "location"
+				movement.FromLocationID = creditNote.LocationID
+				movement.ToLocationType = "customer"
+				movement.MovementType = "credit_note_reversal"
+			}
+			if err := tx.Create(&movement).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
 	}
 
-	return s.db.Delete(&creditNote).Error
+	// Delete item records first to avoid foreign key issues in some DBs or just to be clean
+	// Though soft delete usually handles this via GORM, being explicit in transaction is safer
+	if err := tx.Where("credit_note_id = ?", creditNote.ID).Delete(&models.CreditNoteItem{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Soft delete the credit note
+	if err := tx.Delete(&creditNote).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }
 
 // validateQuantitiesAgainstInvoice checks if credit note quantities exceed invoice quantities

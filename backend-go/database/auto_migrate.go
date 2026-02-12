@@ -55,6 +55,10 @@ func AutoMigrate(db *gorm.DB) error {
 		// Expenses
 		&models.Expense{},
 		&models.ExpenseCategory{},
+
+		// Chatbot
+		&models.ChatSession{},
+		&models.ChatMessage{},
 	)
 
 	if err != nil {

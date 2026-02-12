@@ -121,6 +121,7 @@ function App() {
             <Route path="invoices/sales" element={<Invoices />} />
             <Route path="invoices/purchase" element={<Invoices />} />
             <Route path="invoices/new" element={<InvoiceForm />} />
+            <Route path="invoices/:id/edit" element={<InvoiceForm />} />
             <Route path="invoices/sales/:id" element={<SalesInvoiceDetails />} />
             <Route path="pos" element={<POS />} />
 

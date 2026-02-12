@@ -99,3 +99,19 @@ func (s *VendorService) Delete(vendor models.Vendor) error {
 	}
 	return nil
 }
+
+func (s *VendorService) GetAllSimple() ([]map[string]interface{}, error) {
+	var vendors []models.Vendor
+	if err := s.db.Select("id, name, company_name").Find(&vendors).Error; err != nil {
+		return nil, err
+	}
+	var result []map[string]interface{}
+	for _, v := range vendors {
+		result = append(result, map[string]interface{}{
+			"id":           v.ID,
+			"name":         v.Name,
+			"company_name": v.CompanyName,
+		})
+	}
+	return result, nil
+}

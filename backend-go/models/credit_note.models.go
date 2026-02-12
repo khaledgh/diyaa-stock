@@ -14,7 +14,8 @@ type CreditNote struct {
 	Type              string     `json:"type" gorm:"size:20;default:'purchase'"` // purchase, sales
 	TotalAmount       float64    `json:"total_amount" gorm:"type:decimal(15,2);not null"`
 	Notes             string     `json:"notes" gorm:"type:text"`
-	Status            string     `json:"status" gorm:"size:20;default:'draft'"` // draft, approved, cancelled
+	StockAdjustment   string     `json:"stock_adjustment" gorm:"size:10;default:'minus'"` // plus (remove from stock), minus (add to stock)
+	Status            string     `json:"status" gorm:"size:20;default:'draft'"`           // draft, finalized
 	CreatedBy         *uint      `json:"created_by" gorm:"index"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`

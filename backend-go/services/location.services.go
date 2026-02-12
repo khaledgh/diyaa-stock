@@ -63,12 +63,12 @@ func (s *LocationService) GetID(id string) (models.Location, error) {
 		}
 		return location, err
 	}
-	
+
 	// Populate computed fields
 	if location.Van != nil {
 		location.VanName = location.Van.Name
 	}
-	
+
 	return location, nil
 }
 
@@ -91,4 +91,19 @@ func (s *LocationService) Delete(location models.Location) error {
 		return err
 	}
 	return nil
+}
+
+func (s *LocationService) GetAllSimple() ([]map[string]interface{}, error) {
+	var locations []models.Location
+	if err := s.db.Select("id, name").Find(&locations).Error; err != nil {
+		return nil, err
+	}
+	var result []map[string]interface{}
+	for _, l := range locations {
+		result = append(result, map[string]interface{}{
+			"id":   l.ID,
+			"name": l.Name,
+		})
+	}
+	return result, nil
 }

@@ -80,6 +80,7 @@ func (ih *InvoiceHandler) GetAllHandler(c echo.Context) error {
 	filters := map[string]string{
 		"search":         c.QueryParam("search"),
 		"payment_status": c.QueryParam("payment_status"),
+		"status":         c.QueryParam("status"),
 		"customer_id":    c.QueryParam("customer_id"),
 		"vendor_id":      c.QueryParam("vendor_id"),
 		"location_id":    c.QueryParam("location_id"),
@@ -165,6 +166,7 @@ func (ih *InvoiceHandler) UpdateHandler(c echo.Context) error {
 			InvoiceDate *string `json:"invoice_date"`
 			Notes       *string `json:"notes"`
 			VendorID    *uint   `json:"vendor_id"`
+			Status      *string `json:"status"`
 		}
 
 		if err := c.Bind(&req); err != nil {
@@ -196,9 +198,41 @@ func (ih *InvoiceHandler) UpdateHandler(c echo.Context) error {
 		// VendorID can be set to null (to remove vendor) or to a valid vendor ID
 		invoice.VendorID = req.VendorID
 
+		wasDraft := invoice.Status == "draft"
+		if req.Status != nil {
+			invoice.Status = *req.Status
+		}
+		isFinalizing := wasDraft && invoice.Status != "draft"
+
 		updatedInvoice, err := ih.PurchaseInvoiceServices.Update(invoice)
 		if err != nil {
 			return ResponseError(c, err)
+		}
+
+		if isFinalizing {
+			// Trigger stock update since it was a draft
+			user, _ := GetUserContext(c)
+			locationType, locationID := ih.StockServices.GetLocationTypeAndID(updatedInvoice.LocationID)
+
+			for _, item := range updatedInvoice.Items {
+				if err := ih.StockServices.UpdateStock(item.ProductID, locationType, locationID, item.Quantity); err != nil {
+					log.Printf("[PURCHASE INVOICE] Error adding stock during finalization: %v", err)
+				}
+
+				notes := fmt.Sprintf("Purchase Invoice #%d (Finalized)", updatedInvoice.ID)
+				ih.StockServices.CreateMovement(item.ProductID, "purchase", item.Quantity, "", 0, locationType, locationID, notes, user.ID)
+			}
+
+			// Create payment record if there's a paid amount
+			if updatedInvoice.PaidAmount > 0 && updatedInvoice.PaymentMethod != nil {
+				payment := models.Payment{
+					InvoiceID:     updatedInvoice.ID,
+					Amount:        updatedInvoice.PaidAmount,
+					PaymentMethod: *updatedInvoice.PaymentMethod,
+					CreatedBy:     user.ID,
+				}
+				ih.PaymentServices.Create(payment)
+			}
 		}
 
 		return ResponseSuccess(c, "Purchase invoice updated successfully", updatedInvoice)
@@ -206,7 +240,8 @@ func (ih *InvoiceHandler) UpdateHandler(c echo.Context) error {
 
 	// Sales invoice update (similar pattern)
 	var req struct {
-		Notes *string `json:"notes"`
+		Notes  *string `json:"notes"`
+		Status *string `json:"status"`
 	}
 
 	if err := c.Bind(&req); err != nil {
@@ -224,9 +259,40 @@ func (ih *InvoiceHandler) UpdateHandler(c echo.Context) error {
 		invoice.Notes = req.Notes
 	}
 
+	wasDraft := invoice.Status == "draft"
+	if req.Status != nil {
+		invoice.Status = *req.Status
+	}
+	isFinalizing := wasDraft && invoice.Status != "draft"
+
 	updatedInvoice, err := ih.SalesInvoiceServices.Update(invoice)
 	if err != nil {
 		return ResponseError(c, err)
+	}
+
+	if isFinalizing {
+		// Trigger stock update
+		user, _ := GetUserContext(c)
+		locationType, locationID := ih.StockServices.GetLocationTypeAndID(updatedInvoice.LocationID)
+
+		for _, item := range updatedInvoice.Items {
+			// Validate stock (optional here, but good practice)
+			ih.StockServices.UpdateStock(item.ProductID, locationType, locationID, -item.Quantity)
+
+			notes := fmt.Sprintf("Sales Invoice #%d (Finalized)", updatedInvoice.ID)
+			ih.StockServices.CreateMovement(item.ProductID, "sale", item.Quantity, locationType, locationID, "", 0, notes, user.ID)
+		}
+
+		// Create payment record
+		if updatedInvoice.PaidAmount > 0 && updatedInvoice.PaymentMethod != nil {
+			payment := models.Payment{
+				InvoiceID:     updatedInvoice.ID,
+				Amount:        updatedInvoice.PaidAmount,
+				PaymentMethod: *updatedInvoice.PaymentMethod,
+				CreatedBy:     user.ID,
+			}
+			ih.PaymentServices.Create(payment)
+		}
 	}
 
 	return ResponseSuccess(c, "Sales invoice updated successfully", updatedInvoice)
@@ -246,6 +312,7 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 			UnitPrice       float64 `json:"unit_price"`
 			DiscountPercent float64 `json:"discount_percent"`
 		} `json:"items"`
+		Status *string `json:"status"`
 	}
 
 	if err := c.Bind(&req); err != nil {
@@ -304,6 +371,11 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 		paymentStatus = "partial"
 	}
 
+	status := "draft"
+	if req.Status != nil {
+		status = *req.Status
+	}
+
 	invoice := models.PurchaseInvoice{
 		VendorID:      req.VendorID,
 		LocationID:    req.LocationID,
@@ -315,11 +387,18 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 		Notes:         req.Notes,
 		CreatedBy:     user.ID,
 		Items:         items,
+		Status:        status,
 	}
 
 	createdInvoice, err := ih.PurchaseInvoiceServices.Create(invoice)
 	if err != nil {
 		return ResponseError(c, err)
+	}
+
+	// Skip stock and payment if draft
+	if status == "draft" {
+		log.Printf("[PURCHASE INVOICE] Invoice #%d created as DRAFT", createdInvoice.ID)
+		return ResponseSuccess(c, "Purchase invoice created as draft successfully", createdInvoice)
 	}
 
 	// Get correct location type and ID
@@ -384,6 +463,7 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 			UnitPrice       float64 `json:"unit_price"`
 			DiscountPercent float64 `json:"discount_percent"`
 		} `json:"items"`
+		Status *string `json:"status"`
 	}
 
 	if err := c.Bind(&req); err != nil {
@@ -424,6 +504,11 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 		paymentStatus = "partial"
 	}
 
+	status := "draft"
+	if req.Status != nil {
+		status = *req.Status
+	}
+
 	invoice := models.SalesInvoice{
 		CustomerID:    req.CustomerID,
 		LocationID:    req.LocationID,
@@ -434,11 +519,18 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 		Notes:         req.Notes,
 		CreatedBy:     user.ID,
 		Items:         items,
+		Status:        status,
 	}
 
 	createdInvoice, err := ih.SalesInvoiceServices.Create(invoice)
 	if err != nil {
 		return ResponseError(c, err)
+	}
+
+	// Skip stock and payment if draft
+	if status == "draft" {
+		log.Printf("[SALES INVOICE] Invoice #%d created as DRAFT", createdInvoice.ID)
+		return ResponseSuccess(c, "Sales invoice created as draft successfully", createdInvoice)
 	}
 
 	// Get correct location type and ID

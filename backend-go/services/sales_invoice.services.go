@@ -49,6 +49,10 @@ func (s *SalesInvoiceService) GetALL(filters map[string]string, limit, offset in
 		}
 	}
 
+	if status, ok := filters["status"]; ok && status != "" {
+		query = query.Where("status = ?", status)
+	}
+
 	if customerID, ok := filters["customer_id"]; ok && customerID != "" {
 		query = query.Where("customer_id = ?", customerID)
 	}

@@ -141,8 +141,18 @@ export default function PurchaseInvoiceDetails() {
       toast.success('Vendor updated successfully');
       setIsEditingVendor(false);
     },
+  });
+
+  // Finalize mutation
+  const finalizeMutation = useMutation({
+    mutationFn: () => invoiceApi.update(Number(id), { status: 'finalized' }, 'purchase'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-invoice', id] });
+      queryClient.invalidateQueries({ queryKey: ['location-stock'] });
+      toast.success('Invoice finalized and stock updated successfully');
+    },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to update vendor');
+      toast.error(error.response?.data?.message || 'Failed to finalize invoice');
     },
   });
 
@@ -381,7 +391,18 @@ export default function PurchaseInvoiceDetails() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {remaining > 0 && (
+          {invoice.status === 'draft' && (
+            <Button
+              onClick={() => finalizeMutation.mutate()}
+              disabled={finalizeMutation.isPending}
+              variant="default"
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize Draft'}
+            </Button>
+          )}
+          {remaining > 0 && invoice.status !== 'draft' && (
             <Button
               onClick={() => setIsPaymentDialogOpen(true)}
               variant="default"
@@ -391,6 +412,13 @@ export default function PurchaseInvoiceDetails() {
               Add Payment
             </Button>
           )}
+          <Button
+            onClick={() => navigate(`/invoices/${id}/edit?type=purchase`)}
+            variant="outline"
+          >
+            <Edit2 className="mr-2 h-4 w-4" />
+            Edit Invoice
+          </Button>
           <Button onClick={handleDownloadPDF} variant="outline">
             <Download className="mr-2 h-4 w-4" />
             Download PDF
@@ -539,6 +567,19 @@ export default function PurchaseInvoiceDetails() {
                   : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                 }`}>
                 {invoice.payment_status}
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Package className="h-4 w-4" />
+                <span className="text-sm">Status</span>
+              </div>
+              <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${invoice.status === 'finalized'
+                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                }`}>
+                {invoice.status || 'finalized'}
               </span>
             </div>
 

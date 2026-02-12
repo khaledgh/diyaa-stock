@@ -84,6 +84,7 @@ export default function CreditNoteForm() {
             const response = await invoiceApi.getAll({
                 invoice_type: formData.type as any,
                 search: invoiceSearchTerm || undefined,
+                status: 'finalized',
                 limit: 50
             });
             return response.data.data.data || response.data.data || [];

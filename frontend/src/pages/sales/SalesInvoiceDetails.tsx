@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Printer, ShoppingCart, MapPin, User, Calendar, DollarSign, Plus, Edit2, Save, X, Users, Download } from 'lucide-react';
+import { ArrowLeft, Printer, ShoppingCart, MapPin, User, Calendar, DollarSign, Plus, Edit2, Save, X, Users, Download, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -111,6 +111,19 @@ export default function SalesInvoiceDetails() {
     },
   });
 
+  // Finalize mutation
+  const finalizeMutation = useMutation({
+    mutationFn: () => invoiceApi.update(Number(id), { status: 'finalized' }, 'sales'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales-invoice', id] });
+      queryClient.invalidateQueries({ queryKey: ['location-stock'] });
+      toast.success('Invoice finalized and stock updated successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to finalize invoice');
+    },
+  });
+
   const handlePrint = () => {
     window.print();
   };
@@ -122,7 +135,7 @@ export default function SalesInvoiceDetails() {
       let params = new URLSearchParams({
         type: 'sales'
       });
-      
+
       if (companySettings) {
         const settings = JSON.parse(companySettings);
         if (settings.company_name) params.append('company_name', settings.company_name);
@@ -152,7 +165,7 @@ export default function SalesInvoiceDetails() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       toast.success('PDF downloaded successfully');
     } catch (error) {
       console.error('PDF export error:', error);
@@ -319,7 +332,18 @@ export default function SalesInvoiceDetails() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {remaining > 0 && (
+          {invoice.status === 'draft' && (
+            <Button
+              onClick={() => finalizeMutation.mutate()}
+              disabled={finalizeMutation.isPending}
+              variant="default"
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize Draft'}
+            </Button>
+          )}
+          {remaining > 0 && invoice.status !== 'draft' && (
             <Button
               onClick={() => setIsPaymentDialogOpen(true)}
               variant="default"
@@ -338,6 +362,13 @@ export default function SalesInvoiceDetails() {
               Pay Multiple Invoices
             </Button>
           )}
+          <Button
+            onClick={() => navigate(`/invoices/${id}/edit?type=sales`)}
+            variant="outline"
+          >
+            <Edit2 className="mr-2 h-4 w-4" />
+            Edit Invoice
+          </Button>
           <Button onClick={handlePrint} variant="outline">
             <Printer className="mr-2 h-4 w-4" />
             Print
@@ -395,12 +426,25 @@ export default function SalesInvoiceDetails() {
                 <span className="text-sm">Payment Status</span>
               </div>
               <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${invoice.payment_status === 'paid'
-                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                  : invoice.payment_status === 'partial'
-                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                : invoice.payment_status === 'partial'
+                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                 }`}>
                 {invoice.payment_status}
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Package className="h-4 w-4" />
+                <span className="text-sm">Status</span>
+              </div>
+              <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${invoice.status === 'finalized'
+                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                }`}>
+                {invoice.status || 'finalized'}
               </span>
             </div>
 
@@ -707,11 +751,10 @@ export default function SalesInvoiceDetails() {
                       <TableCell className="font-medium">{cn.credit_note_number}</TableCell>
                       <TableCell>{formatDateTime(cn.credit_note_date)}</TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          cn.status === 'approved' 
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-                        }`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${cn.status === 'approved'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                          }`}>
                           {cn.status}
                         </span>
                       </TableCell>

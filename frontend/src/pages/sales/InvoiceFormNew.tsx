@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Trash2, ShoppingCart, Package, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, ShoppingCart, Package, AlertCircle, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +26,8 @@ export default function InvoiceFormNew() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const invoiceType = (searchParams.get('type') || 'sales') as 'purchase' | 'sales';
+  const { id } = useParams<{ id: string }>();
+  const isEdit = !!id;
 
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
   const [selectedLocation, setSelectedLocation] = useState('');
@@ -44,6 +46,89 @@ export default function InvoiceFormNew() {
   const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('');
   const [vendorSearch, setVendorSearch] = useState('');
   const [debouncedVendorSearch, setDebouncedVendorSearch] = useState('');
+
+  // Fetch invoice details if editing
+  const { data: invoiceToEdit, isLoading: isLoadingInvoice } = useQuery({
+    queryKey: ['invoice', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const response = await invoiceApi.getById(Number(id), invoiceType);
+      return response.data.data;
+    },
+    enabled: isEdit,
+  });
+
+  // Load invoice data into state when editing
+  useEffect(() => {
+    if (invoiceToEdit) {
+      setSelectedLocation(invoiceToEdit.location_id?.toString() || '');
+      setInvoiceDate(new Date(invoiceToEdit.invoice_date || invoiceToEdit.created_at).toISOString().split('T')[0]);
+      setNotes(invoiceToEdit.notes || '');
+      setPaidAmount(invoiceToEdit.paid_amount?.toString() || '');
+      setPaymentMethod(invoiceToEdit.payment_method || 'cash');
+      setReferenceNumber(invoiceToEdit.reference_number || '');
+
+      if (invoiceType === 'sales') {
+        setSelectedCustomer(invoiceToEdit.customer_id?.toString() || '');
+      } else {
+        setSelectedVendor(invoiceToEdit.vendor_id?.toString() || '');
+      }
+
+      if (invoiceToEdit.items) {
+        setInvoiceItems(invoiceToEdit.items.map((item: any) => ({
+          product_id: item.product_id,
+          product_name: item.product?.name_ar || item.product?.name_en || item.product_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          discount_percent: item.discount_percent || 0,
+          total: item.total
+        })));
+      }
+    }
+  }, [invoiceToEdit, invoiceType]);
+
+  // Listen for chatbot events
+  useEffect(() => {
+    const handleFillInvoice = (event: any) => {
+      console.log("InvoiceFormNew: Received fill-invoice event", event.detail);
+      const data = event.detail;
+      if (!data) return;
+
+      if (data.items && Array.isArray(data.items)) {
+        console.log("InvoiceFormNew: Adding items", data.items);
+        const newItems: InvoiceItem[] = data.items.map((item: any) => ({
+          product_id: item.product_id || 0,
+          product_name: item.system_name || item.name || 'Unknown Product',
+          quantity: Number(item.quantity) || 0,
+          unit_price: Number(item.unit_price) || 0,
+          discount_percent: Number(item.discount_percent) || 0,
+          total: (Number(item.quantity) || 0) * (Number(item.unit_price) || 0) * (1 - (Number(item.discount_percent) || 0) / 100)
+        }));
+        setInvoiceItems(prev => {
+          const updated = [...prev, ...newItems];
+          console.log("InvoiceFormNew: Updated items state", updated);
+
+          if (!selectedLocation) {
+            toast.warning("Items added! Please select a Location to see them in the table.");
+          } else {
+            toast.success(`Successfully added ${newItems.length} items`);
+          }
+
+          return updated;
+        });
+      }
+
+      if (data.notes) setNotes(prev => prev ? `${prev}\n${data.notes}` : data.notes);
+      if (data.paid_amount) setPaidAmount(data.paid_amount.toString());
+      if (data.payment_method) setPaymentMethod(data.payment_method);
+      if (data.invoice_number) setReferenceNumber(data.invoice_number);
+
+      toast.info(`Extracted ${data.items?.length || 0} items from AI`);
+    };
+
+    window.addEventListener('fill-invoice', handleFillInvoice);
+    return () => window.removeEventListener('fill-invoice', handleFillInvoice);
+  }, []);
 
   // No longer using separate editing state as cells are always editable
 
@@ -78,6 +163,13 @@ export default function InvoiceFormNew() {
       return response.data.data || [];
     },
   });
+
+  // Auto-select first location if only one exists or when one is loaded
+  useEffect(() => {
+    if (locations?.length > 0 && !selectedLocation) {
+      setSelectedLocation(locations[0].id.toString());
+    }
+  }, [locations, selectedLocation]);
 
   const { data: products } = useQuery({
     queryKey: ['products', debouncedSearch],
@@ -118,6 +210,9 @@ export default function InvoiceFormNew() {
 
   const createInvoiceMutation = useMutation({
     mutationFn: (data: any) => {
+      if (isEdit) {
+        return invoiceApi.update(Number(id), data, invoiceType);
+      }
       return invoiceType === 'purchase'
         ? invoiceApi.createPurchase(data)
         : invoiceApi.createSales(data);
@@ -125,7 +220,10 @@ export default function InvoiceFormNew() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['location-stock'] });
-      toast.success(`${invoiceType === 'purchase' ? 'Purchase' : 'Sales'} invoice created successfully`);
+      if (isEdit) {
+        queryClient.invalidateQueries({ queryKey: [invoiceType === 'purchase' ? 'purchase-invoice' : 'sales-invoice', id] });
+      }
+      toast.success(`${invoiceType === 'purchase' ? 'Purchase' : 'Sales'} invoice ${isEdit ? 'updated' : 'created'} successfully`);
       navigate(`/invoices/${invoiceType}`);
     },
     onError: (error: any) => {
@@ -138,13 +236,23 @@ export default function InvoiceFormNew() {
     setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
   };
 
-  const handleItemChange = (index: number, field: keyof InvoiceItem, value: any) => {
+  const handleItemChange = (index: number, field: string, value: any) => {
     const newItems = [...invoiceItems];
     const item = { ...newItems[index] };
 
     if (field === 'quantity') item.quantity = Number(value);
     if (field === 'unit_price') item.unit_price = Number(value);
     if (field === 'discount_percent') item.discount_percent = Number(value);
+
+    if (field === 'product_id') {
+      const prod = products?.find((p: any) => p.id.toString() === value);
+      if (prod) {
+        item.product_id = prod.id;
+        item.product_name = prod.name_ar || prod.name_en || prod.name;
+        // Optionally update price if user switches product
+        item.unit_price = invoiceType === 'sales' ? (prod.unit_price || 0) : (prod.cost_price || 0);
+      }
+    }
 
     // Recalculate total for this item
     const itemTotal = item.quantity * item.unit_price;
@@ -196,7 +304,7 @@ export default function InvoiceFormNew() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent, status: 'draft' | 'finalized' = 'finalized') => {
     e.preventDefault();
 
     if (!validateForm()) {
@@ -217,6 +325,7 @@ export default function InvoiceFormNew() {
       payment_method: paymentMethod,
       reference_number: referenceNumber || undefined,
       notes: notes || undefined,
+      status: status,
     };
 
     if (invoiceType === 'sales' && selectedCustomer) {
@@ -227,6 +336,15 @@ export default function InvoiceFormNew() {
 
     createInvoiceMutation.mutate(invoiceData);
   };
+
+  if (isEdit && isLoadingInvoice) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <p className="ml-3 text-muted-foreground">Loading invoice details...</p>
+      </div>
+    );
+  }
 
   const total = calculateTotal();
   const remaining = total - (Number(paidAmount) || 0);
@@ -264,11 +382,17 @@ export default function InvoiceFormNew() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             {invoiceType === 'purchase' ? (
-              <><Package className="h-8 w-8 text-blue-600" /> New Purchase Invoice</>
+              <><Package className="h-8 w-8 text-blue-600" /> {isEdit ? `Edit Purchase Invoice #${invoiceToEdit?.invoice_number}` : 'New Purchase Invoice'}</>
             ) : (
-              <><ShoppingCart className="h-8 w-8 text-green-600" /> New Sales Invoice</>
+              <><ShoppingCart className="h-8 w-8 text-green-600" /> {isEdit ? `Edit Sales Invoice #${invoiceToEdit?.invoice_number}` : 'New Sales Invoice'}</>
             )}
           </h1>
+          {isEdit && invoiceToEdit?.location_name && (
+            <div className="flex items-center gap-2 text-muted-foreground mt-2 bg-muted/30 w-fit px-3 py-1 rounded-full border">
+              <MapPin className="h-4 w-4" />
+              <span className="text-sm font-medium">Location: {invoiceToEdit.location_name}</span>
+            </div>
+          )}
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             {invoiceType === 'purchase'
               ? 'Create a purchase invoice - adds stock to selected location'
@@ -413,8 +537,29 @@ export default function InvoiceFormNew() {
                       <TableBody>
                         {invoiceItems.map((item, index) => (
                           <TableRow key={index}>
-                            <TableCell>
-                              <div className="font-medium">{item.product_name}</div>
+                            <TableCell className="min-w-[250px]">
+                              <div className="space-y-1">
+                                <Combobox
+                                  options={[
+                                    { value: '0', label: 'Select matching product...' },
+                                    ...productOptions,
+                                    // Ensure current product is always in options so label shows correctly
+                                    ...(item.product_id && !productOptions.some((p: any) => p.value === item.product_id?.toString())
+                                      ? [{ value: item.product_id.toString(), label: item.product_name || 'Selected product' }]
+                                      : [])
+                                  ]}
+                                  value={item.product_id?.toString() || ''}
+                                  onChange={(val) => handleItemChange(index, 'product_id', val)}
+                                  onSearchChange={setProductSearch}
+                                  placeholder="Select product"
+                                  className="h-9"
+                                />
+                                {(!item.product_id || item.product_id === 0) && (
+                                  <div className="text-[10px] text-orange-600 bg-orange-50 px-2 py-0.5 rounded border border-orange-100 italic">
+                                    From AI: {item.product_name} (Not matched)
+                                  </div>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Input
@@ -623,16 +768,28 @@ export default function InvoiceFormNew() {
                 <div className="flex flex-col gap-3 pt-4">
                   <Button
                     type="submit"
+                    onClick={(e) => handleSubmit(e, 'finalized')}
                     disabled={createInvoiceMutation.isPending || invoiceItems.length === 0}
                     size="lg"
-                    className="w-full"
+                    className="w-full bg-blue-600 hover:bg-blue-700"
                   >
                     <Save className="mr-2 h-4 w-4" />
-                    {createInvoiceMutation.isPending ? 'Creating...' : 'Create Invoice'}
+                    {createInvoiceMutation.isPending ? 'Saving...' : 'Save & Finalize'}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
+                    onClick={(e) => handleSubmit(e, 'draft')}
+                    disabled={createInvoiceMutation.isPending || invoiceItems.length === 0}
+                    size="lg"
+                    className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    {createInvoiceMutation.isPending ? 'Saving...' : 'Save as Draft'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
                     onClick={() => navigate(`/invoices/${invoiceType}`)}
                     size="lg"
                     className="w-full"

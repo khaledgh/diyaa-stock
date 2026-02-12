@@ -890,8 +890,8 @@ export default function Invoices() {
       <div className="grid grid-cols-2 gap-4">
         <Card
           className={`cursor-pointer transition-all ${invoiceType === "purchase"
-              ? "ring-2 ring-red-500 bg-red-50 dark:bg-red-950"
-              : "hover:bg-muted"
+            ? "ring-2 ring-red-500 bg-red-50 dark:bg-red-950"
+            : "hover:bg-muted"
             }`}
           onClick={() => {
             setInvoiceType("purchase");
@@ -916,8 +916,8 @@ export default function Invoices() {
 
         <Card
           className={`cursor-pointer transition-all ${invoiceType === "sales"
-              ? "ring-2 ring-green-500 bg-green-50 dark:bg-green-950"
-              : "hover:bg-muted"
+            ? "ring-2 ring-green-500 bg-green-50 dark:bg-green-950"
+            : "hover:bg-muted"
             }`}
           onClick={() => {
             setInvoiceType("sales");
@@ -1055,10 +1055,10 @@ export default function Invoices() {
                         <TableCell>
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${invoice.payment_status === "paid"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                : invoice.payment_status === "partial"
-                                  ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                                  : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                              : invoice.payment_status === "partial"
+                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                               }`}
                           >
                             {invoice.payment_status}
@@ -1136,14 +1136,14 @@ export default function Invoices() {
           <DialogHeader>
             <div
               className={`p-4 rounded-lg mb-4 ${invoiceType === "purchase"
-                  ? "bg-red-50 dark:bg-red-950"
-                  : "bg-green-50 dark:bg-green-950"
+                ? "bg-red-50 dark:bg-red-950"
+                : "bg-green-50 dark:bg-green-950"
                 }`}
             >
               <DialogTitle
                 className={`flex items-center gap-2 ${invoiceType === "purchase"
-                    ? "text-red-700 dark:text-red-300"
-                    : "text-green-700 dark:text-green-300"
+                  ? "text-red-700 dark:text-red-300"
+                  : "text-green-700 dark:text-green-300"
                   }`}
               >
                 <FileText className="h-5 w-5" />
@@ -1392,8 +1392,8 @@ export default function Invoices() {
 
             <div
               className={`border-t pt-4 ${invoiceType === "purchase"
-                  ? "bg-red-50 dark:bg-red-950"
-                  : "bg-green-50 dark:bg-green-950"
+                ? "bg-red-50 dark:bg-red-950"
+                : "bg-green-50 dark:bg-green-950"
                 } p-4 rounded-lg`}
             >
               <h3 className="font-semibold mb-2 flex items-center gap-2">
@@ -1426,8 +1426,8 @@ export default function Invoices() {
                   {paidAmount && (
                     <p
                       className={`text-xs mt-1 font-medium ${invoiceType === "purchase"
-                          ? "text-red-600"
-                          : "text-green-600"
+                        ? "text-red-600"
+                        : "text-green-600"
                         }`}
                     >
                       Will be recorded as:{" "}

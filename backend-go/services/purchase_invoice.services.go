@@ -45,6 +45,10 @@ func (s *PurchaseInvoiceService) GetALL(filters map[string]string, limit, offset
 		query = query.Where("payment_status = ?", paymentStatus)
 	}
 
+	if status, ok := filters["status"]; ok && status != "" {
+		query = query.Where("status = ?", status)
+	}
+
 	if vendorID, ok := filters["vendor_id"]; ok && vendorID != "" {
 		query = query.Where("vendor_id = ?", vendorID)
 	}

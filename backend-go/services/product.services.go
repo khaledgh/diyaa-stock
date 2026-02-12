@@ -22,7 +22,7 @@ func NewProductServices(c models.Product, db *gorm.DB) *ProductServices {
 func (ss *ProductServices) GetALL(limit, page int, orderBy, sortBy, searchTerm string) (PaginationResponse, error) {
 	products := []models.Product{}
 	var totalRecords int64
-	
+
 	query := ss.DB.Model(&models.Product{}).
 		Preload("Category").
 		Preload("ProductType").
@@ -34,14 +34,14 @@ func (ss *ProductServices) GetALL(limit, page int, orderBy, sortBy, searchTerm s
 	}
 
 	query.Count(&totalRecords)
-	
+
 	offset := (page - 1) * limit
 	if err := query.Order(sortBy + " " + orderBy).Offset(offset).Limit(limit).Find(&products).Error; err != nil {
 		return PaginationResponse{}, err
 	}
-	
+
 	totalPages := int(math.Ceil(float64(totalRecords) / float64(limit)))
-	
+
 	return PaginationResponse{
 		Data:        products,
 		Total:       int(totalRecords),
@@ -83,4 +83,29 @@ func (cs *ProductServices) Delete(Product models.Product) error {
 		return result.Error
 	}
 	return nil
+}
+
+func (cs *ProductServices) GetAllSimple() ([]map[string]interface{}, error) {
+	var products []models.Product
+	if err := cs.DB.Select("id, name_en, name_ar, sku, unit, unit_price, cost_price").Where("is_active = ?", true).Find(&products).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]map[string]interface{}, len(products))
+	for i, p := range products {
+		nameAr := ""
+		if p.NameAr != nil {
+			nameAr = *p.NameAr
+		}
+		result[i] = map[string]interface{}{
+			"id":         p.ID,
+			"name_en":    p.NameEn,
+			"name_ar":    nameAr,
+			"sku":        p.SKU,
+			"unit":       p.Unit,
+			"unit_price": p.UnitPrice,
+			"cost_price": p.CostPrice,
+		}
+	}
+	return result, nil
 }

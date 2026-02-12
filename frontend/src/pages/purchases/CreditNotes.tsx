@@ -253,16 +253,18 @@ export default function CreditNotes() {
                               )}
                               {cn.status === 'draft' && (
                                 <>
-                                  <Button variant="ghost" size="icon" onClick={() => handleApprove(cn.id)}>
+                                  <Button variant="ghost" size="icon" onClick={() => handleApprove(cn.id)} title="Approve">
                                     <CheckCircle className="h-4 w-4 text-green-600" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" onClick={() => handleCancel(cn.id)}>
+                                  <Button variant="ghost" size="icon" onClick={() => handleCancel(cn.id)} title="Cancel">
                                     <XCircle className="h-4 w-4 text-red-600" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" onClick={() => handleDelete(cn.id)}>
-                                    <Trash2 className="h-4 w-4 text-red-600" />
-                                  </Button>
                                 </>
+                              )}
+                              {(cn.status === 'draft' || cn.status === 'approved') && (
+                                <Button variant="ghost" size="icon" onClick={() => handleDelete(cn.id)} title="Delete">
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
                               )}
                             </div>
                           </TableCell>

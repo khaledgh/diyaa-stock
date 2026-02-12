@@ -299,4 +299,16 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.POST("/expenses", expenseHandler.CreateHandler)
 	apiGroup.PUT("/expenses/:id", expenseHandler.UpdateHandler)
 	apiGroup.DELETE("/expenses/:id", expenseHandler.DeleteHandler)
+
+	// Chatbot routes
+	chatbotService := services.NewAIChatService(productService, vendorService, locationService, customerService)
+	chatbotHandler := handlers.NewChatbotHandler(store, productService)
+	apiGroup.POST("/chatbot", chatbotHandler.HandleChat)
+	apiGroup.GET("/chatbot/sessions", chatbotHandler.GetSessions)
+	apiGroup.GET("/chatbot/sessions/:id", chatbotHandler.GetSessionHistory)
+	apiGroup.DELETE("/chatbot/sessions/:id", chatbotHandler.DeleteSession)
+
+	// Telegram routes (Public for webhook)
+	telegramHandler := handlers.NewTelegramHandler(store, chatbotService, purchaseInvoiceService, salesInvoiceService)
+	e.POST("/api/telegram/webhook", telegramHandler.WebhookHandler)
 }

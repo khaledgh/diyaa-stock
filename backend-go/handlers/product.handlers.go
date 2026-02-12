@@ -16,6 +16,7 @@ type ProductService interface {
 	Create(product models.Product) (models.Product, error)
 	Update(product models.Product) (models.Product, error)
 	Delete(product models.Product) error
+	GetAllSimple() ([]map[string]interface{}, error)
 }
 
 type ProductHandler struct {
@@ -70,15 +71,15 @@ func (ph *ProductHandler) CreateHandler(c echo.Context) error {
 		NameEn        string  `json:"name_en"`
 		NameAr        *string `json:"name_ar"`
 		Description   *string `json:"description"`
-		CategoryID    any     `json:"category_id"`     // Accept string or number
-		TypeID        any     `json:"type_id"`         // Accept string or number
-		UnitPrice     any     `json:"unit_price"`      // Accept string or number
-		CostPrice     any     `json:"cost_price"`      // Accept string or number
+		CategoryID    any     `json:"category_id"` // Accept string or number
+		TypeID        any     `json:"type_id"`     // Accept string or number
+		UnitPrice     any     `json:"unit_price"`  // Accept string or number
+		CostPrice     any     `json:"cost_price"`  // Accept string or number
 		Unit          string  `json:"unit"`
 		MinStockLevel any     `json:"min_stock_level"` // Accept string or number
 		IsActive      any     `json:"is_active"`       // Accept bool, number, or string
 	}
-	
+
 	if err := c.Bind(&dto); err != nil {
 		return ResponseError(c, err)
 	}
@@ -134,10 +135,10 @@ func (ph *ProductHandler) UpdateHandler(c echo.Context) error {
 		NameEn        string  `json:"name_en"`
 		NameAr        *string `json:"name_ar"`
 		Description   *string `json:"description"`
-		CategoryID    any     `json:"category_id"`     // Accept string or number
-		TypeID        any     `json:"type_id"`         // Accept string or number
-		UnitPrice     any     `json:"unit_price"`      // Accept string or number
-		CostPrice     any     `json:"cost_price"`      // Accept string or number
+		CategoryID    any     `json:"category_id"` // Accept string or number
+		TypeID        any     `json:"type_id"`     // Accept string or number
+		UnitPrice     any     `json:"unit_price"`  // Accept string or number
+		CostPrice     any     `json:"cost_price"`  // Accept string or number
 		Unit          string  `json:"unit"`
 		MinStockLevel any     `json:"min_stock_level"` // Accept string or number
 		IsActive      any     `json:"is_active"`       // Accept bool, number, or string
