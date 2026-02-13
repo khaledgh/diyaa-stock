@@ -1011,6 +1011,7 @@ func (ih *InvoiceHandler) DeleteInvoiceHandler(c echo.Context) error {
 	var invoiceTypeStr string
 	var locationID uint
 	var items []interface{}
+	var status string
 
 	if invoiceType == "purchase" {
 		invoice, err := ih.PurchaseInvoiceServices.GetID(id)
@@ -1020,6 +1021,7 @@ func (ih *InvoiceHandler) DeleteInvoiceHandler(c echo.Context) error {
 		}
 		locationID = invoice.LocationID
 		invoiceTypeStr = "purchase"
+		status = invoice.Status
 		for _, item := range invoice.Items {
 			items = append(items, item)
 		}
@@ -1031,6 +1033,7 @@ func (ih *InvoiceHandler) DeleteInvoiceHandler(c echo.Context) error {
 		}
 		locationID = invoice.LocationID
 		invoiceTypeStr = "sales"
+		status = invoice.Status
 		for _, item := range invoice.Items {
 			items = append(items, item)
 		}
@@ -1050,77 +1053,79 @@ func (ih *InvoiceHandler) DeleteInvoiceHandler(c echo.Context) error {
 		return ResponseError(c, err)
 	}
 
-	// Restore stock quantities
-	locationType, locationIDFinal := ih.StockServices.GetLocationTypeAndID(locationID)
+	// Restore stock quantities only if invoice was finalized
+	if status == "finalized" {
+		locationType, locationIDFinal := ih.StockServices.GetLocationTypeAndID(locationID)
 
-	for _, itemInterface := range items {
-		var productID uint
-		var quantity float64
+		for _, itemInterface := range items {
+			var productID uint
+			var quantity float64
 
-		if invoiceTypeStr == "purchase" {
-			if item, ok := itemInterface.(models.PurchaseInvoiceItem); ok {
-				productID = item.ProductID
-				quantity = item.Quantity
+			if invoiceTypeStr == "purchase" {
+				if item, ok := itemInterface.(models.PurchaseInvoiceItem); ok {
+					productID = item.ProductID
+					quantity = item.Quantity
 
-				// Validate stock availability before allowing purchase invoice deletion
-				currentStock, err := ih.StockServices.GetProductStock(productID, locationType, locationIDFinal)
-				if err != nil {
-					if !errors.Is(err, gorm.ErrRecordNotFound) {
+					// Validate stock availability before allowing purchase invoice deletion
+					currentStock, err := ih.StockServices.GetProductStock(productID, locationType, locationIDFinal)
+					if err != nil {
+						if !errors.Is(err, gorm.ErrRecordNotFound) {
+							tx.Rollback()
+							return ResponseError(c, err)
+						}
+						// No stock record exists, so cannot delete purchase invoice
 						tx.Rollback()
+						return ResponseError(c, fmt.Errorf("cannot delete purchase invoice: no stock record found for product ID %d", productID))
+					}
+
+					if currentStock.Quantity < quantity {
+						tx.Rollback()
+						return ResponseError(c, fmt.Errorf("cannot delete purchase invoice: insufficient stock for product ID %d (available: %.2f, required: %.2f)", productID, currentStock.Quantity, quantity))
+					}
+
+					// For purchase invoices, we need to subtract the added stock
+					if err := ih.StockServices.UpdateStock(productID, locationType, locationIDFinal, -quantity); err != nil {
+						tx.Rollback()
+						log.Printf("[DELETE PURCHASE INVOICE] Error restoring stock: %v", err)
 						return ResponseError(c, err)
 					}
-					// No stock record exists, so cannot delete purchase invoice
-					tx.Rollback()
-					return ResponseError(c, fmt.Errorf("cannot delete purchase invoice: no stock record found for product ID %d", productID))
 				}
-
-				if currentStock.Quantity < quantity {
-					tx.Rollback()
-					return ResponseError(c, fmt.Errorf("cannot delete purchase invoice: insufficient stock for product ID %d (available: %.2f, required: %.2f)", productID, currentStock.Quantity, quantity))
-				}
-
-				// For purchase invoices, we need to subtract the added stock
-				if err := ih.StockServices.UpdateStock(productID, locationType, locationIDFinal, -quantity); err != nil {
-					tx.Rollback()
-					log.Printf("[DELETE PURCHASE INVOICE] Error restoring stock: %v", err)
-					return ResponseError(c, err)
+			} else {
+				if item, ok := itemInterface.(models.SalesInvoiceItem); ok {
+					productID = item.ProductID
+					quantity = item.Quantity
+					// For sales invoices, we need to add back the removed stock
+					if err := ih.StockServices.UpdateStock(productID, locationType, locationIDFinal, quantity); err != nil {
+						tx.Rollback()
+						log.Printf("[DELETE SALES INVOICE] Error restoring stock: %v", err)
+						return ResponseError(c, err)
+					}
 				}
 			}
-		} else {
-			if item, ok := itemInterface.(models.SalesInvoiceItem); ok {
-				productID = item.ProductID
-				quantity = item.Quantity
-				// For sales invoices, we need to add back the removed stock
-				if err := ih.StockServices.UpdateStock(productID, locationType, locationIDFinal, quantity); err != nil {
-					tx.Rollback()
-					log.Printf("[DELETE SALES INVOICE] Error restoring stock: %v", err)
-					return ResponseError(c, err)
-				}
+
+			// Create stock movement record for restoration
+			notes := fmt.Sprintf("Deleted %s invoice #%s - stock restored", invoiceTypeStr, id)
+			var movementQuantity float64
+			if invoiceTypeStr == "purchase" {
+				movementQuantity = -quantity // Negative to show stock removal
+			} else {
+				movementQuantity = quantity // Positive to show stock addition
 			}
-		}
 
-		// Create stock movement record for restoration
-		notes := fmt.Sprintf("Deleted %s invoice #%s - stock restored", invoiceTypeStr, id)
-		var movementQuantity float64
-		if invoiceTypeStr == "purchase" {
-			movementQuantity = -quantity // Negative to show stock removal
-		} else {
-			movementQuantity = quantity // Positive to show stock addition
-		}
-
-		if err := ih.StockServices.CreateMovement(
-			productID,
-			invoiceTypeStr+"_delete", // movement type
-			movementQuantity,
-			locationType,
-			locationIDFinal,
-			"", // No source/destination for deletions
-			0,  // No source/destination ID for deletions
-			notes,
-			user.ID,
-		); err != nil {
-			log.Printf("[DELETE INVOICE] Error creating movement record: %v", err)
-			// Don't fail the deletion if movement recording fails
+			if err := ih.StockServices.CreateMovement(
+				productID,
+				invoiceTypeStr+"_delete", // movement type
+				movementQuantity,
+				locationType,
+				locationIDFinal,
+				"", // No source/destination for deletions
+				0,  // No source/destination ID for deletions
+				notes,
+				user.ID,
+			); err != nil {
+				log.Printf("[DELETE INVOICE] Error creating movement record: %v", err)
+				// Don't fail the deletion if movement recording fails
+			}
 		}
 	}
 

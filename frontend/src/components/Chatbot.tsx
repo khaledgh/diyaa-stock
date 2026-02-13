@@ -256,11 +256,11 @@ export default function Chatbot() {
                     <div
                         onMouseDown={handleDragStart}
                         onClick={() => !isDragging && setIsOpen(true)}
-                        className="pointer-events-auto h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-blue-600 hover:bg-blue-700 shadow-2xl flex items-center justify-center text-white cursor-move transition-all hover:scale-110 active:scale-95 group relative"
+                        className={`pointer-events-auto h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-blue-600 hover:bg-blue-700 shadow-2xl flex items-center justify-center text-white cursor-move transition-all hover:scale-110 active:scale-95 group relative ${isLoading ? 'animate-pulse scale-110' : 'animate-bot-float animate-bot-pulse border-2 border-white/20'} bot-hover-wiggle`}
                     >
-                        <Bot className="h-6 w-6 sm:h-7 sm:w-7" />
+                        <Bot className={`h-6 w-6 sm:h-7 sm:w-7 bot-icon ${isLoading ? 'animate-spin' : ''}`} />
                         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden sm:block">
-                            Move me
+                            {isLoading ? 'Thinking...' : 'Click or Drag me'}
                         </div>
                     </div>
                 </div>
@@ -276,7 +276,7 @@ export default function Chatbot() {
                     `}>
                         <CardHeader className="bg-blue-600 text-white p-3 flex flex-row items-center justify-between space-y-0 shrink-0">
                             <CardTitle className="text-sm font-bold flex items-center gap-2">
-                                <Bot className="h-4 w-4" /> AI Inventory
+                                <Bot className={`h-4 w-4 bot-icon ${isLoading ? 'animate-spin' : ''}`} /> AI Inventory
                             </CardTitle>
                             <div className="flex gap-1">
                                 <Button
