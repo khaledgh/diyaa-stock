@@ -6,6 +6,7 @@ import (
 
 	"github.com/gonext-tech/invoicing-system/backend/models"
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 type PaymentService interface {
@@ -14,18 +15,30 @@ type PaymentService interface {
 	DeleteByInvoiceID(invoiceID uint, invoiceType string) error
 }
 
+type SalesInvoiceServiceForPayment interface {
+	GetID(id string) (models.SalesInvoice, error)
+	Update(invoice models.SalesInvoice) (models.SalesInvoice, error)
+	Delete(id string, tx *gorm.DB) error
+}
+
+type PurchaseInvoiceServiceForPayment interface {
+	GetID(id string) (models.PurchaseInvoice, error)
+	Update(invoice models.PurchaseInvoice) (models.PurchaseInvoice, error)
+	Delete(id string, tx *gorm.DB) error
+}
+
 type CreditNoteServiceForPayment interface {
 	GetApprovedCreditNoteTotal(purchaseInvoiceID uint) (float64, error)
 }
 
 type PaymentHandler struct {
 	PaymentServices         PaymentService
-	SalesInvoiceServices    SalesInvoiceService
-	PurchaseInvoiceServices PurchaseInvoiceService
+	SalesInvoiceServices    SalesInvoiceServiceForPayment
+	PurchaseInvoiceServices PurchaseInvoiceServiceForPayment
 	CreditNoteServices      CreditNoteServiceForPayment
 }
 
-func NewPaymentHandler(ps PaymentService, sis SalesInvoiceService, pis PurchaseInvoiceService, cns CreditNoteServiceForPayment) *PaymentHandler {
+func NewPaymentHandler(ps PaymentService, sis SalesInvoiceServiceForPayment, pis PurchaseInvoiceServiceForPayment, cns CreditNoteServiceForPayment) *PaymentHandler {
 	return &PaymentHandler{
 		PaymentServices:         ps,
 		SalesInvoiceServices:    sis,

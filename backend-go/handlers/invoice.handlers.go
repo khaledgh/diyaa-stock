@@ -21,7 +21,7 @@ type SalesInvoiceService interface {
 	UpdateItem(itemID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error
 	AddItem(invoiceID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error
 	RecalculateTotals(invoiceID uint) error
-	Delete(id string) error
+	Delete(id string, tx *gorm.DB) error
 }
 
 type PurchaseInvoiceService interface {
@@ -33,7 +33,7 @@ type PurchaseInvoiceService interface {
 	UpdateItem(itemID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error
 	AddItem(invoiceID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error
 	RecalculateTotals(invoiceID uint) error
-	Delete(id string) error
+	Delete(id string, tx *gorm.DB) error
 }
 
 type InvoiceHandler struct {
@@ -1039,7 +1039,21 @@ func (ih *InvoiceHandler) DeleteInvoiceHandler(c echo.Context) error {
 		}
 	}
 
-	// Convert ID to uint for payment deletion
+	// Query associated Credit Notes to reverse their stock impact and delete them
+	var creditNotes []models.CreditNote
+	returnedQty := make(map[uint]float64)
+	if invoiceTypeStr == "purchase" {
+		tx.Where("purchase_invoice_id = ? AND status = ? AND deleted_at IS NULL", id, "approved").Preload("Items").Find(&creditNotes)
+	} else {
+		tx.Where("sales_invoice_id = ? AND status = ? AND deleted_at IS NULL", id, "approved").Preload("Items").Find(&creditNotes)
+	}
+	for _, cn := range creditNotes {
+		for _, cnItem := range cn.Items {
+			returnedQty[cnItem.ProductID] += cnItem.Quantity
+		}
+	}
+
+	// Convert ID to uint for payment and credit note deletion
 	invoiceIDUint, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
 		tx.Rollback()
@@ -1053,6 +1067,15 @@ func (ih *InvoiceHandler) DeleteInvoiceHandler(c echo.Context) error {
 		return ResponseError(c, err)
 	}
 
+	// Delete associated credit notes and their items
+	if invoiceTypeStr == "purchase" {
+		tx.Exec("DELETE FROM credit_note_items WHERE credit_note_id IN (SELECT id FROM credit_notes WHERE purchase_invoice_id = ?)", id)
+		tx.Where("purchase_invoice_id = ?", id).Delete(&models.CreditNote{})
+	} else {
+		tx.Exec("DELETE FROM credit_note_items WHERE credit_note_id IN (SELECT id FROM credit_notes WHERE sales_invoice_id = ?)", id)
+		tx.Where("sales_invoice_id = ?", id).Delete(&models.CreditNote{})
+	}
+
 	// Restore stock quantities only if invoice was finalized
 	if status == "finalized" {
 		locationType, locationIDFinal := ih.StockServices.GetLocationTypeAndID(locationID)
@@ -1064,79 +1087,78 @@ func (ih *InvoiceHandler) DeleteInvoiceHandler(c echo.Context) error {
 			if invoiceTypeStr == "purchase" {
 				if item, ok := itemInterface.(models.PurchaseInvoiceItem); ok {
 					productID = item.ProductID
-					quantity = item.Quantity
+					// Restore original quantity minus any returned quantity
+					quantity = item.Quantity - returnedQty[productID]
 
-					// Validate stock availability before allowing purchase invoice deletion
-					currentStock, err := ih.StockServices.GetProductStock(productID, locationType, locationIDFinal)
-					if err != nil {
-						if !errors.Is(err, gorm.ErrRecordNotFound) {
+					// For purchase invoices, we subtract from stock (since they were added)
+					if quantity > 0 {
+						// Validate stock availability
+						currentStock, err := ih.StockServices.GetProductStock(productID, locationType, locationIDFinal)
+						if err != nil {
+							if !errors.Is(err, gorm.ErrRecordNotFound) {
+								tx.Rollback()
+								return ResponseError(c, err)
+							}
+							tx.Rollback()
+							return ResponseError(c, fmt.Errorf("cannot delete purchase invoice: no stock record found for product ID %d", productID))
+						}
+
+						if currentStock.Quantity < quantity {
+							tx.Rollback()
+							return ResponseError(c, fmt.Errorf("cannot delete purchase invoice: insufficient stock for product ID %d (available: %.2f, required for restoration: %.2f)", productID, currentStock.Quantity, quantity))
+						}
+
+						if err := ih.StockServices.UpdateStock(productID, locationType, locationIDFinal, -quantity); err != nil {
 							tx.Rollback()
 							return ResponseError(c, err)
 						}
-						// No stock record exists, so cannot delete purchase invoice
-						tx.Rollback()
-						return ResponseError(c, fmt.Errorf("cannot delete purchase invoice: no stock record found for product ID %d", productID))
-					}
-
-					if currentStock.Quantity < quantity {
-						tx.Rollback()
-						return ResponseError(c, fmt.Errorf("cannot delete purchase invoice: insufficient stock for product ID %d (available: %.2f, required: %.2f)", productID, currentStock.Quantity, quantity))
-					}
-
-					// For purchase invoices, we need to subtract the added stock
-					if err := ih.StockServices.UpdateStock(productID, locationType, locationIDFinal, -quantity); err != nil {
-						tx.Rollback()
-						log.Printf("[DELETE PURCHASE INVOICE] Error restoring stock: %v", err)
-						return ResponseError(c, err)
 					}
 				}
 			} else {
 				if item, ok := itemInterface.(models.SalesInvoiceItem); ok {
 					productID = item.ProductID
-					quantity = item.Quantity
-					// For sales invoices, we need to add back the removed stock
-					if err := ih.StockServices.UpdateStock(productID, locationType, locationIDFinal, quantity); err != nil {
-						tx.Rollback()
-						log.Printf("[DELETE SALES INVOICE] Error restoring stock: %v", err)
-						return ResponseError(c, err)
+					// Restore original quantity minus any returned quantity
+					quantity = item.Quantity - returnedQty[productID]
+					// For sales invoices, we add back to stock (since they were removed)
+					if quantity > 0 {
+						if err := ih.StockServices.UpdateStock(productID, locationType, locationIDFinal, quantity); err != nil {
+							tx.Rollback()
+							return ResponseError(c, err)
+						}
 					}
 				}
 			}
 
 			// Create stock movement record for restoration
-			notes := fmt.Sprintf("Deleted %s invoice #%s - stock restored", invoiceTypeStr, id)
-			var movementQuantity float64
-			if invoiceTypeStr == "purchase" {
-				movementQuantity = -quantity // Negative to show stock removal
-			} else {
-				movementQuantity = quantity // Positive to show stock addition
-			}
+			if quantity > 0 {
+				notes := fmt.Sprintf("Deleted %s invoice #%s - stock restored (adj for returns: %.2f)", invoiceTypeStr, id, returnedQty[productID])
+				var movementQuantity float64
+				if invoiceTypeStr == "purchase" {
+					movementQuantity = -quantity
+				} else {
+					movementQuantity = quantity
+				}
 
-			if err := ih.StockServices.CreateMovement(
-				productID,
-				invoiceTypeStr+"_delete", // movement type
-				movementQuantity,
-				locationType,
-				locationIDFinal,
-				"", // No source/destination for deletions
-				0,  // No source/destination ID for deletions
-				notes,
-				user.ID,
-			); err != nil {
-				log.Printf("[DELETE INVOICE] Error creating movement record: %v", err)
-				// Don't fail the deletion if movement recording fails
+				ih.StockServices.CreateMovement(
+					productID,
+					invoiceTypeStr+"_delete",
+					movementQuantity,
+					locationType,
+					locationIDFinal,
+					"", 0, notes, user.ID,
+				)
 			}
 		}
 	}
 
-	// Delete the invoice (soft delete)
+	// Delete the invoice and its items via service
 	if invoiceType == "purchase" {
-		if err := ih.PurchaseInvoiceServices.Delete(id); err != nil {
+		if err := ih.PurchaseInvoiceServices.Delete(id, tx); err != nil {
 			tx.Rollback()
 			return ResponseError(c, err)
 		}
 	} else {
-		if err := ih.SalesInvoiceServices.Delete(id); err != nil {
+		if err := ih.SalesInvoiceServices.Delete(id, tx); err != nil {
 			tx.Rollback()
 			return ResponseError(c, err)
 		}
@@ -1147,6 +1169,6 @@ func (ih *InvoiceHandler) DeleteInvoiceHandler(c echo.Context) error {
 		return ResponseError(c, err)
 	}
 
-	log.Printf("[DELETE INVOICE] %s invoice #%s deleted successfully", invoiceTypeStr, id)
+	log.Printf("[DELETE INVOICE] %s invoice #%s and all associated data deleted successfully", invoiceTypeStr, id)
 	return ResponseSuccess(c, fmt.Sprintf("%s invoice deleted successfully", invoiceTypeStr), nil)
 }

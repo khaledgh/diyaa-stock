@@ -263,9 +263,18 @@ func (s *SalesInvoiceService) GetPaginated(limit, page int, orderBy, sortBy stri
 	}, nil
 }
 
-func (s *SalesInvoiceService) Delete(id string) error {
+func (s *SalesInvoiceService) Delete(id string, tx *gorm.DB) error {
+	if tx == nil {
+		tx = s.db
+	}
+
+	// Hard delete associated items
+	if err := tx.Where("invoice_id = ?", id).Delete(&models.SalesInvoiceItem{}).Error; err != nil {
+		return err
+	}
+
 	// Soft delete the invoice
-	if err := s.db.Delete(&models.SalesInvoice{}, id).Error; err != nil {
+	if err := tx.Delete(&models.SalesInvoice{}, id).Error; err != nil {
 		return err
 	}
 	return nil

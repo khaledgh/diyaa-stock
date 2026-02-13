@@ -766,27 +766,31 @@ export default function InvoiceFormNew() {
                 </div>
 
                 <div className="flex flex-col gap-3 pt-4">
-                  <Button
-                    type="submit"
-                    onClick={(e) => handleSubmit(e, 'finalized')}
-                    disabled={createInvoiceMutation.isPending || invoiceItems.length === 0}
-                    size="lg"
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    {createInvoiceMutation.isPending ? 'Saving...' : 'Save & Finalize'}
-                  </Button>
+                  {isEdit ? (
+                    <Button
+                      type="submit"
+                      onClick={(e) => handleSubmit(e, 'finalized')}
+                      disabled={createInvoiceMutation.isPending || invoiceItems.length === 0}
+                      size="lg"
+                      className="w-full bg-blue-600 hover:bg-blue-700 font-bold"
+                    >
+                      <Save className="mr-2 h-4 w-4" />
+                      {createInvoiceMutation.isPending ? 'Saving...' : 'Save & Finalize'}
+                    </Button>
+                  ) : null}
+
                   <Button
                     type="button"
-                    variant="outline"
+                    variant={isEdit ? "outline" : "default"}
                     onClick={(e) => handleSubmit(e, 'draft')}
                     disabled={createInvoiceMutation.isPending || invoiceItems.length === 0}
                     size="lg"
-                    className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+                    className={`w-full ${!isEdit ? 'bg-blue-600 hover:bg-blue-700 font-bold' : 'border-blue-600 text-blue-600 hover:bg-blue-50'}`}
                   >
                     <Save className="mr-2 h-4 w-4" />
                     {createInvoiceMutation.isPending ? 'Saving...' : 'Save as Draft'}
                   </Button>
+
                   <Button
                     type="button"
                     variant="ghost"
