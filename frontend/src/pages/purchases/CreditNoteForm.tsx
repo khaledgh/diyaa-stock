@@ -78,16 +78,25 @@ export default function CreditNoteForm() {
     const locations = Array.isArray(locationsData) ? locationsData : [];
 
     // Fetch invoices for selection
-    const { data: invoicesData } = useQuery({
+    const { data: invoicesData, isLoading: isLoadingInvoices, error: invoicesError } = useQuery({
         queryKey: ['invoices-search', formData.type, invoiceSearchTerm],
         queryFn: async () => {
+            console.log('Fetching invoices with params:', {
+                invoice_type: formData.type,
+                search: invoiceSearchTerm,
+                status: 'finalized',
+                limit: 50
+            });
             const response = await invoiceApi.getAll({
                 invoice_type: formData.type as any,
                 search: invoiceSearchTerm || undefined,
                 status: 'finalized',
                 limit: 50
             });
-            return response.data.data.data || response.data.data || [];
+            console.log('Invoice API response:', response.data);
+            const invoices = response.data.data?.data || response.data.data || response.data || [];
+            console.log('Parsed invoices:', invoices);
+            return invoices;
         },
         enabled: !isEditMode,
     });
@@ -337,15 +346,31 @@ export default function CreditNoteForm() {
 
                                 <div className="col-span-2 sm:col-span-1">
                                     <Label>Source Invoice *</Label>
-                                    <Combobox
-                                        options={invoiceOptions}
-                                        value={formData.type === 'purchase' ? formData.purchase_invoice_id : formData.sales_invoice_id}
-                                        onChange={handleInvoiceChange}
-                                        placeholder={`Select ${formData.type} invoice...`}
-                                        searchPlaceholder="Search by number..."
-                                        onSearchChange={setInvoiceSearchTerm}
-                                        disabled={isEditMode}
-                                    />
+                                    {isLoadingInvoices ? (
+                                        <div className="flex items-center gap-2 p-2 border rounded-md bg-muted">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <span className="text-sm text-muted-foreground">Loading invoices...</span>
+                                        </div>
+                                    ) : invoicesError ? (
+                                        <div className="p-2 border border-red-200 rounded-md bg-red-50 text-red-600 text-sm">
+                                            Failed to load invoices. Check console for details.
+                                        </div>
+                                    ) : (
+                                        <Combobox
+                                            options={invoiceOptions}
+                                            value={formData.type === 'purchase' ? formData.purchase_invoice_id : formData.sales_invoice_id}
+                                            onChange={handleInvoiceChange}
+                                            placeholder={invoiceOptions.length === 0 ? 'No finalized invoices found' : `Select ${formData.type} invoice...`}
+                                            searchPlaceholder="Search by number..."
+                                            onSearchChange={setInvoiceSearchTerm}
+                                            disabled={isEditMode}
+                                        />
+                                    )}
+                                    {!isLoadingInvoices && !invoicesError && invoiceOptions.length === 0 && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            No finalized {formData.type} invoices available. Create an invoice first.
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="col-span-2 sm:col-span-1">
