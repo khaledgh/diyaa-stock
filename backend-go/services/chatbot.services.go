@@ -128,7 +128,7 @@ Task: %s`, string(productsJSON), string(vendorsJSON), string(customersJSON), str
 	}
 
 	fmt.Printf("[AIChat] Sending request to Gemini... MimeType: %s, FileDataSize: %d\n", mimeType, len(fileData))
-	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey
+	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=" + apiKey
 	jsonBody, _ := json.Marshal(geminiReq)
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonBody))

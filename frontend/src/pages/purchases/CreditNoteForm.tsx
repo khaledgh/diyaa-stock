@@ -179,10 +179,15 @@ export default function CreditNoteForm() {
         }
     }, [isEditMode, existingCreditNote, sourceInvoice]);
 
-    const invoiceOptions = invoices.map((p: any) => ({
-        value: p.id.toString(),
-        label: `${p.invoice_number} - ${formData.type === 'purchase' ? (p.vendor?.company_name || p.vendor?.name) : (p.customer?.name || 'Walk-in')} (${formatCurrency(p.total_amount)})`
-    }));
+    const invoiceOptions = invoices.map((p: any) => {
+        const entityName = formData.type === 'purchase'
+            ? (p.vendor?.company_name || p.vendor?.name || 'Unknown Vendor')
+            : (p.customer?.name || 'Walk-in Customer');
+        return {
+            value: p.id.toString(),
+            label: `${p.invoice_number} - ${entityName} (${formatCurrency(p.total_amount)})`
+        };
+    });
 
     const handleInvoiceChange = async (invoiceId: string) => {
         if (!invoiceId) return;
@@ -213,6 +218,13 @@ export default function CreditNoteForm() {
                         };
                     }).filter((item: any) => item.returnable_qty > 0) || []
                 }));
+
+                if (formData.type === 'purchase' && !invoice.vendor_id) {
+                    toast.warning('This invoice has no vendor assigned. You might face issues saving the credit note.', { duration: 5000 });
+                } else if (formData.type === 'sales' && !invoice.customer_id && invoice.customer_id !== 0) {
+                    // For sales, walk-in might be okay if systemic, but alert just in case
+                    console.log('Sales invoice has no customer_id');
+                }
             }
         } catch (error) {
             toast.error('Failed to load invoice details');
@@ -254,6 +266,11 @@ export default function CreditNoteForm() {
         const activeItems = formData.items.filter(item => item.quantity > 0);
         if (activeItems.length === 0) {
             toast.error('Please specify quantity for at least one item');
+            return;
+        }
+
+        if (formData.type === 'purchase' && !formData.vendor_id) {
+            toast.error('Cannot save purchase return: Selected invoice has no vendor.');
             return;
         }
 

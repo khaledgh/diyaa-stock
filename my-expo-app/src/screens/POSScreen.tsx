@@ -173,17 +173,20 @@ export default function POSScreen() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [transactionType, setTransactionType] = useState<'sales' | 'purchase'>('sales');
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(user?.location_id || null);
+  const [locations, setLocations] = useState<any[]>([]);
+  const isAdmin = user?.role === 'admin';
 
   const cartWidth = 380;
 
   const loadStock = useCallback(async () => {
-    const locationId = user?.location_id;
+    const locationId = selectedLocationId || user?.location_id;
 
     console.log('Loading stock for location:', locationId);
-    console.log('User location_id:', user?.location_id);
 
     if (!locationId) {
-      Alert.alert('Error', 'No location assigned to your account');
+      if (!isAdmin) Alert.alert('Error', 'No location assigned to your account');
       setIsLoading(false);
       return;
     }
@@ -219,7 +222,22 @@ export default function POSScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.location_id]);
+  }, [selectedLocationId, user?.location_id, isAdmin]);
+
+  const loadLocations = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const resp = await apiService.getLocations();
+      if (resp.data) {
+        setLocations(resp.data);
+        if (!selectedLocationId && resp.data.length > 0) {
+          setSelectedLocationId(resp.data[0].id);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load locations', e);
+    }
+  }, [isAdmin, selectedLocationId]);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -244,13 +262,14 @@ export default function POSScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
+      if (isAdmin) await loadLocations();
       await Promise.all([loadStock(), loadCustomers()]);
     } catch (error) {
       console.error('Refresh error:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [loadStock, loadCustomers]);
+  }, [loadStock, loadCustomers, loadLocations, isAdmin]);
 
   const filterStock = useCallback(() => {
     if (!searchQuery.trim()) {
@@ -267,6 +286,12 @@ export default function POSScreen() {
     );
     setFilteredStock(filtered);
   }, [searchQuery, stockItems]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      loadLocations();
+    }
+  }, [isAdmin, loadLocations]);
 
   useEffect(() => {
     loadStock();
@@ -422,7 +447,7 @@ ${itemsLines}
             try {
               setIsLoading(true);
               const invoiceData = {
-                location_id: user.location_id!,
+                location_id: selectedLocationId || user.location_id!,
                 customer_id: selectedCustomer?.id,
                 items: cart.map((item) => ({
                   product_id: item.product.id,
@@ -435,9 +460,10 @@ ${itemsLines}
               };
 
               console.log('Creating invoice with data:', JSON.stringify(invoiceData, null, 2));
-              console.log('User location_id:', user.location_id);
 
-              const response = await apiService.createSalesInvoice(invoiceData);
+              const response = transactionType === 'purchase'
+                ? await apiService.createPurchaseInvoice(invoiceData)
+                : await apiService.createSalesInvoice(invoiceData);
 
               if (response.ok || response.success) {
                 const invoice = response.data;
@@ -456,7 +482,7 @@ ${itemsLines}
                         discount: parseFloat(invoice.discount_amount) || 0,
                         total: parseFloat(invoice.total_amount) || 0,
                         date: new Date().toLocaleString(),
-                        locationId: user.location_id!,
+                        locationId: selectedLocationId || user.location_id!,
                         cashierName: user.full_name,
                       };
 
@@ -721,6 +747,42 @@ ${itemsLines}
               onChangeText={setSearchQuery}
             />
           </View>
+
+          {isAdmin && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3">
+              <View className="flex-row gap-2 pr-4">
+                {/* Transaction Type Toggle */}
+                <View className="flex-row rounded-xl bg-gray-100 p-1">
+                  <TouchableOpacity
+                    className={`rounded-lg px-4 py-2 ${transactionType === 'sales' ? 'bg-white shadow-sm' : ''}`}
+                    onPress={() => setTransactionType('sales')}>
+                    <Text className={`font-medium ${transactionType === 'sales' ? 'text-blue-600' : 'text-gray-500'}`}>Sales</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className={`rounded-lg px-4 py-2 ${transactionType === 'purchase' ? 'bg-white shadow-sm' : ''}`}
+                    onPress={() => setTransactionType('purchase')}>
+                    <Text className={`font-medium ${transactionType === 'purchase' ? 'text-blue-600' : 'text-gray-500'}`}>Purchase</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Location Selection */}
+                {locations.map((loc) => (
+                  <TouchableOpacity
+                    key={loc.id}
+                    onPress={() => setSelectedLocationId(loc.id)}
+                    className={`rounded-xl px-4 py-2 border ${selectedLocationId === loc.id
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 bg-white'
+                      }`}>
+                    <Text
+                      className={`font-medium ${selectedLocationId === loc.id ? 'text-blue-700' : 'text-gray-700'}`}>
+                      {loc.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          )}
         </View>
       </SafeAreaView>
 
@@ -790,12 +852,12 @@ ${itemsLines}
                       !item.quantity
                         ? {}
                         : {
-                            shadowColor: '#3B82F6',
-                            shadowOffset: { width: 0, height: 4 },
-                            shadowOpacity: 0.4,
-                            shadowRadius: 8,
-                            elevation: 8,
-                          }
+                          shadowColor: '#3B82F6',
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: 0.4,
+                          shadowRadius: 8,
+                          elevation: 8,
+                        }
                     }>
                     <Ionicons name="add" size={28} color="#FFFFFF" />
                   </TouchableOpacity>
@@ -927,12 +989,12 @@ ${itemsLines}
                     style={
                       cart.length > 0 && !isLoading
                         ? {
-                            shadowColor: '#3B82F6',
-                            shadowOffset: { width: 0, height: 6 },
-                            shadowOpacity: 0.4,
-                            shadowRadius: 12,
-                            elevation: 8,
-                          }
+                          shadowColor: '#3B82F6',
+                          shadowOffset: { width: 0, height: 6 },
+                          shadowOpacity: 0.4,
+                          shadowRadius: 12,
+                          elevation: 8,
+                        }
                         : {}
                     }
                     activeOpacity={0.8}>
@@ -965,7 +1027,7 @@ ${itemsLines}
       )}
 
       <CustomerModal />
-      
+
       {/* Hidden Bluetooth Printer Component */}
       <View style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}>
         <PrinterComponent />

@@ -84,14 +84,15 @@ func (uh *UserHandler) CreateHandler(c echo.Context) error {
 	}
 
 	var formData struct {
-		Email     string `json:"email" gorm:"unique"`
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-		Phone     string `json:"phone"`
-		Address   string `json:"address"`
-		Status    string `json:"status" gorm:"default:ACTIVE"`
-		Password  string `json:"password"`
-		Role      string `json:"role" gorm:"default:USER"`
+		Email          string  `json:"email" gorm:"unique"`
+		FirstName      string  `json:"first_name"`
+		LastName       string  `json:"last_name"`
+		Phone          string  `json:"phone"`
+		Address        string  `json:"address"`
+		Status         string  `json:"status" gorm:"default:ACTIVE"`
+		Password       string  `json:"password"`
+		Role           string  `json:"role" gorm:"default:USER"`
+		CommissionRate float64 `json:"commission_rate"`
 	}
 
 	if err = c.Bind(&formData); err != nil {
@@ -99,13 +100,14 @@ func (uh *UserHandler) CreateHandler(c echo.Context) error {
 		return ResponseError(c, err)
 	}
 	user := models.User{
-		Email:     formData.Email,
-		FirstName: formData.FirstName,
-		LastName:  formData.LastName,
-		Phone:     formData.Phone,
-		Password:  formData.Password,
-		Status:    formData.Status,
-		Role:      formData.Role,
+		Email:          formData.Email,
+		FirstName:      formData.FirstName,
+		LastName:       formData.LastName,
+		Phone:          formData.Phone,
+		Password:       formData.Password,
+		Status:         formData.Status,
+		Role:           formData.Role,
+		CommissionRate: formData.CommissionRate,
 	}
 
 	if user.Email == "" {
@@ -146,33 +148,35 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	// Use DTO to handle flexible types from frontend
 	var dto struct {
-		Email      string `json:"email"`
-		FirstName  string `json:"first_name"`
-		LastName   string `json:"last_name"`
-		FullName   string `json:"full_name"` // Frontend sends this
-		Phone      string `json:"phone"`
-		Role       string `json:"role"`
-		Status     string `json:"status"`
-		Position   string `json:"position"`
-		VanID      any    `json:"van_id"`      // Accept string or number
-		LocationID any    `json:"location_id"` // Accept string or number
+		Email          string  `json:"email"`
+		FirstName      string  `json:"first_name"`
+		LastName       string  `json:"last_name"`
+		FullName       string  `json:"full_name"` // Frontend sends this
+		Phone          string  `json:"phone"`
+		Role           string  `json:"role"`
+		Status         string  `json:"status"`
+		Position       string  `json:"position"`
+		VanID          any     `json:"van_id"`      // Accept string or number
+		LocationID     any     `json:"location_id"` // Accept string or number
+		CommissionRate float64 `json:"commission_rate"`
 	}
-	
+
 	if err = c.Bind(&dto); err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	// Update user fields
 	user.Email = dto.Email
 	user.Phone = dto.Phone
 	user.Role = dto.Role
+	user.CommissionRate = dto.CommissionRate
 	if dto.Status != "" {
 		user.Status = dto.Status
 	}
-	
+
 	// Handle full_name splitting
 	if dto.FullName != "" {
 		// Split full name into first and last name
@@ -194,12 +198,12 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 			user.LastName = dto.LastName
 		}
 	}
-	
+
 	// Handle Position
 	if dto.Position != "" {
 		user.Position = &dto.Position
 	}
-	
+
 	// Handle LocationID conversion
 	if dto.LocationID != nil && dto.LocationID != "" {
 		if locationID := convertToUintPtr(dto.LocationID); locationID != nil {
@@ -208,7 +212,7 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 	} else {
 		user.LocationID = nil
 	}
-	
+
 	user, err = uh.UserServices.Update(user)
 	if err != nil {
 		return ResponseError(c, err)

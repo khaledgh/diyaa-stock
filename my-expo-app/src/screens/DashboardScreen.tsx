@@ -18,6 +18,9 @@ export default function DashboardScreen() {
     todaySales: 0,
     weekSales: 0,
     monthSales: 0,
+    todayProfit: 0,
+    weekProfit: 0,
+    monthProfit: 0,
     totalInvoices: 0,
     pendingAmount: 0,
     stockValue: 0,
@@ -26,27 +29,32 @@ export default function DashboardScreen() {
   const loadDashboardData = useCallback(async () => {
     try {
       console.log('Loading dashboard data for location_id:', user?.location_id);
-      
-      if (!user?.location_id) {
-        console.warn('No location_id found for user. User data:', user);
+
+      if (user?.role !== 'admin' && !user?.location_id) {
+        console.warn('No location_id found for non-admin user. User data:', user);
         setIsLoading(false);
         return;
       }
-      
+
       // Load invoices for stats
-      const invoicesResponse = await apiService.getInvoices({
-        location_id: user.location_id,
+      const invoiceParams: any = {
         invoice_type: 'sales',
         limit: 100,
         offset: 0,
-      });
-      
+      };
+
+      if (user?.role !== 'admin') {
+        invoiceParams.location_id = user?.location_id;
+      }
+
+      const invoicesResponse = await apiService.getInvoices(invoiceParams);
+
       console.log('Invoices response:', invoicesResponse);
 
       if (invoicesResponse.ok || invoicesResponse.success) {
         const invoices = invoicesResponse.invoices?.data || invoicesResponse.data?.data || [];
         console.log(`Loaded ${invoices.length} invoices for location ${user.location_id}`);
-        
+
         const now = new Date();
         const todayStart = new Date(now.setHours(0, 0, 0, 0));
         const weekStart = new Date(now.setDate(now.getDate() - 7));
@@ -55,17 +63,32 @@ export default function DashboardScreen() {
         let todaySales = 0;
         let weekSales = 0;
         let monthSales = 0;
+        let todayProfit = 0;
+        let weekProfit = 0;
+        let monthProfit = 0;
         let pendingAmount = 0;
+
+        const commissionRate = user?.commission_rate || 0;
 
         invoices.forEach((invoice: any) => {
           const invoiceDate = new Date(invoice.created_at);
           const total = parseFloat(invoice.total_amount) || 0;
           const paid = parseFloat(invoice.paid_amount) || 0;
+          const profitPart = total * (commissionRate / 100);
 
-          if (invoiceDate >= todayStart) todaySales += total;
-          if (invoiceDate >= weekStart) weekSales += total;
-          if (invoiceDate >= monthStart) monthSales += total;
-          
+          if (invoiceDate >= todayStart) {
+            todaySales += total;
+            todayProfit += profitPart;
+          }
+          if (invoiceDate >= weekStart) {
+            weekSales += total;
+            weekProfit += profitPart;
+          }
+          if (invoiceDate >= monthStart) {
+            monthSales += total;
+            monthProfit += profitPart;
+          }
+
           if (invoice.payment_status !== 'paid') {
             pendingAmount += (total - paid);
           }
@@ -75,6 +98,9 @@ export default function DashboardScreen() {
           todaySales,
           weekSales,
           monthSales,
+          todayProfit,
+          weekProfit,
+          monthProfit,
           totalInvoices: invoices.length,
           pendingAmount,
           stockValue: 0, // Would need stock endpoint
@@ -105,22 +131,22 @@ export default function DashboardScreen() {
           <View className="h-6 bg-gray-200 rounded w-32 mb-1" />
           <View className="h-4 bg-gray-100 rounded w-40" />
         </View>
-        
+
         <View className="p-4">
           {/* Large card skeleton */}
           <View className="bg-gray-200 rounded-2xl p-5 mb-3 h-32" style={{ elevation: 2 }} />
-          
+
           {/* Two column skeleton */}
           <View className="flex-row gap-3 mb-3">
             <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
             <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
           </View>
-          
+
           <View className="flex-row gap-3 mb-3">
             <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
             <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
           </View>
-          
+
           {/* Chart skeleton */}
           <View className="bg-white rounded-3xl p-5 h-48" style={{ elevation: 2 }}>
             <View className="h-5 bg-gray-200 rounded w-32 mb-4" />
@@ -140,7 +166,9 @@ export default function DashboardScreen() {
       {/* Header */}
       <View className="px-4 py-3 bg-white border-b border-gray-100">
         <Text className="text-gray-900 text-xl font-bold">Dashboard</Text>
-        <Text className="text-gray-500 text-sm mt-0.5">{user?.location_id ? `Location ${user.location_id}` : 'Your'} Overview</Text>
+        <Text className="text-gray-500 text-sm mt-0.5">
+          {user?.role === 'admin' ? 'Global Overview' : `Location ${user?.location_id || 'Overview'}`}
+        </Text>
       </View>
 
       <ScrollView
@@ -158,8 +186,8 @@ export default function DashboardScreen() {
           {/* Sales Stats Grid */}
           <View className="mb-4">
             {/* Today Sales - Large Card */}
-            <View 
-              className="bg-blue-600 rounded-2xl p-5 mb-3" 
+            <View
+              className="bg-blue-600 rounded-2xl p-5 mb-3"
               style={{ elevation: 4, shadowColor: '#2563EB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
             >
               <View className="flex-row justify-between items-start">
@@ -181,7 +209,7 @@ export default function DashboardScreen() {
                 <Text className="text-gray-900 text-2xl font-bold">${stats.weekSales.toFixed(0)}</Text>
                 <Text className="text-green-600 text-xs mt-1">↗ Last 7 days</Text>
               </View>
-              
+
               <View className="flex-1 bg-white rounded-2xl p-4" style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
                 <Text className="text-gray-500 text-xs font-medium mb-1">MONTH</Text>
                 <Text className="text-gray-900 text-2xl font-bold">${stats.monthSales.toFixed(0)}</Text>
@@ -189,29 +217,37 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            {/* Invoices & Pending Row */}
+            {/* Invoices & Profit/Pending Row */}
             <View className="flex-row gap-3">
               <View className="flex-1 bg-white rounded-2xl p-4" style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
                 <Text className="text-gray-500 text-xs font-medium mb-1">INVOICES</Text>
                 <Text className="text-gray-900 text-2xl font-bold">{stats.totalInvoices}</Text>
                 <Text className="text-gray-500 text-xs mt-1">Total count</Text>
               </View>
-              
-              <View className="flex-1 bg-white rounded-2xl p-4" style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
-                <Text className="text-gray-500 text-xs font-medium mb-1">PENDING</Text>
-                <Text className="text-red-600 text-2xl font-bold">${stats.pendingAmount.toFixed(0)}</Text>
-                <Text className="text-gray-500 text-xs mt-1">To collect</Text>
-              </View>
+
+              {user?.role === 'sales' ? (
+                <View className="flex-1 bg-green-50 rounded-2xl p-4 border border-green-100" style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
+                  <Text className="text-green-700 text-xs font-bold mb-1">PROFIT ({user?.commission_rate || 0}%)</Text>
+                  <Text className="text-green-600 text-2xl font-bold">${stats.monthProfit.toFixed(1)}</Text>
+                  <Text className="text-green-700 text-xs mt-1">This month</Text>
+                </View>
+              ) : (
+                <View className="flex-1 bg-white rounded-2xl p-4" style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
+                  <Text className="text-gray-500 text-xs font-medium mb-1">PENDING</Text>
+                  <Text className="text-red-600 text-2xl font-bold">${stats.pendingAmount.toFixed(0)}</Text>
+                  <Text className="text-gray-500 text-xs mt-1">To collect</Text>
+                </View>
+              )}
             </View>
           </View>
 
           {/* Simple Bar Chart */}
-          <View 
-            className="bg-white rounded-3xl p-5 mb-4" 
+          <View
+            className="bg-white rounded-3xl p-5 mb-4"
             style={{ elevation: 2 }}
           >
             <Text className="text-gray-900 text-lg font-bold mb-4">Sales Overview</Text>
-            
+
             <View className="space-y-3">
               {/* Today Bar */}
               <View>
@@ -220,7 +256,7 @@ export default function DashboardScreen() {
                   <Text className="text-gray-900 text-sm font-semibold">${stats.todaySales.toFixed(0)}</Text>
                 </View>
                 <View className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <View 
+                  <View
                     className="h-full bg-blue-600 rounded-full"
                     style={{ width: `${Math.min((stats.todaySales / stats.monthSales) * 100, 100)}%` }}
                   />
@@ -234,7 +270,7 @@ export default function DashboardScreen() {
                   <Text className="text-gray-900 text-sm font-semibold">${stats.weekSales.toFixed(0)}</Text>
                 </View>
                 <View className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <View 
+                  <View
                     className="h-full bg-green-600 rounded-full"
                     style={{ width: `${Math.min((stats.weekSales / stats.monthSales) * 100, 100)}%` }}
                   />
@@ -255,12 +291,12 @@ export default function DashboardScreen() {
           </View>
 
           {/* Quick Stats */}
-          <View 
-            className="bg-white rounded-3xl p-5" 
+          <View
+            className="bg-white rounded-3xl p-5"
             style={{ elevation: 2 }}
           >
             <Text className="text-gray-900 text-lg font-bold mb-4">Quick Stats</Text>
-            
+
             <View className="space-y-3">
               <View className="flex-row justify-between items-center py-2">
                 <Text className="text-gray-600">Average Sale</Text>
@@ -268,23 +304,23 @@ export default function DashboardScreen() {
                   ${stats.totalInvoices > 0 ? (stats.monthSales / stats.totalInvoices).toFixed(2) : '0.00'}
                 </Text>
               </View>
-              
+
               <View className="h-px bg-gray-100" />
-              
+
               <View className="flex-row justify-between items-center py-2">
                 <Text className="text-gray-600">Collection Rate</Text>
                 <Text className="text-green-600 font-bold">
-                  {stats.monthSales > 0 
-                    ? (((stats.monthSales - stats.pendingAmount) / stats.monthSales) * 100).toFixed(1) 
+                  {stats.monthSales > 0
+                    ? (((stats.monthSales - stats.pendingAmount) / stats.monthSales) * 100).toFixed(1)
                     : '0'}%
                 </Text>
               </View>
-              
+
               <View className="h-px bg-gray-100" />
-              
+
               <View className="flex-row justify-between items-center py-2">
                 <Text className="text-gray-600">Location Assignment</Text>
-                <Text className="text-blue-600 font-bold">Location {user?.location_id || 'N/A'}</Text>
+                <Text className="text-blue-600 font-bold">{user?.role === 'admin' ? 'All (Admin)' : `Location ${user?.location_id || 'N/A'}`}</Text>
               </View>
             </View>
           </View>

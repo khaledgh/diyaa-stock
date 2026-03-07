@@ -20,37 +20,49 @@ export default function HistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
+  const [transactionType, setTransactionType] = useState<'sales' | 'purchase'>('sales');
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(user?.location_id || null);
+  const [locations, setLocations] = useState<any[]>([]);
+  const isAdmin = user?.role === 'admin';
+
   const loadInvoices = useCallback(async () => {
-    if (!user?.location_id) {
-      console.warn('No location_id found for user in History screen');
+    const locationId = selectedLocationId || user?.location_id;
+
+    if (!locationId) {
+      if (!isAdmin) console.warn('No location_id found for user in History screen');
       setIsLoading(false);
       return;
     }
 
     try {
-      console.log('Loading invoices for location_id:', user.location_id);
-      const response = await apiService.getInvoices({
-        location_id: user.location_id,
-        invoice_type: 'sales',
+      console.log('Loading invoices for location_id:', locationId);
+      const invoiceParams: any = {
+        invoice_type: transactionType,
         limit: 50,
         offset: 0,
-      });
+      };
+
+      if (!isAdmin || selectedLocationId) {
+        invoiceParams.location_id = locationId;
+      }
+
+      const response = await apiService.getInvoices(invoiceParams);
 
       console.log('Invoices response:', response);
-      
+
       if (response.ok || response.success) {
         // The response has data inside response.invoices.data or response.data.data due to pagination
         const invoicesData = response.invoices?.data || response.data?.data || response.data || [];
         console.log('Invoices data:', invoicesData);
         console.log('Is array?', Array.isArray(invoicesData));
-        
+
         // Ensure it's an array
         if (!Array.isArray(invoicesData)) {
           console.error('Invoices data is not an array:', invoicesData);
           setInvoices([]);
           return;
         }
-        
+
         // Transform invoice data to ensure numbers are parsed
         const transformedInvoices = invoicesData.map((invoice: any) => ({
           ...invoice,
@@ -65,16 +77,31 @@ export default function HistoryScreen() {
           total_amount: parseFloat(invoice.total_amount) || 0,
           paid_amount: parseFloat(invoice.paid_amount) || 0,
         }));
-        
+
         console.log('Transformed first invoice:', transformedInvoices[0]);
         setInvoices(transformedInvoices);
       }
     } catch (error) {
       console.error('Failed to load invoices:', error);
-    } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user?.location_id, selectedLocationId, transactionType, isAdmin]);
+
+  const loadLocations = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const resp = await apiService.getLocations();
+      if (resp.data) {
+        setLocations(resp.data);
+      }
+    } catch (e) {
+      console.error('Failed to load locations', e);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin) loadLocations();
+  }, [isAdmin, loadLocations]);
 
   useEffect(() => {
     loadInvoices();
@@ -82,6 +109,7 @@ export default function HistoryScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    if (isAdmin) await loadLocations();
     await loadInvoices();
     setRefreshing(false);
   }, [loadInvoices]);
@@ -124,8 +152,42 @@ export default function HistoryScreen() {
       {/* Header */}
       <View className="px-4 py-3 border-b border-gray-100">
         <Text className="text-gray-900 text-xl font-bold">Sales History</Text>
-        <Text className="text-gray-500 text-sm mt-0.5">Location {user?.location_id} - {invoices.length} invoices</Text>
+        <Text className="text-gray-500 text-sm mt-0.5">
+          {isAdmin && !selectedLocationId ? 'Global' : `Location ${selectedLocationId || user?.location_id}`} - {invoices.length} invoices
+        </Text>
       </View>
+
+      {isAdmin && (
+        <View className="px-4 py-2 border-b border-gray-100">
+          <View className="flex-row gap-2 mb-2">
+            <TouchableOpacity
+              onPress={() => setTransactionType('sales')}
+              className={`flex-1 rounded-lg py-1.5 items-center ${transactionType === 'sales' ? 'bg-blue-100' : 'bg-gray-100'}`}>
+              <Text className={`font-medium ${transactionType === 'sales' ? 'text-blue-700' : 'text-gray-600'}`}>Sales</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setTransactionType('purchase')}
+              className={`flex-1 rounded-lg py-1.5 items-center ${transactionType === 'purchase' ? 'bg-blue-100' : 'bg-gray-100'}`}>
+              <Text className={`font-medium ${transactionType === 'purchase' ? 'text-blue-700' : 'text-gray-600'}`}>Purchase</Text>
+            </TouchableOpacity>
+          </View>
+          <View className="flex-row items-center flex-wrap gap-2">
+            <TouchableOpacity
+              onPress={() => setSelectedLocationId(null)}
+              className={`rounded-lg px-3 py-1 border ${!selectedLocationId ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'}`}>
+              <Text className="text-xs">All Locations</Text>
+            </TouchableOpacity>
+            {locations.map(loc => (
+              <TouchableOpacity
+                key={loc.id}
+                onPress={() => setSelectedLocationId(loc.id)}
+                className={`rounded-lg px-3 py-1 border ${selectedLocationId === loc.id ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'}`}>
+                <Text className="text-xs">{loc.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
 
       {/* Invoices List */}
       <FlatList

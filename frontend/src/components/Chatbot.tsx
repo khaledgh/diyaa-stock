@@ -357,7 +357,26 @@ export default function Chatbot() {
                                                                     </tbody>
                                                                 </table>
                                                             </div>
-                                                            <Button size="sm" className="w-full h-8 text-[11px] bg-blue-600 hover:bg-blue-700" onClick={() => window.dispatchEvent(new CustomEvent('fill-invoice', { detail: m.data }))}>
+                                                            <Button
+                                                                size="sm"
+                                                                className="w-full h-8 text-[11px] bg-blue-600 hover:bg-blue-700"
+                                                                onClick={() => {
+                                                                    const type = m.data?.invoice_type || 'sales';
+                                                                    const targetPath = '/invoices/new';
+
+                                                                    if (!window.location.pathname.includes(targetPath)) {
+                                                                        navigate(`${targetPath}?type=${type}`);
+                                                                        toast.info(`Navigating to ${type} invoice form...`);
+                                                                        // Wait for mount
+                                                                        setTimeout(() => {
+                                                                            window.dispatchEvent(new CustomEvent('fill-invoice', { detail: m.data }));
+                                                                        }, 800);
+                                                                    } else {
+                                                                        window.dispatchEvent(new CustomEvent('fill-invoice', { detail: m.data }));
+                                                                        toast.success("Items sent to form");
+                                                                    }
+                                                                }}
+                                                            >
                                                                 Confirm & Insert Items
                                                             </Button>
                                                         </div>

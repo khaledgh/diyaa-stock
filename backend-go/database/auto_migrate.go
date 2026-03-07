@@ -146,6 +146,15 @@ func AutoMigrate(db *gorm.DB) error {
 
 	log.Println("Invoice date migration completed successfully!")
 
+	// Ensure credit_notes vendor_id and customer_id are nullable
+	log.Println("Ensuring credit_notes vendor/customer columns are nullable...")
+	if err := db.Exec("ALTER TABLE credit_notes MODIFY vendor_id INT UNSIGNED NULL").Error; err != nil {
+		log.Printf("Note: Could not modify vendor_id column nullable (might not be MySQL or already handled): %v", err)
+	}
+	if err := db.Exec("ALTER TABLE credit_notes MODIFY customer_id INT UNSIGNED NULL").Error; err != nil {
+		log.Printf("Note: Could not modify customer_id column nullable (might not be MySQL or already handled): %v", err)
+	}
+
 	return nil
 }
 

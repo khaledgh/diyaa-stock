@@ -185,7 +185,7 @@ Task: %s`, string(productsJSON), req.Message)
 	}{{Parts: parts}}
 	geminiReq.GenerationConfig.ResponseMimeType = "application/json"
 
-	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey
+	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=" + apiKey
 
 	jsonBody, _ := json.Marshal(geminiReq)
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonBody))

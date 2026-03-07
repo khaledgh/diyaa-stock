@@ -43,6 +43,7 @@ export default function Users() {
     address: '',
     location_id: '',
     is_active: 1,
+    commission_rate: 0,
   });
 
   const { data: locations } = useQuery({
@@ -117,6 +118,7 @@ export default function Users() {
         address: user.address || '',
         location_id: user.location_id || '',
         is_active: user.is_active,
+        commission_rate: user.commission_rate || 0,
       });
     } else {
       setEditingUser(null);
@@ -132,6 +134,7 @@ export default function Users() {
         address: '',
         location_id: '',
         is_active: 1,
+        commission_rate: 0,
       });
     }
     setIsDialogOpen(true);
@@ -266,11 +269,10 @@ export default function Users() {
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            user.is_active
+                          className={`px-2 py-1 rounded-full text-xs ${user.is_active
                               ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                               : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                          }`}
+                            }`}
                         >
                           {user.is_active ? 'Active' : 'Inactive'}
                         </span>
@@ -322,78 +324,96 @@ export default function Users() {
               </TabsList>
 
               <TabsContent value="basic" className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="full_name">Full Name *</Label>
-                <Input
-                  id="full_name"
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  required
-                  className="h-11"
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="full_name">Full Name *</Label>
+                  <Input
+                    id="full_name"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    required
+                    className="h-11"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                  className="h-11"
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                    className="h-11"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">
-                  Password {editingUser ? '(leave blank to keep current)' : '*'}
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required={!editingUser}
-                  className="h-11"
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">
+                    Password {editingUser ? '(leave blank to keep current)' : '*'}
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    required={!editingUser}
+                    className="h-11"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="role">Role *</Label>
-                <select
-                  id="role"
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <option value="user">User - Basic access</option>
-                  <option value="employee">Employee - Staff member</option>
-                  <option value="sales">Sales - Can create invoices and manage customers</option>
-                  <option value="manager">Manager - Full access except user management</option>
-                  <option value="admin">Admin - Full system access</option>
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  {formData.role === 'admin' && '✓ Full access to all features including user management'}
-                  {formData.role === 'manager' && '✓ Can manage products, stock, invoices, and view reports'}
-                  {formData.role === 'sales' && '✓ Can create invoices, manage customers, and access POS'}
-                  {formData.role === 'employee' && '✓ Employee with van assignment for POS access'}
-                  {formData.role === 'user' && '✓ View-only access to products and basic features'}
-                </p>
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role *</Label>
+                  <select
+                    id="role"
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="user">User - Basic access</option>
+                    <option value="employee">Employee - Staff member</option>
+                    <option value="sales">Sales - Can create invoices and manage customers</option>
+                    <option value="manager">Manager - Full access except user management</option>
+                    <option value="admin">Admin - Full system access</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.role === 'admin' && '✓ Full access to all features including user management'}
+                    {formData.role === 'manager' && '✓ Can manage products, stock, invoices, and view reports'}
+                    {formData.role === 'sales' && '✓ Can create invoices, manage customers, and access POS'}
+                    {formData.role === 'employee' && '✓ Employee with van assignment for POS access'}
+                    {formData.role === 'user' && '✓ View-only access to products and basic features'}
+                  </p>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="is_active">Status</Label>
-                <select
-                  id="is_active"
-                  value={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: Number(e.target.value) })}
-                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <option value={1}>Active</option>
-                  <option value={0}>Inactive</option>
-                </select>
-              </div>
+                {formData.role === 'sales' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="commission_rate">Commission Rate (%)</Label>
+                    <Input
+                      id="commission_rate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={formData.commission_rate}
+                      onChange={(e) => setFormData({ ...formData, commission_rate: Number(e.target.value) })}
+                      className="h-11"
+                      placeholder="e.g. 5.5"
+                    />
+                    <p className="text-xs text-muted-foreground">Percentage of sales value given as commission/profit.</p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="is_active">Status</Label>
+                  <select
+                    id="is_active"
+                    value={formData.is_active}
+                    onChange={(e) => setFormData({ ...formData, is_active: Number(e.target.value) })}
+                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value={1}>Active</option>
+                    <option value={0}>Inactive</option>
+                  </select>
+                </div>
               </TabsContent>
 
               <TabsContent value="employee" className="space-y-4 py-4">

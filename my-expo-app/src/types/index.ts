@@ -6,6 +6,7 @@ export interface User {
   location_id?: number;
   location_name?: string;
   is_active: boolean;
+  commission_rate?: number;
 }
 
 export interface Product {

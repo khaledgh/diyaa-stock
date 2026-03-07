@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -40,6 +40,12 @@ export default function InvoiceFormNew() {
   const [referenceNumber, setReferenceNumber] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  const selectedLocationRef = useRef(selectedLocation);
+  useEffect(() => {
+    selectedLocationRef.current = selectedLocation;
+  }, [selectedLocation]);
+
   const [productSearch, setProductSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -108,7 +114,7 @@ export default function InvoiceFormNew() {
           const updated = [...prev, ...newItems];
           console.log("InvoiceFormNew: Updated items state", updated);
 
-          if (!selectedLocation) {
+          if (!selectedLocationRef.current) {
             toast.warning("Items added! Please select a Location to see them in the table.");
           } else {
             toast.success(`Successfully added ${newItems.length} items`);
@@ -122,6 +128,10 @@ export default function InvoiceFormNew() {
       if (data.paid_amount) setPaidAmount(data.paid_amount.toString());
       if (data.payment_method) setPaymentMethod(data.payment_method);
       if (data.invoice_number) setReferenceNumber(data.invoice_number);
+
+      if (data.location_id) setSelectedLocation(data.location_id.toString());
+      if (invoiceType === 'sales' && data.customer_id) setSelectedCustomer(data.customer_id.toString());
+      if (invoiceType === 'purchase' && data.vendor_id) setSelectedVendor(data.vendor_id.toString());
 
       toast.info(`Extracted ${data.items?.length || 0} items from AI`);
     };
