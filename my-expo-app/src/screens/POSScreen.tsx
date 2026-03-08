@@ -12,6 +12,8 @@ import {
   RefreshControl,
   StatusBar,
   ScrollView,
+  ToastAndroid,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +22,8 @@ import apiService from '../services/api.service';
 import receiptService from '../services/receipt.service';
 import { StockItem, Customer, CartItem } from '../types';
 import { usePrinter } from '../../hooks/usePrinter';
+import PrinterDemo from '../../components/PrinterDemo';
+// import * as ImagePicker from 'expo-image-picker'; // Camera scan hidden for now
 
 // Cart Item Component with internal state to prevent drawer re-renders
 const CartItemComponent = React.memo(
@@ -159,10 +163,10 @@ const CartItemComponent = React.memo(
   }
 );
 
-export default function POSScreen() {
+export default function POSScreen({ navigation }: any) {
   const { user, logout } = useAuth();
-  const { width, height } = useWindowDimensions();
-  const { printReceipt, isConnected, PrinterComponent } = usePrinter();
+  const { height } = useWindowDimensions();
+  const { printReceiptData, isConnected, printerRef } = usePrinter();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [filteredStock, setFilteredStock] = useState<StockItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -176,9 +180,23 @@ export default function POSScreen() {
   const [transactionType, setTransactionType] = useState<'sales' | 'purchase'>('sales');
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(user?.location_id || null);
   const [locations, setLocations] = useState<any[]>([]);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
+  const [paymentType, setPaymentType] = useState<'paid' | 'partial'>('paid');
+  const [partialAmount, setPartialAmount] = useState('');
   const isAdmin = user?.role === 'admin';
 
   const cartWidth = 380;
+
+  const showToast = (message: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    } else {
+      // iOS fallback - brief alert
+      Alert.alert('', message);
+    }
+  };
 
   const loadStock = useCallback(async () => {
     const locationId = selectedLocationId || user?.location_id;
@@ -325,7 +343,7 @@ export default function POSScreen() {
         total: product.unit_price,
       };
       setCart([...cart, newItem]);
-      setShowCart(true);
+      showToast(`${product.name} added to cart`);
     }
   };
 
@@ -381,50 +399,6 @@ export default function POSScreen() {
     return cart.reduce((sum, item) => sum + item.total, 0);
   }, [cart]);
 
-  const generateBluetoothReceipt = (receiptData: {
-    invoiceNumber: string;
-    customerName?: string;
-    items: CartItem[];
-    subtotal: number;
-    discount: number;
-    tax: number;
-    total: number;
-    date: string;
-    cashierName?: string;
-  }) => {
-    const storeName = 'إيصال بيع';
-    const customerLine = receiptData.customerName
-      ? `العميل: ${receiptData.customerName}`
-      : 'العميل: زبون نقدي';
-
-    const itemsLines = receiptData.items
-      .map((item) => {
-        const name = item.product.name;
-        const qty = item.quantity.toString();
-        const price = item.unit_price.toFixed(2);
-        const total = item.total.toFixed(2);
-        return `${name}\nالكمية: ${qty}  السعر: ${price}  الإجمالي: ${total}`;
-      })
-      .join('\n');
-
-    return `
-${storeName}
---------------------
-رقم الفاتورة: ${receiptData.invoiceNumber}
-${customerLine}
-${receiptData.cashierName ? `الكاشير: ${receiptData.cashierName}\n` : ''}
-${receiptData.date}
---------------------
-${itemsLines}
---------------------
-المجموع الفرعي: ${receiptData.subtotal.toFixed(2)}
-الخصم: ${receiptData.discount.toFixed(2)}
-الضريبة: ${receiptData.tax.toFixed(2)}
-الإجمالي: ${receiptData.total.toFixed(2)}
-شكراً لتسوقكم معنا
-`;
-  };
-
   const handleCheckout = async () => {
     if (cart.length === 0) {
       Alert.alert('Error', 'Cart is empty');
@@ -446,6 +420,11 @@ ${itemsLines}
           onPress: async () => {
             try {
               setIsLoading(true);
+              const totalAmount = calculateTotal();
+              const paidAmount = paymentType === 'paid'
+                ? totalAmount
+                : parseFloat(partialAmount) || 0;
+
               const invoiceData = {
                 location_id: selectedLocationId || user.location_id!,
                 customer_id: selectedCustomer?.id,
@@ -455,8 +434,8 @@ ${itemsLines}
                   unit_price: item.unit_price,
                   discount_percent: item.discount_percent || 0,
                 })),
-                paid_amount: calculateTotal(),
-                payment_method: 'cash', // Default to cash for POS sales
+                paid_amount: paidAmount,
+                payment_method: 'cash',
               };
 
               console.log('Creating invoice with data:', JSON.stringify(invoiceData, null, 2));
@@ -488,8 +467,23 @@ ${itemsLines}
 
                       try {
                         if (isConnected()) {
-                          const receiptString = generateBluetoothReceipt(receiptData);
-                          await printReceipt(receiptString);
+                          await printReceiptData({
+                            invoiceNumber: receiptData.invoiceNumber,
+                            customerName: receiptData.customerName,
+                            items: cart.map(item => ({
+                              name: item.product.name,
+                              quantity: item.quantity,
+                              unitPrice: item.unit_price,
+                              total: item.total,
+                            })),
+                            subtotal: receiptData.subtotal,
+                            discount: receiptData.discount,
+                            tax: receiptData.tax,
+                            total: receiptData.total,
+                            paidAmount: paidAmount,
+                            date: receiptData.date,
+                            cashierName: receiptData.cashierName,
+                          });
                           Alert.alert('Success', 'Receipt sent to Bluetooth printer.');
                         } else {
                           await receiptService.printReceipt(receiptData);
@@ -535,6 +529,9 @@ ${itemsLines}
     );
   };
 
+  // handleAIScan hidden for now - camera scan button removed
+  // const handleAIScan = async () => { ... };
+
   const clearCart = () => {
     Alert.alert('Clear Cart', 'Are you sure you want to clear the cart?', [
       { text: 'Cancel', style: 'cancel' },
@@ -542,11 +539,42 @@ ${itemsLines}
     ]);
   };
 
+  const searchCustomersFromServer = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setCustomerSearchResults([]);
+      setIsSearchingCustomers(false);
+      return;
+    }
+    setIsSearchingCustomers(true);
+    try {
+      const response = await apiService.getCustomers({ search: query });
+      const data = response.data || [];
+      setCustomerSearchResults(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Customer search error:', error);
+    } finally {
+      setIsSearchingCustomers(false);
+    }
+  }, []);
+
+  const customerSearchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const handleCustomerSearch = (text: string) => {
+    setCustomerSearchQuery(text);
+    if (customerSearchTimeoutRef.current) clearTimeout(customerSearchTimeoutRef.current);
+    customerSearchTimeoutRef.current = setTimeout(() => {
+      searchCustomersFromServer(text);
+    }, 400);
+  };
+
+  const displayedCustomers = customerSearchQuery.trim()
+    ? customerSearchResults
+    : customers;
+
   if (isLoading && stockItems.length === 0) {
     return (
       <View className="flex-1 bg-gray-50">
         <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-          <View className="bg-white px-5 py-4 shadow-sm">
+          <View className="bg-white px-5 py-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}>
             <View className="mb-2 h-6 w-32 rounded-lg bg-gray-200" />
             <View className="h-4 w-24 rounded bg-gray-100" />
           </View>
@@ -607,13 +635,34 @@ ${itemsLines}
             <View className="flex-row items-center justify-between border-b border-gray-100 p-5">
               <View>
                 <Text className="text-xl font-bold text-gray-900">Select Customer</Text>
-                <Text className="mt-1 text-xs text-gray-500">Choose a customer for this sale</Text>
+                <Text className="mt-1 text-xs text-gray-500">Search or choose a customer</Text>
               </View>
               <TouchableOpacity
-                onPress={() => setShowCustomerModal(false)}
+                onPress={() => { setShowCustomerModal(false); setCustomerSearchQuery(''); }}
                 className="h-10 w-10 items-center justify-center rounded-full bg-gray-100">
                 <Ionicons name="close" size={24} color="#6B7280" />
               </TouchableOpacity>
+            </View>
+
+            {/* Search Input */}
+            <View className="px-5 py-3 border-b border-gray-100">
+              <View className="flex-row items-center rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5">
+                <Ionicons name="search" size={18} color="#9CA3AF" />
+                <TextInput
+                  className="flex-1 ml-2 text-base text-gray-900"
+                  placeholder="Search by name or phone..."
+                  placeholderTextColor="#9CA3AF"
+                  value={customerSearchQuery}
+                  onChangeText={handleCustomerSearch}
+                  autoFocus={false}
+                />
+                {isSearchingCustomers && <ActivityIndicator size="small" color="#3B82F6" />}
+                {customerSearchQuery.length > 0 && !isSearchingCustomers && (
+                  <TouchableOpacity onPress={() => { setCustomerSearchQuery(''); setCustomerSearchResults([]); }}>
+                    <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             <ScrollView className="p-4" showsVerticalScrollIndicator={false}>
@@ -621,6 +670,7 @@ ${itemsLines}
                 onPress={() => {
                   setSelectedCustomer(null);
                   setShowCustomerModal(false);
+                  setCustomerSearchQuery('');
                 }}
                 className="mb-3 rounded-2xl border border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 p-4"
                 activeOpacity={0.7}
@@ -639,12 +689,12 @@ ${itemsLines}
                     <Text className="text-base font-bold text-gray-900">Walk-in Customer</Text>
                     <Text className="mt-0.5 text-sm text-gray-500">No customer information</Text>
                   </View>
-                  <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                  {!selectedCustomer && <Ionicons name="checkmark-circle" size={24} color="#10B981" />}
                 </View>
               </TouchableOpacity>
 
-              {customers && customers.length > 0 ? (
-                customers.map((customer) => (
+              {displayedCustomers && displayedCustomers.length > 0 ? (
+                displayedCustomers.map((customer) => (
                   <TouchableOpacity
                     key={customer.id}
                     onPress={() => {
@@ -707,7 +757,7 @@ ${itemsLines}
 
       {/* Modern Header with SafeArea */}
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-        <View className="bg-white px-5 py-4 shadow-sm">
+        <View className="bg-white px-5 py-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}>
           <View className="mb-4 flex-row items-center justify-between">
             <View className="flex-1">
               <Text className="text-2xl font-bold tracking-tight text-gray-900">Point of Sale</Text>
@@ -754,12 +804,14 @@ ${itemsLines}
                 {/* Transaction Type Toggle */}
                 <View className="flex-row rounded-xl bg-gray-100 p-1">
                   <TouchableOpacity
-                    className={`rounded-lg px-4 py-2 ${transactionType === 'sales' ? 'bg-white shadow-sm' : ''}`}
+                    className={`rounded-lg px-4 py-2 ${transactionType === 'sales' ? 'bg-white' : ''}`}
+                    style={transactionType === 'sales' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 } : {}}
                     onPress={() => setTransactionType('sales')}>
                     <Text className={`font-medium ${transactionType === 'sales' ? 'text-blue-600' : 'text-gray-500'}`}>Sales</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    className={`rounded-lg px-4 py-2 ${transactionType === 'purchase' ? 'bg-white shadow-sm' : ''}`}
+                    className={`rounded-lg px-4 py-2 ${transactionType === 'purchase' ? 'bg-white' : ''}`}
+                    style={transactionType === 'purchase' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 } : {}}
                     onPress={() => setTransactionType('purchase')}>
                     <Text className={`font-medium ${transactionType === 'purchase' ? 'text-blue-600' : 'text-gray-500'}`}>Purchase</Text>
                   </TouchableOpacity>
@@ -771,8 +823,8 @@ ${itemsLines}
                     key={loc.id}
                     onPress={() => setSelectedLocationId(loc.id)}
                     className={`rounded-xl px-4 py-2 border ${selectedLocationId === loc.id
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-200 bg-white'
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 bg-white'
                       }`}>
                     <Text
                       className={`font-medium ${selectedLocationId === loc.id ? 'text-blue-700' : 'text-gray-700'}`}>
@@ -804,64 +856,52 @@ ${itemsLines}
           }
           renderItem={({ item }) => (
             <View
-              className={`flex-1 overflow-hidden rounded-3xl ${item.quantity <= 0 ? 'bg-gray-100' : 'bg-white'}`}
+              className={`flex-1 overflow-hidden rounded-2xl ${item.quantity <= 0 ? 'bg-gray-100' : 'bg-white'}`}
               style={{
                 maxWidth: '50%',
                 borderWidth: item.quantity <= 0 ? 1 : 0,
                 borderColor: '#E5E7EB',
-                elevation: item.quantity <= 0 ? 0 : 4,
+                elevation: item.quantity <= 0 ? 0 : 3,
                 shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.08,
-                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.06,
+                shadowRadius: 8,
               }}>
-              <View className="p-4">
-                {/* Stock Badge */}
-                <View
-                  className={`mb-3 self-start rounded-full px-3 py-1 ${item.quantity <= 0 ? 'bg-red-100' : 'bg-green-100'}`}>
-                  <Text
-                    className={`text-xs font-bold ${item.quantity <= 0 ? 'text-red-700' : 'text-green-700'}`}>
-                    {item.quantity <= 0 ? 'Out of Stock' : `${item.quantity} in stock`}
-                  </Text>
-                </View>
-
-                {/* Product Name */}
-                <Text
-                  className={`mb-1 text-base font-bold leading-tight ${item.quantity <= 0 ? 'text-gray-400' : 'text-gray-900'}`}
-                  numberOfLines={2}>
-                  {item.name}
-                </Text>
-
-                {/* SKU */}
-                <Text className="mb-4 text-xs font-medium text-gray-400">{item.sku}</Text>
-
-                {/* Price and Add Button */}
-                <View className="flex-row items-center justify-between">
-                  <View>
-                    <Text className="mb-0.5 text-xs text-gray-500">Price</Text>
+              <View className="p-3">
+                {/* Stock Badge + Add Button Row */}
+                <View className="flex-row items-center justify-between mb-1.5">
+                  <View
+                    className={`rounded-full px-2 py-0.5 ${item.quantity <= 0 ? 'bg-red-100' : 'bg-green-100'}`}>
                     <Text
-                      className={`text-2xl font-extrabold ${item.quantity <= 0 ? 'text-gray-400' : 'text-blue-600'}`}>
-                      ${item.unit_price.toFixed(2)}
+                      className={`text-[10px] font-bold ${item.quantity <= 0 ? 'text-red-700' : 'text-green-700'}`}>
+                      {item.quantity <= 0 ? 'Out' : `${item.quantity}`}
                     </Text>
                   </View>
                   <TouchableOpacity
                     onPress={() => addToCart(item)}
                     disabled={item.quantity <= 0}
-                    className={`h-12 w-12 items-center justify-center rounded-2xl ${item.quantity <= 0 ? 'bg-gray-300' : 'bg-blue-600'}`}
+                    className={`h-9 w-9 items-center justify-center rounded-xl ${item.quantity <= 0 ? 'bg-gray-300' : 'bg-blue-600'}`}
                     style={
                       !item.quantity
                         ? {}
-                        : {
-                          shadowColor: '#3B82F6',
-                          shadowOffset: { width: 0, height: 4 },
-                          shadowOpacity: 0.4,
-                          shadowRadius: 8,
-                          elevation: 8,
-                        }
+                        : { elevation: 4 }
                     }>
-                    <Ionicons name="add" size={28} color="#FFFFFF" />
+                    <Ionicons name="add" size={22} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
+
+                {/* Product Name */}
+                <Text
+                  className={`text-sm font-bold leading-tight ${item.quantity <= 0 ? 'text-gray-400' : 'text-gray-900'}`}
+                  numberOfLines={2}>
+                  {item.name}
+                </Text>
+
+                {/* Price */}
+                <Text
+                  className={`mt-1 text-lg font-extrabold ${item.quantity <= 0 ? 'text-gray-400' : 'text-blue-600'}`}>
+                  ${item.unit_price.toFixed(2)}
+                </Text>
               </View>
             </View>
           )}
@@ -897,11 +937,20 @@ ${itemsLines}
                     <Text className="text-lg font-bold text-gray-900">Cart</Text>
                     <Text className="text-xs text-gray-500">{cart.length} items</Text>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => setShowCart(false)}
-                    className="h-9 w-9 items-center justify-center rounded-lg bg-gray-100">
-                    <Text className="text-xl text-gray-600">×</Text>
-                  </TouchableOpacity>
+                  <View className="flex-row items-center gap-2">
+                    {cart.length > 0 && (
+                      <TouchableOpacity
+                        onPress={clearCart}
+                        className="rounded-lg bg-red-50 px-3 py-2">
+                        <Text className="text-xs font-semibold text-red-500">Clear</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => setShowCart(false)}
+                      className="h-9 w-9 items-center justify-center rounded-lg bg-gray-100">
+                      <Text className="text-xl text-gray-600">×</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 {/* Customer Selection */}
@@ -982,10 +1031,46 @@ ${itemsLines}
                     </View>
                   </View>
 
+                  {/* Payment Type Toggle */}
+                  <View className="mb-3">
+                    <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Payment</Text>
+                    <View className="flex-row rounded-xl bg-gray-100 p-1">
+                      <TouchableOpacity
+                        onPress={() => setPaymentType('paid')}
+                        className={`flex-1 items-center rounded-lg py-2.5 ${paymentType === 'paid' ? 'bg-white' : ''}`}
+                        style={paymentType === 'paid' ? { elevation: 1 } : {}}>
+                        <Text className={`text-sm font-semibold ${paymentType === 'paid' ? 'text-green-600' : 'text-gray-500'}`}>
+                          Fully Paid
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setPaymentType('partial')}
+                        className={`flex-1 items-center rounded-lg py-2.5 ${paymentType === 'partial' ? 'bg-white' : ''}`}
+                        style={paymentType === 'partial' ? { elevation: 1 } : {}}>
+                        <Text className={`text-sm font-semibold ${paymentType === 'partial' ? 'text-orange-600' : 'text-gray-500'}`}>
+                          Partial
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    {paymentType === 'partial' && (
+                      <View className="mt-2 flex-row items-center rounded-xl border border-gray-200 bg-white px-4 py-3">
+                        <Text className="mr-2 text-sm text-gray-500">$</Text>
+                        <TextInput
+                          className="flex-1 text-base font-semibold text-gray-900"
+                          placeholder="Amount paid..."
+                          placeholderTextColor="#9CA3AF"
+                          value={partialAmount}
+                          onChangeText={setPartialAmount}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                    )}
+                  </View>
+
                   <TouchableOpacity
                     onPress={handleCheckout}
                     disabled={cart.length === 0 || isLoading}
-                    className={`mb-2 rounded-2xl py-4 ${cart.length === 0 || isLoading ? 'bg-gray-200' : 'bg-blue-600'}`}
+                    className={`rounded-2xl py-4 ${cart.length === 0 || isLoading ? 'bg-gray-200' : 'bg-blue-600'}`}
                     style={
                       cart.length > 0 && !isLoading
                         ? {
@@ -1009,16 +1094,6 @@ ${itemsLines}
                       </View>
                     )}
                   </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={clearCart}
-                    disabled={cart.length === 0}
-                    className="rounded-xl bg-gray-50 py-3">
-                    <Text
-                      className={`text-center font-medium ${cart.length === 0 ? 'text-gray-400' : 'text-gray-700'}`}>
-                      Clear Cart
-                    </Text>
-                  </TouchableOpacity>
                 </View>
               </SafeAreaView>
             </View>
@@ -1030,7 +1105,7 @@ ${itemsLines}
 
       {/* Hidden Bluetooth Printer Component */}
       <View style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}>
-        <PrinterComponent />
+        <PrinterDemo ref={printerRef} />
       </View>
     </View>
   );

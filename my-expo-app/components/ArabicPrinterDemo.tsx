@@ -80,7 +80,7 @@ const ArabicPrinterDemo = () => {
       </View>
 
       {/* Connection Section */}
-      <View className="mb-6 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <View className="mb-6 rounded-2xl border border-gray-100 bg-white p-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
         <Text className="mb-3 text-lg font-semibold text-gray-900">Printer Connection</Text>
 
         <TextInput
@@ -124,7 +124,7 @@ const ArabicPrinterDemo = () => {
       </View>
 
       {/* Text Input Section */}
-      <View className="mb-6 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <View className="mb-6 rounded-2xl border border-gray-100 bg-white p-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
         <Text className="mb-3 text-lg font-semibold text-gray-900">Arabic Text</Text>
 
         <TextInput

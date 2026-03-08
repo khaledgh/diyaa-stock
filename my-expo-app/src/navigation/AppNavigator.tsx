@@ -1,141 +1,179 @@
-import React, { useState } from 'react';
-import { View, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import POSScreen from '../screens/POSScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import PurchaseInvoiceScreen from '../screens/PurchaseInvoiceScreen';
+import CreditNoteListScreen from '../screens/CreditNoteListScreen';
+import CreateCreditNoteScreen from '../screens/CreateCreditNoteScreen';
+// import AIInvoiceScreen from '../screens/AIInvoiceScreen'; // Hidden for now
 
-function MainApp() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'history' | 'profile'>('dashboard');
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
+const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+function TabIcon({ name, color, size }: { name: string; color: string; size: number }) {
+  return <Ionicons name={name as any} size={size} color={color} />;
+}
+
+// Admin sees: Dashboard, Purchase, AI Invoice, History, Profile
+function AdminTabs() {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 10);
   return (
-    <View className="flex-1">
-      {activeTab === 'dashboard' && <DashboardScreen />}
-      {activeTab === 'pos' && <POSScreen />}
-      {activeTab === 'history' && <HistoryScreen />}
-      {activeTab === 'profile' && <ProfileScreen />}
-      
-      {/* Ultra-Modern Floating Bottom Navigation */}
-      <SafeAreaView edges={['bottom']} style={{ backgroundColor: 'transparent' }}>
-        <View className="px-4 pb-2">
-          <View 
-            className="flex-row bg-white rounded-3xl px-2 py-3" 
-            style={{ 
-              elevation: 16, 
-              shadowColor: '#000', 
-              shadowOffset: { width: 0, height: -8 }, 
-              shadowOpacity: 0.15, 
-              shadowRadius: 24 
-            }}
-          >
-            <TouchableOpacity
-              className="flex-1 items-center justify-center"
-              onPress={() => setActiveTab('dashboard')}
-              activeOpacity={0.7}
-            >
-              <View className={`px-6 py-3 items-center justify-center ${activeTab === 'dashboard' ? 'bg-blue-600 rounded-2xl' : 'rounded-xl'}`}
-                style={activeTab === 'dashboard' ? {
-                  shadowColor: '#3B82F6',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 8,
-                  elevation: 6
-                } : {}}
-              >
-                <Ionicons 
-                  name={activeTab === 'dashboard' ? 'home' : 'home-outline'} 
-                  size={26} 
-                  color={activeTab === 'dashboard' ? '#FFFFFF' : '#9CA3AF'} 
-                />
-              </View>
-              {activeTab === 'dashboard' && (
-                <View className="absolute -bottom-1 w-1 h-1 bg-blue-600 rounded-full" />
-              )}
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              className="flex-1 items-center justify-center"
-              onPress={() => setActiveTab('pos')}
-              activeOpacity={0.7}
-            >
-              <View className={`px-6 py-3 items-center justify-center ${activeTab === 'pos' ? 'bg-blue-600 rounded-2xl' : 'rounded-xl'}`}
-                style={activeTab === 'pos' ? {
-                  shadowColor: '#3B82F6',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 8,
-                  elevation: 6
-                } : {}}
-              >
-                <Ionicons 
-                  name={activeTab === 'pos' ? 'cart' : 'cart-outline'} 
-                  size={26} 
-                  color={activeTab === 'pos' ? '#FFFFFF' : '#9CA3AF'} 
-                />
-              </View>
-              {activeTab === 'pos' && (
-                <View className="absolute -bottom-1 w-1 h-1 bg-blue-600 rounded-full" />
-              )}
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              className="flex-1 items-center justify-center"
-              onPress={() => setActiveTab('history')}
-              activeOpacity={0.7}
-            >
-              <View className={`px-6 py-3 items-center justify-center ${activeTab === 'history' ? 'bg-blue-600 rounded-2xl' : 'rounded-xl'}`}
-                style={activeTab === 'history' ? {
-                  shadowColor: '#3B82F6',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 8,
-                  elevation: 6
-                } : {}}
-              >
-                <Ionicons 
-                  name={activeTab === 'history' ? 'receipt' : 'receipt-outline'} 
-                  size={26} 
-                  color={activeTab === 'history' ? '#FFFFFF' : '#9CA3AF'} 
-                />
-              </View>
-              {activeTab === 'history' && (
-                <View className="absolute -bottom-1 w-1 h-1 bg-blue-600 rounded-full" />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-1 items-center justify-center"
-              onPress={() => setActiveTab('profile')}
-              activeOpacity={0.7}
-            >
-              <View className={`px-6 py-3 items-center justify-center ${activeTab === 'profile' ? 'bg-blue-600 rounded-2xl' : 'rounded-xl'}`}
-                style={activeTab === 'profile' ? {
-                  shadowColor: '#3B82F6',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 8,
-                  elevation: 6
-                } : {}}
-              >
-                <Ionicons 
-                  name={activeTab === 'profile' ? 'person' : 'person-outline'} 
-                  size={26} 
-                  color={activeTab === 'profile' ? '#FFFFFF' : '#9CA3AF'} 
-                />
-              </View>
-              {activeTab === 'profile' && (
-                <View className="absolute -bottom-1 w-1 h-1 bg-blue-600 rounded-full" />
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </SafeAreaView>
-    </View>
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        lazy: true,
+        tabBarActiveTintColor: '#2563EB',
+        tabBarInactiveTintColor: '#94A3B8',
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 0,
+          height: 56 + bottomPadding,
+          paddingBottom: bottomPadding,
+          paddingTop: 6,
+          elevation: 20,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 2,
+        },
+      }}
+    >
+      <Tab.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'home' : 'home-outline'} color={color} size={22} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Purchase"
+        component={PurchaseInvoiceScreen}
+        options={{
+          tabBarLabel: 'Purchase',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'cube' : 'cube-outline'} color={color} size={24} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{
+          tabBarLabel: 'History',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'receipt' : 'receipt-outline'} color={color} size={22} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          tabBarLabel: 'Profile',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'person' : 'person-outline'} color={color} size={22} />
+          ),
+        }}
+      />
+    </Tab.Navigator>
   );
+}
+
+// Sales/CashVan sees: Dashboard, Sales POS, History, Profile
+function SalesTabs() {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 10);
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        lazy: true,
+        tabBarActiveTintColor: '#059669',
+        tabBarInactiveTintColor: '#94A3B8',
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 0,
+          height: 56 + bottomPadding,
+          paddingBottom: bottomPadding,
+          paddingTop: 6,
+          elevation: 20,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 2,
+        },
+      }}
+    >
+      <Tab.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'home' : 'home-outline'} color={color} size={22} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Sales"
+        component={POSScreen}
+        options={{
+          tabBarLabel: 'Sales',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'cart' : 'cart-outline'} color={color} size={24} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{
+          tabBarLabel: 'History',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'receipt' : 'receipt-outline'} color={color} size={22} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          tabBarLabel: 'Profile',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'person' : 'person-outline'} color={color} size={22} />
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
+
+function MainTabs() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  return isAdmin ? <AdminTabs /> : <SalesTabs />;
 }
 
 export default function AppNavigator() {
@@ -145,5 +183,18 @@ export default function AppNavigator() {
     return null;
   }
 
-  return isAuthenticated ? <MainApp /> : <LoginScreen />;
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      {!isAuthenticated ? (
+        <Stack.Screen name="Login" component={LoginScreen} />
+      ) : (
+        <>
+          <Stack.Screen name="Main" component={MainTabs} />
+          <Stack.Screen name="PurchaseInvoice" component={PurchaseInvoiceScreen} />
+          <Stack.Screen name="CreditNoteList" component={CreditNoteListScreen} />
+          <Stack.Screen name="CreateCreditNote" component={CreateCreditNoteScreen} />
+        </>
+      )}
+    </Stack.Navigator>
+  );
 }

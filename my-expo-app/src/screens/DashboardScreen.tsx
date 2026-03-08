@@ -4,13 +4,14 @@ import {
   Text,
   ScrollView,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
 
-export default function DashboardScreen() {
+export default function DashboardScreen({ navigation }: any) {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -25,6 +26,10 @@ export default function DashboardScreen() {
     pendingAmount: 0,
     stockValue: 0,
   });
+  const [locations, setLocations] = useState<any[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
+  const [commissionData, setCommissionData] = useState<any[]>([]);
+  const isAdmin = user?.role === 'admin';
 
   const loadDashboardData = useCallback(async () => {
     try {
@@ -114,15 +119,42 @@ export default function DashboardScreen() {
     }
   }, [user]);
 
+  const loadLocations = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const resp = await apiService.getLocations();
+      if (resp.data) {
+        setLocations(resp.data);
+      }
+    } catch (e) {
+      console.error('Failed to load locations', e);
+    }
+  }, [isAdmin]);
+
+  const loadCommissions = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const resp = await apiService.getCommissions();
+      if (resp?.data) {
+        setCommissionData(resp.data);
+      }
+    } catch (_) {
+      // Commission API may not exist yet — silently fail
+      console.log('Commission API not available yet');
+    }
+  }, [isAdmin]);
+
   useEffect(() => {
     loadDashboardData();
-  }, [loadDashboardData]);
+    loadLocations();
+    loadCommissions();
+  }, [loadDashboardData, loadLocations, loadCommissions]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadDashboardData();
+    await Promise.all([loadDashboardData(), loadLocations(), loadCommissions()]);
     setRefreshing(false);
-  }, [loadDashboardData]);
+  }, [loadDashboardData, loadLocations, loadCommissions]);
 
   if (isLoading) {
     return (
@@ -167,8 +199,27 @@ export default function DashboardScreen() {
       <View className="px-4 py-3 bg-white border-b border-gray-100">
         <Text className="text-gray-900 text-xl font-bold">Dashboard</Text>
         <Text className="text-gray-500 text-sm mt-0.5">
-          {user?.role === 'admin' ? 'Global Overview' : `Location ${user?.location_id || 'Overview'}`}
+          {isAdmin ? 'Global Overview' : `Location ${user?.location_id || 'Overview'}`}
         </Text>
+        {isAdmin && locations.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-2">
+            <View className="flex-row gap-2">
+              <TouchableOpacity
+                onPress={() => setSelectedLocationId(null)}
+                className={`rounded-xl px-3 py-1.5 border ${!selectedLocationId ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                <Text className={`text-sm font-medium ${!selectedLocationId ? 'text-blue-700' : 'text-gray-600'}`}>All</Text>
+              </TouchableOpacity>
+              {locations.map((loc: any) => (
+                <TouchableOpacity
+                  key={loc.id}
+                  onPress={() => setSelectedLocationId(loc.id)}
+                  className={`rounded-xl px-3 py-1.5 border ${selectedLocationId === loc.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                  <Text className={`text-sm font-medium ${selectedLocationId === loc.id ? 'text-blue-700' : 'text-gray-600'}`}>{loc.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        )}
       </View>
 
       <ScrollView
@@ -320,10 +371,64 @@ export default function DashboardScreen() {
 
               <View className="flex-row justify-between items-center py-2">
                 <Text className="text-gray-600">Location Assignment</Text>
-                <Text className="text-blue-600 font-bold">{user?.role === 'admin' ? 'All (Admin)' : `Location ${user?.location_id || 'N/A'}`}</Text>
+                <Text className="text-blue-600 font-bold">{isAdmin ? 'All (Admin)' : `Location ${user?.location_id || 'N/A'}`}</Text>
               </View>
             </View>
           </View>
+
+          {/* Sales Rep Commission Widget - Admin Only */}
+          {isAdmin && (
+            <View
+              className="bg-white rounded-3xl p-5 mt-4"
+              style={{ elevation: 2 }}
+            >
+              <View className="flex-row items-center justify-between mb-4">
+                <Text className="text-gray-900 text-lg font-bold">Sales Commissions</Text>
+                <View className="bg-purple-100 rounded-full px-3 py-1">
+                  <Text className="text-purple-700 text-xs font-bold">
+                    {commissionData.length > 0 ? `${commissionData.length} reps` : 'No data'}
+                  </Text>
+                </View>
+              </View>
+
+              {commissionData.length > 0 ? (
+                <View className="space-y-3">
+                  {commissionData.map((rep: any, index: number) => (
+                    <View key={rep.user_id || index}>
+                      <View className="flex-row items-center justify-between py-2">
+                        <View className="flex-row items-center flex-1">
+                          <View className="w-9 h-9 rounded-full bg-blue-100 items-center justify-center mr-3">
+                            <Text className="text-blue-600 font-bold text-sm">
+                              {(rep.name || 'U').charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View className="flex-1">
+                            <Text className="text-gray-900 font-semibold text-sm">{rep.name || 'Unknown'}</Text>
+                            <Text className="text-gray-400 text-xs">
+                              {rep.commission_rate || 0}% rate • ${(rep.total_sales || 0).toFixed(0)} sales
+                            </Text>
+                          </View>
+                        </View>
+                        <View className="items-end">
+                          <Text className="text-purple-600 font-bold text-base">
+                            ${(rep.commission_owed || 0).toFixed(2)}
+                          </Text>
+                          <Text className="text-gray-400 text-[10px]">owed</Text>
+                        </View>
+                      </View>
+                      {index < commissionData.length - 1 && <View className="h-px bg-gray-100" />}
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View className="items-center py-6">
+                  <Ionicons name="people-outline" size={36} color="#D1D5DB" />
+                  <Text className="text-gray-400 text-sm mt-2">No commission data available</Text>
+                  <Text className="text-gray-300 text-xs mt-1">Configure commissions in the backend</Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

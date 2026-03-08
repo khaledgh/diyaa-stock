@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import PrinterSettingsScreen from './PrinterSettingsScreen';
 import PrinterDemo from '../../components/PrinterDemo';
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }: any) {
   const { user, logout } = useAuth();
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
   const [showPrinterDemo, setShowPrinterDemo] = useState(false);
@@ -43,7 +43,7 @@ export default function ProfileScreen() {
                 <Text className="text-blue-700 text-sm font-semibold capitalize">{user?.role}</Text>
               </View>
             </View>
-            
+
             <View className="flex-row justify-around pt-4 border-t border-gray-100">
               <View className="items-center">
                 <Text className="text-gray-900 text-2xl font-bold">{user?.location_id || '-'}</Text>
@@ -60,7 +60,7 @@ export default function ProfileScreen() {
           {/* Quick Actions */}
           <View className="bg-white rounded-2xl p-4 mb-4" style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 }}>
             <Text className="text-sm font-bold text-gray-900 mb-3">Account Information</Text>
-            
+
             <View className="mb-3 pb-3 border-b border-gray-100">
               <Text className="text-xs text-gray-500 mb-1">Email Address</Text>
               <Text className="text-base text-gray-900">{user?.email}</Text>

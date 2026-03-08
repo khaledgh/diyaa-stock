@@ -139,8 +139,13 @@ class ApiService {
     return response.data;
   }
 
-  async getCustomers() {
-    const response = await this.api.get('/customers');
+  async getCustomers(params?: any) {
+    const response = await this.api.get('/customers', { params });
+    return response.data;
+  }
+
+  async getVendors() {
+    const response = await this.api.get('/vendors');
     return response.data;
   }
 
@@ -177,6 +182,74 @@ class ApiService {
   }) {
     const response = await this.api.get('/invoices', { params: filters });
     return response.data;
+  }
+
+  async getInvoiceById(id: number, type?: string) {
+    const response = await this.api.get(`/invoices/${id}`, {
+      params: { invoice_type: type },
+    });
+    return response.data;
+  }
+
+  async updateInvoice(id: number, data: any, type?: string) {
+    const response = await this.api.put(`/invoices/${id}`, data, {
+      params: { invoice_type: type },
+    });
+    return response.data;
+  }
+
+  async deleteInvoice(id: number, type?: string) {
+    const response = await this.api.delete(`/invoices/${id}`, {
+      params: { invoice_type: type },
+    });
+    return response.data;
+  }
+
+  async finalizeInvoice(id: number, type: string) {
+    const response = await this.api.post(`/invoices/${id}/finalize`, {}, {
+      params: { invoice_type: type },
+    });
+    return response.data;
+  }
+
+  // Commission Endpoints
+  async getCommissions() {
+    const response = await this.api.get('/commissions');
+    return response.data;
+  }
+
+  // Credit Note Endpoints
+  async getCreditNotes(params?: any) {
+    const response = await this.api.get('/credit-notes', { params });
+    return response.data;
+  }
+
+  async createCreditNote(data: any) {
+    const response = await this.api.post('/credit-notes', data);
+    return response.data;
+  }
+
+  async approveCreditNote(id: number) {
+    const response = await this.api.post(`/credit-notes/${id}/approve`);
+    return response.data;
+  }
+
+  // AI/Chatbot Extraction
+  async extractDataWithAI(message: string, base64Image?: string, mimeType = 'image/jpeg') {
+    const response = await this.api.post('/chatbot', {
+      message,
+      image: base64Image,
+      mime_type: mimeType,
+    });
+
+    // Parse the inner Gemini JSON string from candidates[0].content.parts[0].text
+    const rawText = response.data?.gemini?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    try {
+      return JSON.parse(rawText);
+    } catch (e) {
+      console.error('Failed to parse AI response:', rawText);
+      return { summary: 'Error parsing AI output', items: [] };
+    }
   }
 }
 

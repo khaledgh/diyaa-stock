@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
@@ -85,7 +86,12 @@ export default function LoginScreen() {
         <View className="absolute top-0 left-0 right-0" style={{ height: 400, backgroundColor: '#EFF6FF', borderBottomLeftRadius: 100, borderBottomRightRadius: 100 }} />
       </View>
 
-      <View className="flex-1 justify-center px-6">
+      <ScrollView 
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View>
         {/* Logo/Icon Section */}
         <View className="items-center mb-12">
           <View 
@@ -224,7 +230,8 @@ export default function LoginScreen() {
           </View>
           <Text className="text-gray-400 text-xs">Version 1.0.0</Text>
         </View>
-      </View>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }

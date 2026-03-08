@@ -19,6 +19,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { printArabicReceiptLocally as printArabicReceiptUtil, ReceiptData } from '../utils/arabicPrinter';
+import { PrintableReceiptData, generateReceiptEscPos } from '../utils/receiptImagePrinter';
 
 // Initialize BLE manager dynamically to handle Expo Go compatibility
 let bleManager: any = null;
@@ -1214,9 +1215,28 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
     }
   };
 
+  // -------------------- STRUCTURED RECEIPT PRINTING --------------------
+  const printReceiptData = async (data: PrintableReceiptData) => {
+    console.log('🖨️ Printing structured receipt data...');
+    if (!connectedDevice) {
+      throw new Error('No printer connected');
+    }
+
+    try {
+      const escPosCommands = generateReceiptEscPos(data);
+      console.log(`📤 Sending ${escPosCommands.length} bytes of receipt data...`);
+      await sendEscPosCommands(escPosCommands);
+      console.log('✅ Structured receipt printed successfully');
+    } catch (error) {
+      console.error('❌ Structured receipt print error:', error);
+      throw error;
+    }
+  };
+
   // -------------------- REF EXPOSE --------------------
   useImperativeHandle(ref, () => ({
     printReceipt: printArabicReceiptLocally,
+    printReceiptData,
     getConnectedDevice: () => connectedDevice,
     isConnected: () => !!connectedDevice,
   }));
@@ -1255,7 +1275,7 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
             <TouchableOpacity
               onPress={() => connectToDevice(savedDevice)}
               disabled={isConnecting}
-              className="mb-3 rounded-2xl border border-purple-200 bg-purple-50 p-4 shadow-sm"
+              className="mb-3 rounded-2xl border border-purple-200 bg-purple-50 p-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
             >
               <View className="flex-row items-center justify-between">
                 <View className="flex-row items-center">
@@ -1297,7 +1317,7 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
           })()}
         </View>
 
-        <View className="mb-6 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+        <View className="mb-6 rounded-2xl border border-gray-100 bg-white p-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center">
               <Ionicons name="bluetooth-outline" size={24} color="#3B82F6" />
@@ -1439,7 +1459,7 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
                 key={item.id}
                 onPress={() => connectToDevice(item)}
                 disabled={isConnecting}
-                className="mb-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm"
+                className="mb-3 rounded-2xl border border-gray-100 bg-white p-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
               >
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center">

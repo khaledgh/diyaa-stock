@@ -185,6 +185,10 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.POST("/credit-notes/:id/cancel", creditNoteHandler.CancelHandler)
 	apiGroup.DELETE("/credit-notes/:id", creditNoteHandler.DeleteHandler)
 
+	// Commission routes
+	commissionHandler := handlers.NewCommissionHandler(store)
+	apiGroup.GET("/commissions", commissionHandler.GetCommissions)
+
 	// Payment Allocation routes
 	paymentAllocationService := services.NewPaymentAllocationService(store)
 	apiGroup.POST("/payment-allocations/allocate-fifo", func(c echo.Context) error {
