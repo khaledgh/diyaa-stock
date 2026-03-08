@@ -10,6 +10,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import PurchaseInvoiceScreen from '../screens/PurchaseInvoiceScreen';
 import CreditNoteListScreen from '../screens/CreditNoteListScreen';
 import CreateCreditNoteScreen from '../screens/CreateCreditNoteScreen';
+import UserManagementScreen from '../screens/UserManagementScreen';
 // import AIInvoiceScreen from '../screens/AIInvoiceScreen'; // Hidden for now
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -193,6 +194,7 @@ export default function AppNavigator() {
           <Stack.Screen name="PurchaseInvoice" component={PurchaseInvoiceScreen} />
           <Stack.Screen name="CreditNoteList" component={CreditNoteListScreen} />
           <Stack.Screen name="CreateCreditNote" component={CreateCreditNoteScreen} />
+          <Stack.Screen name="UserManagement" component={UserManagementScreen} />
         </>
       )}
     </Stack.Navigator>

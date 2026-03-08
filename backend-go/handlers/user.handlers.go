@@ -217,7 +217,14 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	return ResponseSuccess(c, "updated", user)
+	
+	// Reload user from database to get complete updated record including commission_rate
+	updatedUser, err := uh.UserServices.GetID(id)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+	
+	return ResponseSuccess(c, "updated", updatedUser)
 }
 
 func (uh *UserHandler) UpdatePasswordHandler(c echo.Context) error {

@@ -212,6 +212,17 @@ class ApiService {
     return response.data;
   }
 
+  // User Management Endpoints
+  async getUsers(params?: any) {
+    const response = await this.api.get('/users', { params });
+    return response.data;
+  }
+
+  async updateUser(id: number, data: any) {
+    const response = await this.api.put(`/users/${id}`, data);
+    return response.data;
+  }
+
   // Commission Endpoints
   async getCommissions() {
     const response = await this.api.get('/commissions');

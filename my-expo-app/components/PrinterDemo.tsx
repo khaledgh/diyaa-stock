@@ -144,176 +144,103 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
     if (!connectedDevice) {
       throw new Error('No printer connected');
     }
-
-    console.log('📨 Preparing to send ESC/POS commands. Bytes:', commands.length);
-
-    console.log('🔍 Checking BLE manager availability...');
     if (!bleManager) {
-      throw new Error('BLE module not available or not initialized yet. Please wait a moment and try again.');
+      throw new Error('BLE module not available');
     }
+
+    console.log(`📨 Sending ${commands.length} ESC/POS bytes...`);
 
     let activeDevice = connectedDevice;
 
-    let discovery: any;
-
-    const discoverServices = async (device: any) => {
-      console.log('🔍 Discovering services...');
-      try {
+    const discoverPrintCharacteristic = async (device: any) => {
+      // Ensure services are discovered
+      await device.discoverAllServicesAndCharacteristics();
       const services = await device.services();
-      console.log('📋 Available services:', services.map((s: any) => ({
-        uuid: s.uuid,
-        isPrimary: s.isPrimary
-      })));
+      console.log('📋 Services:', services.map((s: any) => s.uuid));
 
-      const printService = services.find((s: any) => 
-        s.uuid.toLowerCase().includes('49535343-fe7d-4ae5-8fa9-9fafd205e455')
-      );
+      // Known thermal printer service UUIDs
+      const KNOWN_PRINT_SERVICES = [
+        '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Common ESC/POS BLE
+        '000018f0-0000-1000-8000-00805f9b34fb', // Generic printer
+        'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Nordic UART
+      ];
+
+      let printService = null;
+      for (const knownUuid of KNOWN_PRINT_SERVICES) {
+        printService = services.find((s: any) => s.uuid.toLowerCase().includes(knownUuid));
+        if (printService) break;
+      }
+
+      // Fallback: try any service with a writable characteristic
+      if (!printService) {
+        for (const service of services) {
+          const chars = await service.characteristics();
+          const writable = chars.find((c: any) => c.isWritableWithoutResponse || c.isWritableWithResponse);
+          if (writable) {
+            printService = service;
+            break;
+          }
+        }
+      }
 
       if (!printService) {
-        throw new Error('Print service not found');
+        throw new Error('No print service found on this device');
       }
 
-      console.log('🔍 Print service found:', printService.uuid);
-      console.log('🔍 Discovering characteristics for service:', printService.uuid);
+      console.log('✅ Print service:', printService.uuid);
       const characteristics = await printService.characteristics();
-      console.log('📋 Available characteristics:', characteristics.map((c: any) => ({
-        uuid: c.uuid,
-        isWritableWithResponse: c.isWritableWithResponse,
-        isWritableWithoutResponse: c.isWritableWithoutResponse,
-        isNotifiable: c.isNotifiable
-      })));
 
-      // Find the write characteristic - try 1e4d first if it's writable, otherwise use 8841
-      const writeChar = characteristics.find((char: any) =>
-        char.uuid.toLowerCase().includes('1e4d') &&
-        (char.isWritableWithResponse || char.isWritableWithoutResponse)
-      ) || characteristics.find((char: any) =>
-        char.uuid.toLowerCase().includes('8841') &&
-        (char.isWritableWithResponse || char.isWritableWithoutResponse)
-      );
-
-      console.log('🔍 Write characteristic found:', writeChar ? writeChar.uuid : 'NONE');
+      // Find writable characteristic (prefer WriteWithoutResponse for speed)
+      const writeChar = characteristics.find((c: any) => c.isWritableWithoutResponse) ||
+                        characteristics.find((c: any) => c.isWritableWithResponse);
 
       if (!writeChar) {
-        throw new Error('No writable characteristic found for printing');
+        throw new Error('No writable characteristic found');
       }
 
-      return { printService, writeChar };
-      } catch (error) {
-        console.error('❌ Service discovery error:', error);
-        throw error;
-      }
+      console.log('✅ Write characteristic:', writeChar.uuid, 
+        writeChar.isWritableWithoutResponse ? '(no-response)' : '(with-response)');
+
+      return { serviceUuid: printService.uuid, writeChar };
     };
 
+    let discovery: any;
     try {
-      discovery = await discoverServices(activeDevice);
+      discovery = await discoverPrintCharacteristic(activeDevice);
     } catch (serviceError) {
-      console.warn('❌ Service discovery failed, attempting automatic reconnection...', serviceError);
-      activeDevice = await refreshConnection({ reason: 'Automatic reconnection before sending commands' });
-      discovery = await discoverServices(activeDevice);
+      console.warn('⚠️ Service discovery failed, reconnecting...', serviceError);
+      activeDevice = await refreshConnection({ reason: 'Service discovery failed' });
+      discovery = await discoverPrintCharacteristic(activeDevice);
     }
 
-    const { printService, writeChar } = discovery;
+    const { serviceUuid, writeChar } = discovery;
+    const useWithoutResponse = writeChar.isWritableWithoutResponse;
+    const CHUNK_SIZE = 100; // Safe BLE chunk size for thermal printers
 
-    console.log('✅ Using characteristic:', writeChar.uuid);
-    console.log(`📤 Sending ${commands.length} bytes of ESC/POS data...`);
+    console.log(`📤 Sending in ${Math.ceil(commands.length / CHUNK_SIZE)} chunks of up to ${CHUNK_SIZE} bytes...`);
 
-    console.log('🔍 Raw commands:', commands);
+    for (let i = 0; i < commands.length; i += CHUNK_SIZE) {
+      const chunk = commands.slice(i, Math.min(i + CHUNK_SIZE, commands.length));
+      const chunkBuffer = new Uint8Array(chunk);
+      const chunkBase64 = arrayBufferToBase64(chunkBuffer.buffer);
 
-    // Try sending data in much smaller chunks to avoid BLE MTU issues
-    let transmissionSuccess = false;
-
-    // Method 1: Try sending as individual bytes with delays
-    try {
-      console.log('📤 Attempting byte-by-byte transmission...');
-      
-      for (let i = 0; i < commands.length; i++) {
-        try {
-          // Send each byte as a single-element array
-          const byteData = new Uint8Array([commands[i]]);
-          const base64Data = arrayBufferToBase64(byteData.buffer);
-          
-          if (writeChar.isWritableWithResponse) {
-            await bleManager.writeCharacteristicWithResponseForDevice(
-              activeDevice.id,
-              printService.uuid,
-              writeChar.uuid,
-              base64Data
-            );
-          } else {
-            await bleManager.writeCharacteristicWithoutResponseForDevice(
-              activeDevice.id,
-              printService.uuid,
-              writeChar.uuid,
-              base64Data
-            );
-          }
-          
-          // Small delay between bytes to prevent overwhelming the device
-          await new Promise(resolve => setTimeout(resolve, 5));
-          
-        } catch (byteError) {
-          console.log(`❌ Failed to send byte ${i}:`, byteError);
-          throw byteError;
-        }
+      if (useWithoutResponse) {
+        await bleManager.writeCharacteristicWithoutResponseForDevice(
+          activeDevice.id, serviceUuid, writeChar.uuid, chunkBase64
+        );
+      } else {
+        await bleManager.writeCharacteristicWithResponseForDevice(
+          activeDevice.id, serviceUuid, writeChar.uuid, chunkBase64
+        );
       }
-      
-      transmissionSuccess = true;
-      console.log('✅ Byte-by-byte transmission completed');
-      
-    } catch (byteMethodError) {
-      console.log('❌ Byte-by-byte transmission failed, trying small chunks...', byteMethodError);
-      
-      // Method 2: Try sending in small chunks of 5 bytes
-      try {
-        const chunkSize = 5;
-        console.log(`📤 Sending ${Math.ceil(commands.length / chunkSize)} chunks of ${chunkSize} bytes each...`);
-        
-        for (let i = 0; i < commands.length; i += chunkSize) {
-          const chunk = commands.slice(i, i + chunkSize);
-          const chunkBuffer = new Uint8Array(chunk);
-          const chunkBase64 = arrayBufferToBase64(chunkBuffer.buffer);
-          
-          try {
-            if (writeChar.isWritableWithResponse) {
-              await bleManager.writeCharacteristicWithResponseForDevice(
-                activeDevice.id,
-                printService.uuid,
-                writeChar.uuid,
-                chunkBase64
-              );
-            } else {
-              await bleManager.writeCharacteristicWithoutResponseForDevice(
-                activeDevice.id,
-                printService.uuid,
-                writeChar.uuid,
-                chunkBase64
-              );
-            }
-            
-            // Small delay between chunks
-            await new Promise(resolve => setTimeout(resolve, 20));
-            
-          } catch (chunkError) {
-            console.log(`❌ Failed to send chunk starting at byte ${i}:`, chunkError);
-            throw chunkError;
-          }
-        }
-        
-        transmissionSuccess = true;
-        console.log('✅ Chunked transmission completed');
-        
-      } catch (chunkMethodError) {
-        console.log('❌ All chunked transmission methods failed:', chunkMethodError);
-        throw new Error('All BLE transmission methods failed. The printer may be incompatible or there may be a Bluetooth issue.');
+
+      // Brief pause every few chunks to let printer buffer process
+      if ((i / CHUNK_SIZE) % 5 === 4) {
+        await new Promise(resolve => setTimeout(resolve, 10));
       }
     }
 
-    if (!transmissionSuccess) {
-      throw new Error('All transmission methods failed');
-    }
-
-    console.log('✅ ESC/POS command transmission completed');
+    console.log('✅ Transmission completed');
   };
 
   const testSimplePrint = async () => {
@@ -340,61 +267,6 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
     } catch (error) {
       console.error('❌ Simple text print error:', error);
       Alert.alert('Error', `Failed to print text: ${error}`);
-    }
-  };
-
-  const printCodePageDiagnostics = async () => {
-    console.log('🧪 Printing code page diagnostics...');
-    if (!connectedDevice) {
-      return Alert.alert('Error', 'No printer connected');
-    }
-
-    try {
-      const commands: number[] = [];
-
-      // Start with a clean reset and left alignment
-      commands.push(0x1b, 0x40); // ESC @
-      commands.push(0x1b, 0x61, 0x00); // Left align
-
-      CODE_PAGE_TEST_VALUES.forEach((value) => {
-        // Reset before each test line
-        commands.push(0x1b, 0x40);
-        // Set code page (ESC t n) and GS t n for broader compatibility
-        commands.push(0x1b, 0x74, value);
-        commands.push(0x1d, 0x74, value);
-
-        const label = `CodePage 0x${value.toString(16).toUpperCase().padStart(2, '0')}`;
-        for (let i = 0; i < label.length; i++) {
-          commands.push(label.charCodeAt(i));
-        }
-        commands.push(0x0a);
-
-        // Print byte grid 0x80-0xFF so user can see glyphs available in the code page
-        let column = 0;
-        for (let byte = 0x80; byte <= 0xff; byte++) {
-          commands.push(byte);
-          column++;
-          if (column === 16) {
-            commands.push(0x0a);
-            column = 0;
-          }
-        }
-
-        commands.push(0x0a, 0x0a);
-      });
-
-      // Feed a few blank lines at the end
-      commands.push(0x1b, 0x64, 0x05);
-
-      await sendEscPosCommands(commands);
-      Alert.alert(
-        'Diagnostics Sent',
-        'Check the printed sheet to find which code page shows correct Arabic characters. Share the code page value so we can lock it in.'
-      );
-    } catch (error) {
-      console.error('❌ Code page diagnostics failed:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      Alert.alert('Diagnostics Failed', message);
     }
   };
 
@@ -716,137 +588,6 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
     return btoa(binary);
   };
 
-  // -------------------- ARABIC ENCODING HELPERS --------------------
-  const WINDOWS_1256_REVERSE_MAP: Record<string, number> = {
-    '،': 0xa1,
-    '؛': 0xba,
-    '؟': 0xbf,
-    'ء': 0xc1,
-    'آ': 0xc2,
-    'أ': 0xc3,
-    'ؤ': 0xc4,
-    'إ': 0xc5,
-    'ئ': 0xc6,
-    'ا': 0xc7,
-    'ب': 0xc8,
-    'ة': 0xc9,
-    'ت': 0xca,
-    'ث': 0xcb,
-    'ج': 0xcc,
-    'ح': 0xcd,
-    'خ': 0xce,
-    'د': 0xcf,
-    'ذ': 0xd0,
-    'ر': 0xd1,
-    'ز': 0xd2,
-    'س': 0xd3,
-    'ش': 0xd4,
-    'ص': 0xd5,
-    'ض': 0xd6,
-    'ط': 0xd8,
-    'ظ': 0xd9,
-    'ع': 0xda,
-    'غ': 0xdb,
-    'ـ': 0xdc,
-    'ف': 0xdd,
-    'ق': 0xde,
-    'ك': 0xdf,
-    'ل': 0xe0,
-    'م': 0xe1,
-    'ن': 0xe2,
-    'ه': 0xe3,
-    'و': 0xe4,
-    'ى': 0xe5,
-    'ي': 0xe6,
-    'ً': 0xe7,
-    'ٌ': 0xe8,
-    'ٍ': 0xe9,
-    'َ': 0xea,
-    'ُ': 0xeb,
-    'ِ': 0xec,
-    'ّ': 0xed,
-    'ْ': 0xee,
-    'پ': 0xef,
-    'چ': 0xf0,
-    'ژ': 0xf1,
-    'گ': 0xf2,
-    '۰': 0xb0,
-    '۱': 0xb1,
-    '۲': 0xb2,
-    '۳': 0xb3,
-    '۴': 0xb4,
-    '۵': 0xb5,
-    '۶': 0xb6,
-    '۷': 0xb7,
-    '۸': 0xb8,
-    '۹': 0xb9,
-    '٠': 0xb0,
-    '١': 0xb1,
-    '٢': 0xb2,
-    '٣': 0xb3,
-    '٤': 0xb4,
-    '٥': 0xb5,
-    '٦': 0xb6,
-    '٧': 0xb7,
-    '٨': 0xb8,
-    '٩': 0xb9,
-  };
-
-  const normalizeArabicText = (input: string): string => {
-    let normalized = input.normalize('NFKC');
-
-    // Normalize Lam-Alef ligatures to basic characters
-    normalized = normalized
-      .replace(/\uFEFB|\uFEFC/g, 'لا')
-      .replace(/\uFEF7|\uFEF8/g, 'لأ')
-      .replace(/\uFEF9|\uFEFA/g, 'لإ')
-      .replace(/\uFEF5|\uFEF6/g, 'لآ');
-
-    // Replace Arabic-Indic digits with ASCII digits
-    normalized = normalized.replace(/[\u0660-\u0669]/g, (digit) =>
-      String(digit.charCodeAt(0) - 0x0660)
-    );
-
-    // Replace Eastern Arabic digits
-    normalized = normalized.replace(/[\u06F0-\u06F9]/g, (digit) =>
-      String(digit.charCodeAt(0) - 0x06F0)
-    );
-
-    return normalized;
-  };
-
-  const encodeWindows1256 = (text: string): number[] => {
-    const encoded: number[] = [];
-    const normalized = normalizeArabicText(text);
-
-    for (const char of normalized) {
-      const code = char.charCodeAt(0);
-      if (code <= 0x7f) {
-        encoded.push(code);
-        continue;
-      }
-
-      const mapped = WINDOWS_1256_REVERSE_MAP[char];
-      if (typeof mapped === 'number') {
-        encoded.push(mapped);
-      } else {
-        // Unsupported characters fall back to question mark
-        encoded.push(0x3f);
-      }
-    }
-
-    return encoded;
-  };
-
-  const CODE_PAGE_TEST_VALUES = [
-    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
-    0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
-    0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24,
-    0x25, 0x26, 0x27, 0x28, 0x29,
-  ];
-
-  const DEFAULT_ARABIC_CODE_PAGE = 0x16; // Determined via diagnostics (CP864 Arabic)
-
   const refreshConnection = async ({
     showSpinner = false,
     reason,
@@ -909,58 +650,61 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
     }
   };
 
+  const encodeUTF8 = (text: string): number[] => {
+    const bytes: number[] = [];
+    for (let i = 0; i < text.length; i++) {
+      let code = text.charCodeAt(i);
+      if (code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length) {
+        const next = text.charCodeAt(i + 1);
+        if (next >= 0xDC00 && next <= 0xDFFF) {
+          code = ((code - 0xD800) << 10) + (next - 0xDC00) + 0x10000;
+          i++;
+        }
+      }
+      if (code <= 0x7F) { bytes.push(code); }
+      else if (code <= 0x7FF) { bytes.push(0xC0 | (code >> 6), 0x80 | (code & 0x3F)); }
+      else if (code <= 0xFFFF) { bytes.push(0xE0 | (code >> 12), 0x80 | ((code >> 6) & 0x3F), 0x80 | (code & 0x3F)); }
+      else { bytes.push(0xF0 | (code >> 18), 0x80 | ((code >> 12) & 0x3F), 0x80 | ((code >> 6) & 0x3F), 0x80 | (code & 0x3F)); }
+    }
+    return bytes;
+  };
+
   const printTextWithCodePage = async ({
     header,
     bodyLines,
     footer,
-    codePage,
   }: {
     header?: string[];
     bodyLines: string[];
     footer?: string[];
-    codePage: number;
+    codePage?: number;
   }) => {
     const commands: number[] = [];
+    commands.push(0x1b, 0x40); // ESC @ - Reset
 
-    // Initialize and set code page
-    commands.push(0x1b, 0x40); // ESC @
-    commands.push(0x1b, 0x52, 0x08); // Arabic international set
-    commands.push(0x1b, 0x74, codePage);
-    commands.push(0x1d, 0x74, codePage);
-
-    const encodeAndAppend = (text: string) => {
-      const encoded = encodeWindows1256(text);
-      commands.push(...encoded);
+    const appendLine = (text: string) => {
+      commands.push(...encodeUTF8(text));
+      commands.push(0x0a);
     };
 
     if (header && header.length > 0) {
       commands.push(0x1b, 0x61, 0x01); // Center
-      header.forEach((line) => {
-        encodeAndAppend(line);
-        commands.push(0x0a);
-      });
+      header.forEach((ln) => appendLine(ln));
       commands.push(0x0a);
     }
 
-    commands.push(0x1b, 0x61, 0x00); // Left alignment for body
-    bodyLines.forEach((line) => {
-      encodeAndAppend(line);
-      commands.push(0x0a);
-    });
+    commands.push(0x1b, 0x61, 0x00); // Left
+    bodyLines.forEach((ln) => appendLine(ln));
 
     if (footer && footer.length > 0) {
       commands.push(0x0a);
       commands.push(0x1b, 0x61, 0x01); // Center
-      footer.forEach((line) => {
-        encodeAndAppend(line);
-        commands.push(0x0a);
-      });
-      commands.push(0x1b, 0x61, 0x00); // Back to left
+      footer.forEach((ln) => appendLine(ln));
     }
 
     commands.push(0x0a);
-    commands.push(0x1d, 0x56, 0x42, 0x00); // Full cut
-    commands.push(0x1b, 0x64, 0x03);
+    commands.push(0x1b, 0x64, 0x03); // Feed 3 lines
+    commands.push(0x1d, 0x56, 0x42, 0x00); // Cut
 
     await sendEscPosCommands(commands);
   };
@@ -1033,7 +777,6 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
         header,
         bodyLines,
         footer,
-        codePage: DEFAULT_ARABIC_CODE_PAGE,
       });
       console.log('✅ Direct text printing completed via BLE');
     } catch (e) {
@@ -1393,16 +1136,6 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={printCodePageDiagnostics}
-              className="mt-2 rounded-xl bg-indigo-600 py-3"
-            >
-              <View className="flex-row items-center justify-center">
-                <Ionicons name="document-text" size={20} color="white" />
-                <Text className="ml-2 font-semibold text-white">Print Code Page Test</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
               onPress={testArabicPrinting}
               className="mt-2 rounded-xl bg-green-600 py-3"
             >
@@ -1475,10 +1208,11 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
                           // Try to extract name from manufacturer data or service UUIDs
                           if (item.serviceUUIDs && item.serviceUUIDs.length > 0) {
                             // Find the print service (try common UUIDs)
-                            const printService = item.serviceUUIDs.find((s: any) => s.uuid.toLowerCase() === '49535343-fe7d-4ae5-8fa9-9fafd205e455') ||
-                                             item.serviceUUIDs.find((s: any) => s.uuid.toLowerCase() === '000018f0-0000-1000-8000-00805f9b34fb') ||
-                                             item.serviceUUIDs.find((s: any) => s.uuid.toLowerCase().includes('18f0')) ||
-                                             item.serviceUUIDs.find((s: any) => s.uuid.toLowerCase().includes('print'));
+                            // serviceUUIDs are strings, not objects
+                            const printService = item.serviceUUIDs.find((s: any) => typeof s === 'string' && s.toLowerCase() === '49535343-fe7d-4ae5-8fa9-9fafd205e455') ||
+                                             item.serviceUUIDs.find((s: any) => typeof s === 'string' && s.toLowerCase() === '000018f0-0000-1000-8000-00805f9b34fb') ||
+                                             item.serviceUUIDs.find((s: any) => typeof s === 'string' && s.toLowerCase().includes('18f0')) ||
+                                             item.serviceUUIDs.find((s: any) => typeof s === 'string' && s.toLowerCase().includes('print'));
                             if (printService) return 'Thermal Printer';
                           }
                           

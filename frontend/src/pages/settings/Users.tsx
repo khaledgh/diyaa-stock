@@ -237,6 +237,7 @@ export default function Users() {
                   <TableHead>Position</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Commission</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -244,7 +245,7 @@ export default function Users() {
               <TableBody>
                 {users?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -266,6 +267,16 @@ export default function Users() {
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)}`}>
                           {user.role}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        {user.role === 'sales' && user.commission_rate ? (
+                          <span className="inline-flex items-center gap-1 text-sm font-semibold text-green-700 dark:text-green-400">
+                            <Briefcase className="h-3.5 w-3.5" />
+                            {user.commission_rate}%
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <span

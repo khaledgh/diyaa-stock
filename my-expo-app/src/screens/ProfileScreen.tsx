@@ -73,6 +73,16 @@ export default function ProfileScreen({ navigation }: any) {
               </View>
             )}
 
+            {user?.role === 'sales' && user?.commission_rate !== undefined && (
+              <View className="mb-3 pb-3 border-b border-gray-100">
+                <Text className="text-xs text-gray-500 mb-1">Commission Rate</Text>
+                <View className="flex-row items-center">
+                  <Ionicons name="cash-outline" size={18} color="#10B981" />
+                  <Text className="text-base text-gray-900 font-semibold ml-2">{user.commission_rate}%</Text>
+                </View>
+              </View>
+            )}
+
             <View>
               <Text className="text-xs text-gray-500 mb-1">Account Status</Text>
               <View className="flex-row items-center">
@@ -81,6 +91,21 @@ export default function ProfileScreen({ navigation }: any) {
               </View>
             </View>
           </View>
+
+          {/* User Management Button (Admin Only) */}
+          {user?.role === 'admin' && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('UserManagement')}
+              className="bg-white rounded-2xl py-4 mb-3 flex-row items-center justify-between px-4"
+              style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 }}
+            >
+              <View className="flex-row items-center">
+                <Ionicons name="people" size={24} color="#7C3AED" />
+                <Text className="text-gray-900 font-semibold text-base ml-3">User Management</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
 
           {/* Printer Settings Button */}
           <TouchableOpacity
