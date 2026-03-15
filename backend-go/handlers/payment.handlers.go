@@ -36,15 +36,20 @@ type PaymentHandler struct {
 	SalesInvoiceServices    SalesInvoiceServiceForPayment
 	PurchaseInvoiceServices PurchaseInvoiceServiceForPayment
 	CreditNoteServices      CreditNoteServiceForPayment
+	DB                      *gorm.DB
 }
 
-func NewPaymentHandler(ps PaymentService, sis SalesInvoiceServiceForPayment, pis PurchaseInvoiceServiceForPayment, cns CreditNoteServiceForPayment) *PaymentHandler {
-	return &PaymentHandler{
+func NewPaymentHandler(ps PaymentService, sis SalesInvoiceServiceForPayment, pis PurchaseInvoiceServiceForPayment, cns CreditNoteServiceForPayment, db ...*gorm.DB) *PaymentHandler {
+	h := &PaymentHandler{
 		PaymentServices:         ps,
 		SalesInvoiceServices:    sis,
 		PurchaseInvoiceServices: pis,
 		CreditNoteServices:      cns,
 	}
+	if len(db) > 0 {
+		h.DB = db[0]
+	}
+	return h
 }
 
 func (ph *PaymentHandler) GetAllHandler(c echo.Context) error {
@@ -176,6 +181,18 @@ func (ph *PaymentHandler) CreateHandler(c echo.Context) error {
 		}
 
 		ph.SalesInvoiceServices.Update(invoice)
+	}
+
+	// Update customer/vendor balance ledger (payment reduces outstanding balance)
+	if ph.DB != nil && req.Amount > 0 {
+		if customerID != nil && *customerID > 0 {
+			ph.DB.Model(&models.Customer{}).Where("id = ?", *customerID).
+				Update("balance", gorm.Expr("CASE WHEN balance - ? < 0 THEN 0 ELSE balance - ? END", req.Amount, req.Amount))
+		}
+		if vendorID != nil && *vendorID > 0 {
+			ph.DB.Model(&models.Vendor{}).Where("id = ?", *vendorID).
+				Update("balance", gorm.Expr("CASE WHEN balance - ? < 0 THEN 0 ELSE balance - ? END", req.Amount, req.Amount))
+		}
 	}
 
 	return ResponseSuccess(c, "Payment recorded successfully", createdPayment)

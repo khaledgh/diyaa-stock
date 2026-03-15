@@ -5,10 +5,29 @@ export interface User {
   role: string;
   location_id?: number;
   location_name?: string;
+  location_ids?: number[];
+  locations?: Location[];
   is_active: boolean;
   commission_rate?: number;
   phone?: string;
   position?: string;
+}
+
+export interface Location {
+  id: number;
+  name: string;
+  type: string;
+  address?: string;
+  phone?: string;
+  is_active: boolean;
+}
+
+export interface Category {
+  id: number;
+  name_en: string;
+  name_ar?: string;
+  description?: string;
+  is_active: boolean;
 }
 
 export interface Product {

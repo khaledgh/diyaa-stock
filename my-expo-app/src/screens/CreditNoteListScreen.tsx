@@ -26,8 +26,7 @@ export default function CreditNoteListScreen({ navigation }: any) {
             if (res.ok || res.success) {
                 setCreditNotes(res.data || []);
             }
-        } catch (e) {
-            console.error(e);
+        } catch {
             Alert.alert('Error', 'Failed to fetch credit notes');
         } finally {
             setIsLoading(false);

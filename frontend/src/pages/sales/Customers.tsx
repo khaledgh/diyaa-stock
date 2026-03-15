@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Users, Search, FileText, Phone, Mail, MapPin } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, Search, FileText, Phone, Mail, MapPin, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +27,7 @@ export default function Customers() {
     address: '',
     tax_number: '',
     credit_limit: '0',
+    opening_balance: '0',
   });
 
   const { data: customersResponse, isLoading } = useQuery({
@@ -100,7 +101,7 @@ export default function Customers() {
       setFormData(customer);
     } else {
       setEditingCustomer(null);
-      setFormData({ name: '', phone: '', email: '', address: '', tax_number: '', credit_limit: '0' });
+      setFormData({ name: '', phone: '', email: '', address: '', tax_number: '', credit_limit: '0', opening_balance: '0' });
     }
     setIsDialogOpen(true);
   };
@@ -202,6 +203,19 @@ export default function Customers() {
                   )}
                 </div>
 
+                {/* Balance */}
+                {(customer.balance !== undefined && customer.balance !== 0) && (
+                  <div className="mt-3 flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <DollarSign className="h-3 w-3" />
+                      Outstanding Balance
+                    </span>
+                    <span className={`text-sm font-bold ${customer.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {Number(customer.balance).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
                 {/* Actions */}
                 <div className="flex items-center gap-2 mt-4 pt-4 border-t">
                   <Link to={`/customers/${customer.id}/statement`} className="flex-1">
@@ -293,6 +307,20 @@ export default function Customers() {
                   placeholder="Address"
                 />
               </div>
+              {!editingCustomer && (
+                <div className="space-y-2">
+                  <Label htmlFor="opening_balance">Opening Balance</Label>
+                  <Input 
+                    id="opening_balance" 
+                    type="number"
+                    step="0.01"
+                    value={formData.opening_balance} 
+                    onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} 
+                    placeholder="0.00"
+                  />
+                  <p className="text-xs text-muted-foreground">Positive = amount owed by customer</p>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>

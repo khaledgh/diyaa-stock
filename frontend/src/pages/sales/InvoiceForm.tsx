@@ -462,9 +462,17 @@ export default function InvoiceForm() {
             </Card>
 
             {/* Add Items */}
-            <Card className="border-0 shadow-lg">
+            <Card className={`border-0 shadow-lg ${invoiceType === 'sales' && !selectedCustomer ? 'opacity-60 pointer-events-none' : ''}`}>
               <CardHeader>
-                <CardTitle>Add Items</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  Add Items
+                  {invoiceType === 'sales' && !selectedCustomer && (
+                    <span className="text-sm font-normal text-orange-600 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      Please select a customer first
+                    </span>
+                  )}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">

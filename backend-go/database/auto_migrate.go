@@ -59,6 +59,11 @@ func AutoMigrate(db *gorm.DB) error {
 		// Chatbot
 		&models.ChatSession{},
 		&models.ChatMessage{},
+
+		// Multi-location & sessions
+		&models.UserLocation{},
+		&models.DailyLocationSession{},
+		&models.SystemSetting{},
 	)
 
 	if err != nil {

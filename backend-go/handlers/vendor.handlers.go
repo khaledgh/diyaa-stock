@@ -66,6 +66,10 @@ func (vh *VendorHandler) CreateHandler(c echo.Context) error {
 	if err := c.Bind(&vendor); err != nil {
 		return ResponseError(c, err)
 	}
+	// Set initial balance to opening balance on create
+	if vendor.OpeningBalance != 0 && vendor.Balance == 0 {
+		vendor.Balance = vendor.OpeningBalance
+	}
 	response, err := vh.VendorServices.Create(vendor)
 	if err != nil {
 		return ResponseError(c, err)

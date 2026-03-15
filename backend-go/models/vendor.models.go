@@ -11,6 +11,8 @@ type Vendor struct {
 	Address        *string    `json:"address" gorm:"type:text"`
 	TaxNumber      *string    `json:"tax_number" gorm:"size:50"`
 	PaymentTerms   *string    `json:"payment_terms" gorm:"size:100"`
+	OpeningBalance float64    `json:"opening_balance" gorm:"type:decimal(15,2);default:0"`
+	Balance        float64    `json:"balance" gorm:"type:decimal(15,2);default:0"`
 	IsActive       bool       `json:"is_active" gorm:"default:true"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`

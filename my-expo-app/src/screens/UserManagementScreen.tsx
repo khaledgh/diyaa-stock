@@ -22,14 +22,17 @@ export default function UserManagementScreen({ navigation }: any) {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [commissionRate, setCommissionRate] = useState('');
   const [saving, setSaving] = useState(false);
+  const [passwordUser, setPasswordUser] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiService.getUsers();
       setUsers(response.data || []);
-    } catch (error) {
-      console.error('Failed to load users:', error);
+    } catch {
       Alert.alert('Error', 'Failed to load users');
     } finally {
       setLoading(false);
@@ -62,12 +65,6 @@ export default function UserManagementScreen({ navigation }: any) {
 
     try {
       setSaving(true);
-      console.log('Updating user commission rate:', {
-        userId: editingUser.id,
-        newRate: rate,
-        userName: editingUser.full_name,
-      });
-      
       const response = await apiService.updateUser(editingUser.id, {
         email: editingUser.email,
         full_name: editingUser.full_name,
@@ -79,16 +76,41 @@ export default function UserManagementScreen({ navigation }: any) {
         commission_rate: rate,
       });
       
-      console.log('Update response:', response);
       Alert.alert('Success', 'Commission rate updated successfully');
       setEditingUser(null);
       await loadUsers();
     } catch (error: any) {
-      console.error('Failed to update commission rate:', error);
-      console.error('Error response:', error.response?.data);
       Alert.alert('Error', error.response?.data?.message || 'Failed to update commission rate');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordUser) return;
+    if (!newPassword || newPassword.length < 4) {
+      Alert.alert('Error', 'Password must be at least 4 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+    try {
+      setSavingPassword(true);
+      const res = await apiService.updateUser(passwordUser.id, { password: newPassword });
+      if (res.ok || res.success) {
+        Alert.alert('Success', `Password updated for ${passwordUser.full_name}`);
+        setPasswordUser(null);
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        Alert.alert('Error', res.message || 'Failed to update password');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to update password');
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -166,27 +188,27 @@ export default function UserManagementScreen({ navigation }: any) {
                 </View>
               </View>
 
-              {user.role === 'sales' && (
-                <View className="border-t border-gray-100 pt-3 mt-2">
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-row items-center">
-                      <Ionicons name="cash-outline" size={20} color="#10B981" />
-                      <View className="ml-2">
-                        <Text className="text-xs text-gray-500">Commission Rate</Text>
-                        <Text className="text-base text-gray-900 font-semibold">
-                          {user.commission_rate || 0}%
-                        </Text>
-                      </View>
-                    </View>
+              <View className="border-t border-gray-100 pt-3 mt-2 flex-row items-center justify-between">
+                <TouchableOpacity
+                  onPress={() => { setPasswordUser(user); setNewPassword(''); setConfirmPassword(''); }}
+                  className="flex-row items-center bg-yellow-50 border border-yellow-200 px-3 py-2 rounded-lg"
+                >
+                  <Ionicons name="lock-closed" size={16} color="#F59E0B" />
+                  <Text className="text-yellow-700 text-xs font-semibold ml-1">Password</Text>
+                </TouchableOpacity>
+                {user.role === 'sales' && (
+                  <View className="flex-row items-center">
+                    <Ionicons name="cash-outline" size={18} color="#10B981" />
+                    <Text className="text-sm text-gray-700 font-semibold ml-1">{user.commission_rate || 0}%</Text>
                     <TouchableOpacity
                       onPress={() => openEditCommission(user)}
-                      className="bg-blue-600 px-4 py-2 rounded-lg"
+                      className="bg-blue-600 px-3 py-2 rounded-lg ml-2"
                     >
-                      <Text className="text-white text-sm font-semibold">Edit Rate</Text>
+                      <Text className="text-white text-xs font-semibold">Edit Rate</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
-              )}
+                )}
+              </View>
             </View>
           ))}
         </View>
@@ -267,6 +289,57 @@ export default function UserManagementScreen({ navigation }: any) {
               )}
             </ScrollView>
           </SafeAreaView>
+        </View>
+      </Modal>
+      {/* Change Password Modal */}
+      <Modal
+        visible={!!passwordUser}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setPasswordUser(null)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
+          <View className="bg-white rounded-3xl p-6">
+            <Text className="text-xl font-bold text-gray-900 mb-1">Change Password</Text>
+            {passwordUser && (
+              <Text className="text-sm text-gray-500 mb-4">{passwordUser.full_name}</Text>
+            )}
+            <View className="mb-4">
+              <Text className="text-xs text-gray-500 font-bold mb-1">NEW PASSWORD</Text>
+              <TextInput
+                className="border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
+                secureTextEntry
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="Enter new password"
+              />
+            </View>
+            <View className="mb-6">
+              <Text className="text-xs text-gray-500 font-bold mb-1">CONFIRM PASSWORD</Text>
+              <TextInput
+                className="border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirm new password"
+              />
+            </View>
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                onPress={() => { setPasswordUser(null); setNewPassword(''); setConfirmPassword(''); }}
+                className="flex-1 h-12 items-center justify-center bg-gray-100 rounded-xl"
+              >
+                <Text className="text-gray-700 font-bold">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleChangePassword}
+                disabled={savingPassword}
+                className={`flex-1 h-12 items-center justify-center rounded-xl ${savingPassword ? 'bg-yellow-300' : 'bg-yellow-500'}`}
+              >
+                {savingPassword ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold">Update</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>

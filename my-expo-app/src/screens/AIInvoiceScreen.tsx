@@ -98,8 +98,8 @@ export default function AIInvoiceScreen() {
           setCustomers(allCustomers);
         }
       }
-    } catch (error) {
-      console.error('Failed to load AI invoice data:', error);
+    } catch {
+      // silently fail
     }
   };
 
@@ -144,7 +144,6 @@ export default function AIInvoiceScreen() {
       });
       setMode('review');
     } catch (error: any) {
-      console.error('AI extraction failed:', error);
       Alert.alert('AI Error', error.message || 'Failed to process text. Please try again.');
       setMode('idle');
     } finally {
@@ -190,8 +189,7 @@ export default function AIInvoiceScreen() {
         setCapturedImageUri(result.assets[0].uri);
         processImage(result.assets[0].uri);
       }
-    } catch (error) {
-      console.error('Image picker error:', error);
+    } catch {
       Alert.alert('Error', 'Failed to open image picker. Please use "Take Photo" instead.');
     }
   };
@@ -218,7 +216,6 @@ export default function AIInvoiceScreen() {
       });
       setMode('review');
     } catch (error: any) {
-      console.error('AI image extraction failed:', error);
       Alert.alert('AI Error', error.message || 'Failed to process image. Please try again.');
       setMode('idle');
     } finally {
@@ -295,7 +292,6 @@ export default function AIInvoiceScreen() {
         }
       }
     } catch (error: any) {
-      console.error('Failed to create invoice:', error);
       Alert.alert('Error', error.message || 'Failed to create invoice');
     } finally {
       setIsSubmitting(false);

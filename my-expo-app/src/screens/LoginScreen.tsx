@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
@@ -95,19 +96,23 @@ export default function LoginScreen() {
         {/* Logo/Icon Section */}
         <View className="items-center mb-12">
           <View 
-            className="w-24 h-24 bg-blue-600 rounded-3xl items-center justify-center mb-6"
+            className="w-28 h-28 rounded-3xl items-center justify-center mb-4 bg-white"
             style={{
-              shadowColor: '#3B82F6',
+              shadowColor: '#000',
               shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.3,
+              shadowOpacity: 0.15,
               shadowRadius: 16,
               elevation: 12,
             }}
           >
-            <Ionicons name="cart" size={48} color="#FFFFFF" />
+            <Image
+              source={require('../../assets/ic_launcher.png')}
+              style={{ width: 80, height: 80 }}
+              resizeMode="contain"
+            />
           </View>
-          <Text className="text-4xl font-bold text-gray-900 mb-2">Welcome Back</Text>
-          <Text className="text-gray-500 text-base">Sign in to continue to POS</Text>
+          <Text className="text-3xl font-bold text-gray-900 mb-1">DaftarStock</Text>
+          <Text className="text-gray-500 text-base">Sign in to your account</Text>
         </View>
 
         {/* Form Section */}
@@ -226,7 +231,7 @@ export default function LoginScreen() {
         <View className="mt-12 items-center">
           <View className="flex-row items-center mb-2">
             <View className="w-2 h-2 rounded-full bg-green-500 mr-2" />
-            <Text className="text-gray-400 text-sm font-medium">Diyaa Stock POS System</Text>
+            <Text className="text-gray-400 text-sm font-medium">DaftarStock POS System</Text>
           </View>
           <Text className="text-gray-400 text-xs">Version 1.0.0</Text>
         </View>

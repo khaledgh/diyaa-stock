@@ -5,6 +5,9 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Modal,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,15 +32,18 @@ export default function DashboardScreen({ navigation }: any) {
   const [locations, setLocations] = useState<any[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
   const [commissionData, setCommissionData] = useState<any[]>([]);
+  const [showCommissionReport, setShowCommissionReport] = useState(false);
+  const [commissionPeriod, setCommissionPeriod] = useState<'week' | 'month' | 'custom'>('week');
+  const [reportData, setReportData] = useState<any[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const isAdmin = user?.role === 'admin';
 
   const loadDashboardData = useCallback(async () => {
     try {
       const locationForQuery = isAdmin ? selectedLocationId : user?.location_id;
-      console.log('Loading dashboard data for location_id:', locationForQuery);
-
       if (!isAdmin && !user?.location_id) {
-        console.warn('No location_id found for non-admin user. User data:', user);
         setIsLoading(false);
         return;
       }
@@ -56,11 +62,8 @@ export default function DashboardScreen({ navigation }: any) {
 
       const invoicesResponse = await apiService.getInvoices(invoiceParams);
 
-      console.log('Invoices response:', invoicesResponse);
-
       if (invoicesResponse.ok || invoicesResponse.success) {
         const invoices = invoicesResponse.invoices?.data || invoicesResponse.data?.data || [];
-        console.log(`Loaded ${invoices.length} invoices for location ${user.location_id}`);
 
         const now = new Date();
         const todayStart = new Date(now.setHours(0, 0, 0, 0));
@@ -113,9 +116,8 @@ export default function DashboardScreen({ navigation }: any) {
           stockValue: 0, // Would need stock endpoint
         });
       }
-    } catch (error: any) {
-      console.error('Failed to load dashboard data:', error);
-      console.error('Error details:', error.response?.data || error.message);
+    } catch {
+      // silently fail
     } finally {
       setIsLoading(false);
     }
@@ -128,8 +130,8 @@ export default function DashboardScreen({ navigation }: any) {
       if (resp.data) {
         setLocations(resp.data);
       }
-    } catch (e) {
-      console.error('Failed to load locations', e);
+    } catch {
+      // silently fail
     }
   }, [isAdmin]);
 
@@ -140,11 +142,47 @@ export default function DashboardScreen({ navigation }: any) {
       if (resp?.data) {
         setCommissionData(resp.data);
       }
-    } catch (_) {
-      // Commission API may not exist yet — silently fail
-      console.log('Commission API not available yet');
+    } catch {
+      // silently fail
     }
   }, [isAdmin]);
+
+  const getDateRange = (period: 'week' | 'month' | 'custom') => {
+    const now = new Date();
+    const to = now.toISOString().split('T')[0];
+    if (period === 'week') {
+      const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      return { from_date: from, to_date: to };
+    }
+    if (period === 'month') {
+      const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      return { from_date: from, to_date: to };
+    }
+    return { from_date: customFrom, to_date: customTo };
+  };
+
+  const loadCommissionReport = async (period?: 'week' | 'month' | 'custom') => {
+    const p = period || commissionPeriod;
+    if (p === 'custom' && (!customFrom || !customTo)) return;
+    try {
+      setReportLoading(true);
+      const params = getDateRange(p);
+      const resp = await apiService.getCommissions(params);
+      setReportData(resp?.data || []);
+    } catch {
+      setReportData([]);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const openCommissionReport = (period: 'week' | 'month' | 'custom') => {
+    setCommissionPeriod(period);
+    setShowCommissionReport(true);
+    if (period !== 'custom') {
+      loadCommissionReport(period);
+    }
+  };
 
   useEffect(() => {
     loadDashboardData();
@@ -382,6 +420,27 @@ export default function DashboardScreen({ navigation }: any) {
             </View>
           </View>
 
+          {/* Commission Report Button - Admin Only */}
+          {isAdmin && (
+            <TouchableOpacity
+              onPress={() => openCommissionReport('week')}
+              className="bg-purple-600 rounded-2xl p-4 mt-4 flex-row items-center justify-between"
+              style={{ elevation: 4, shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
+              activeOpacity={0.8}
+            >
+              <View className="flex-row items-center">
+                <View className="w-12 h-12 bg-white/20 rounded-xl items-center justify-center mr-3">
+                  <Ionicons name="document-text" size={24} color="#FFFFFF" />
+                </View>
+                <View>
+                  <Text className="text-white text-base font-bold">Commission Report</Text>
+                  <Text className="text-purple-200 text-xs">View sales rep commissions</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+
           {/* Sales Rep Commission Widget - Admin Only */}
           {isAdmin && (
             <View
@@ -437,6 +496,121 @@ export default function DashboardScreen({ navigation }: any) {
           )}
         </View>
       </ScrollView>
+
+      {/* Commission Report Modal */}
+      <Modal visible={showCommissionReport} animationType="slide" transparent onRequestClose={() => setShowCommissionReport(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <TouchableOpacity activeOpacity={1} onPress={() => setShowCommissionReport(false)} style={{ flex: 1 }} />
+          <View className="bg-white rounded-t-3xl" style={{ maxHeight: '85%' }}>
+            <SafeAreaView edges={['bottom']}>
+              <View className="p-5">
+                <View className="items-center mb-3">
+                  <View className="w-10 h-1 bg-gray-300 rounded-full" />
+                </View>
+                <View className="flex-row items-center justify-between mb-4">
+                  <Text className="text-gray-900 text-xl font-bold">Commission Report</Text>
+                  <TouchableOpacity onPress={() => setShowCommissionReport(false)}>
+                    <Ionicons name="close" size={24} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Period Selector */}
+                <View className="flex-row gap-2 mb-4">
+                  {(['week', 'month', 'custom'] as const).map((p) => (
+                    <TouchableOpacity
+                      key={p}
+                      onPress={() => {
+                        setCommissionPeriod(p);
+                        if (p !== 'custom') loadCommissionReport(p);
+                      }}
+                      className={`flex-1 py-2.5 rounded-xl items-center border ${commissionPeriod === p ? 'bg-purple-600 border-purple-600' : 'bg-white border-gray-200'}`}
+                    >
+                      <Text className={`text-sm font-semibold ${commissionPeriod === p ? 'text-white' : 'text-gray-600'}`}>
+                        {p === 'week' ? '1 Week' : p === 'month' ? '1 Month' : 'Custom'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Custom Date Inputs */}
+                {commissionPeriod === 'custom' && (
+                  <View className="mb-4">
+                    <View className="flex-row gap-3 mb-3">
+                      <View className="flex-1">
+                        <Text className="text-xs text-gray-500 font-bold mb-1">FROM (YYYY-MM-DD)</Text>
+                        <TextInput
+                          className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900"
+                          placeholder="2025-01-01"
+                          value={customFrom}
+                          onChangeText={setCustomFrom}
+                        />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-xs text-gray-500 font-bold mb-1">TO (YYYY-MM-DD)</Text>
+                        <TextInput
+                          className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900"
+                          placeholder="2025-12-31"
+                          value={customTo}
+                          onChangeText={setCustomTo}
+                        />
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => loadCommissionReport('custom')}
+                      className="bg-purple-600 rounded-xl py-3 items-center"
+                    >
+                      <Text className="text-white font-bold text-sm">Generate Report</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Report Results */}
+                {reportLoading ? (
+                  <View className="items-center py-10">
+                    <ActivityIndicator size="large" color="#7C3AED" />
+                    <Text className="text-gray-500 text-sm mt-3">Loading report...</Text>
+                  </View>
+                ) : reportData.length > 0 ? (
+                  <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
+                    <View className="mb-3 flex-row items-center justify-between bg-purple-50 rounded-xl p-3">
+                      <Text className="text-purple-700 text-xs font-bold">Total Commission Owed</Text>
+                      <Text className="text-purple-700 text-lg font-black">
+                        ${reportData.reduce((sum: number, r: any) => sum + (r.commission_owed || 0), 0).toFixed(2)}
+                      </Text>
+                    </View>
+                    {reportData.map((rep: any, index: number) => (
+                      <View key={rep.user_id || index} className="bg-gray-50 rounded-xl p-3 mb-2">
+                        <View className="flex-row items-center justify-between">
+                          <View className="flex-row items-center flex-1">
+                            <View className="w-9 h-9 rounded-full bg-purple-100 items-center justify-center mr-3">
+                              <Text className="text-purple-600 font-bold text-sm">
+                                {(rep.name || 'U').charAt(0).toUpperCase()}
+                              </Text>
+                            </View>
+                            <View className="flex-1">
+                              <Text className="text-gray-900 font-semibold text-sm">{rep.name || 'Unknown'}</Text>
+                              <Text className="text-gray-400 text-xs">{rep.commission_rate || 0}% rate</Text>
+                            </View>
+                          </View>
+                          <View className="items-end">
+                            <Text className="text-gray-500 text-xs">Sales: ${(rep.total_sales || 0).toFixed(0)}</Text>
+                            <Text className="text-purple-600 font-bold text-base">${(rep.commission_owed || 0).toFixed(2)}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <View className="items-center py-10">
+                    <Ionicons name="document-text-outline" size={40} color="#D1D5DB" />
+                    <Text className="text-gray-400 text-sm mt-2">No commission data for this period</Text>
+                  </View>
+                )}
+              </View>
+            </SafeAreaView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

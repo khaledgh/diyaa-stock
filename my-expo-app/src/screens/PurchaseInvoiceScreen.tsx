@@ -62,18 +62,16 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
             // Vendor API returns paginated format: {data: [], current_page, total}
             if (vendorsRes.data && Array.isArray(vendorsRes.data)) {
                 const vendorData = vendorsRes.data;
-                console.log('📦 Loaded vendors:', vendorData.length, vendorData);
                 setVendors(vendorData);
             } else {
-                console.error('❌ Failed to load vendors:', vendorsRes);
                 setVendors([]);
             }
 
             if (locationsRes.success || locationsRes.ok) {
                 setLocations(locationsRes.data || []);
             }
-        } catch (error) {
-            console.error('Failed to load purchase data:', error);
+        } catch {
+            // silently fail
             Alert.alert('Error', 'Failed to initialize screen');
         } finally {
             setIsLoading(false);
@@ -92,7 +90,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
 
     const confirmAddToCart = () => {
         if (!selectedProduct) return;
-        const qty = parseInt(tempQty) || 1;
+        const qty = parseFloat(tempQty.replace(',', '.')) || 1;
         const price = parseFloat(tempPrice) || selectedProduct.unit_price;
         const existingItem = cart.find(item => item.product.id === selectedProduct.id);
         if (existingItem) {
@@ -160,8 +158,6 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
             setIsLoading(true);
             const aiResult = await apiService.extractDataWithAI('Extract this purchase invoice', result.assets[0].base64);
 
-            console.log('AI Extraction Result:', aiResult);
-
             if (aiResult.vendor_name) {
                 const foundVendor = vendors.find(v => v.name.toLowerCase().includes(aiResult.vendor_name.toLowerCase()));
                 if (foundVendor) setSelectedVendor(foundVendor);
@@ -188,8 +184,8 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                 setCart([...cart, ...newCartItems]);
                 Alert.alert('AI Success', `Imported ${newCartItems.length} items from scan!`);
             }
-        } catch (error) {
-            console.error('Scan Error:', error);
+        } catch {
+            // silently fail
             Alert.alert('Scan Failed', 'Unable to extract data from image.');
         } finally {
             setIsLoading(false);
@@ -227,8 +223,8 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
             } else {
                 Alert.alert('Error', res.message || 'Submission failed');
             }
-        } catch (error) {
-            console.error('Submit error:', error);
+        } catch {
+            // silently fail
             Alert.alert('Error', 'Communication failure');
         } finally {
             setIsSubmitting(false);
@@ -284,13 +280,27 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                 {/* Items Section Header */}
                 <View className="flex-row items-center justify-between mb-3 px-1">
                     <Text className="text-lg font-bold text-gray-900">Purchase Items</Text>
-                    <TouchableOpacity
-                        onPress={() => setShowItemModal(true)}
-                        className="flex-row items-center bg-blue-600 px-4 py-2 rounded-xl"
-                    >
-                        <Ionicons name="add" size={18} color="white" />
-                        <Text className="text-white font-bold ml-1">Add</Text>
-                    </TouchableOpacity>
+                    <View className="flex-row items-center gap-2">
+                        {cart.length > 0 && (
+                            <TouchableOpacity
+                                onPress={() => Alert.alert('Clear All', 'Remove all items from the list?', [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Clear', style: 'destructive', onPress: () => setCart([]) },
+                                ])}
+                                className="flex-row items-center bg-red-50 border border-red-200 px-3 py-2 rounded-xl"
+                            >
+                                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                                <Text className="text-red-500 font-bold ml-1">Clear</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                            onPress={() => setShowItemModal(true)}
+                            className="flex-row items-center bg-blue-600 px-4 py-2 rounded-xl"
+                        >
+                            <Ionicons name="add" size={18} color="white" />
+                            <Text className="text-white font-bold ml-1">Add</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Cart/Items List */}
@@ -317,9 +327,10 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                     <Text className="text-xs text-gray-400 mb-1">UNIT PRICE</Text>
                                     <TextInput
                                         className="border border-gray-200 rounded-lg px-3 py-2 text-gray-900 font-bold"
-                                        keyboardType="numeric"
+                                        keyboardType="decimal-pad"
                                         value={item.unit_price.toString()}
-                                        onChangeText={(val) => updateCartPrice(item.product.id, parseFloat(val) || 0)}
+                                        onChangeText={(val) => updateCartPrice(item.product.id, parseFloat(val.replace(',', '.')) || 0)}
+                                        selectTextOnFocus
                                     />
                                 </View>
                                 <View className="flex-row items-center bg-gray-100 rounded-xl px-2 py-1">
@@ -344,35 +355,29 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
             </ScrollView>
 
             {/* Footer / Summary */}
-            <SafeAreaView edges={['bottom']} className="bg-white border-t border-gray-100 rounded-t-3xl" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10 }}>
-                <View className="p-6">
-                    <View className="flex-row justify-between items-center mb-4">
-                        <View>
-                            <Text className="text-gray-500 text-sm">Grand Total</Text>
-                            <Text className="text-2xl font-black text-blue-600">${calculateTotal().toFixed(2)}</Text>
-                        </View>
-                        <View className="items-end">
-                            <Text className="text-gray-400 text-xs">ITEMS: {cart.length}</Text>
-                        </View>
+            <View className="bg-white border-t border-gray-100" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 8 }}>
+                <View className="px-4 py-2 flex-row items-center justify-between">
+                    <View>
+                        <Text className="text-gray-400 text-xs">TOTAL ({cart.length} items)</Text>
+                        <Text className="text-xl font-black text-blue-600">${calculateTotal().toFixed(2)}</Text>
                     </View>
-
                     <TouchableOpacity
                         onPress={handleSubmit}
-                        disabled={isSubmitting}
-                        className={`flex-row items-center justify-center h-14 rounded-2xl ${isSubmitting || cart.length === 0 ? 'bg-gray-300' : 'bg-blue-600'}`}
+                        disabled={isSubmitting || cart.length === 0}
+                        className={`flex-row items-center justify-center h-12 px-6 rounded-2xl ${isSubmitting || cart.length === 0 ? 'bg-gray-300' : 'bg-blue-600'}`}
                         style={{ elevation: 4 }}
                     >
                         {isSubmitting ? (
                             <ActivityIndicator color="white" />
                         ) : (
                             <>
-                                <Ionicons name="checkmark-done" size={22} color="white" />
-                                <Text className="text-white font-bold text-lg ml-2">Submit Invoice</Text>
+                                <Ionicons name="checkmark-done" size={20} color="white" />
+                                <Text className="text-white font-bold text-base ml-2">Submit</Text>
                             </>
                         )}
                     </TouchableOpacity>
                 </View>
-            </SafeAreaView>
+            </View>
 
             {/* Vendor Selection Modal — bottom drawer */}
             <Modal visible={showVendorModal} animationType="slide" transparent onRequestClose={() => setShowVendorModal(false)}>
@@ -534,19 +539,20 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                     <Text className="text-xs text-gray-400 font-bold mb-1">QUANTITY</Text>
                                     <View className="flex-row items-center">
                                         <TouchableOpacity
-                                            onPress={() => setTempQty(String(Math.max(1, (parseInt(tempQty) || 1) - 1)))}
+                                            onPress={() => setTempQty(String(Math.max(1, (parseFloat(tempQty.replace(',', '.')) || 1) - 1)))}
                                             className="w-12 h-12 items-center justify-center bg-gray-100 rounded-xl"
                                         >
                                             <Ionicons name="remove" size={22} color="#374151" />
                                         </TouchableOpacity>
                                         <TextInput
                                             className="flex-1 text-center text-xl font-bold text-gray-900 mx-3 border border-gray-200 rounded-xl py-2"
-                                            keyboardType="numeric"
+                                            keyboardType="decimal-pad"
                                             value={tempQty}
                                             onChangeText={setTempQty}
+                                            selectTextOnFocus
                                         />
                                         <TouchableOpacity
-                                            onPress={() => setTempQty(String((parseInt(tempQty) || 0) + 1))}
+                                            onPress={() => setTempQty(String((parseFloat(tempQty.replace(',', '.')) || 0) + 1))}
                                             className="w-12 h-12 items-center justify-center bg-gray-100 rounded-xl"
                                         >
                                             <Ionicons name="add" size={22} color="#374151" />
@@ -558,9 +564,10 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                     <Text className="text-xs text-gray-400 font-bold mb-1">UNIT PRICE ($)</Text>
                                     <TextInput
                                         className="border border-gray-200 rounded-xl px-4 py-3 text-lg font-bold text-gray-900"
-                                        keyboardType="numeric"
+                                        keyboardType="decimal-pad"
                                         value={tempPrice}
                                         onChangeText={setTempPrice}
+                                        selectTextOnFocus
                                     />
                                 </View>
 

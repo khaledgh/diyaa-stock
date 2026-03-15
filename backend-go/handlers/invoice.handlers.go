@@ -41,15 +41,20 @@ type InvoiceHandler struct {
 	PurchaseInvoiceServices PurchaseInvoiceService
 	StockServices           StockService
 	PaymentServices         PaymentService
+	DB                      *gorm.DB
 }
 
-func NewInvoiceHandler(sis SalesInvoiceService, pis PurchaseInvoiceService, ss StockService, ps PaymentService) *InvoiceHandler {
-	return &InvoiceHandler{
+func NewInvoiceHandler(sis SalesInvoiceService, pis PurchaseInvoiceService, ss StockService, ps PaymentService, db ...*gorm.DB) *InvoiceHandler {
+	h := &InvoiceHandler{
 		SalesInvoiceServices:    sis,
 		PurchaseInvoiceServices: pis,
 		StockServices:           ss,
 		PaymentServices:         ps,
 	}
+	if len(db) > 0 {
+		h.DB = db[0]
+	}
+	return h
 }
 
 func (ih *InvoiceHandler) StatsHandler(c echo.Context) error {
@@ -592,6 +597,19 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 			// Don't fail the invoice if payment recording fails
 		} else {
 			log.Printf("[SALES INVOICE] Payment record created for invoice #%d, amount: %.2f", createdInvoice.ID, req.PaidAmount)
+		}
+	}
+
+	// Update customer balance ledger (unpaid amount adds to balance)
+	if ih.DB != nil && req.CustomerID != nil && *req.CustomerID > 0 {
+		unpaidAmount := totalAmount - req.PaidAmount
+		if unpaidAmount > 0.01 {
+			if err := ih.DB.Model(&models.Customer{}).Where("id = ?", *req.CustomerID).
+				Update("balance", gorm.Expr("balance + ?", unpaidAmount)).Error; err != nil {
+				log.Printf("[SALES INVOICE] Error updating customer balance: %v", err)
+			} else {
+				log.Printf("[SALES INVOICE] Customer #%d balance increased by %.2f", *req.CustomerID, unpaidAmount)
+			}
 		}
 	}
 

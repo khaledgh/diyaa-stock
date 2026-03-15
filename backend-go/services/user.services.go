@@ -52,6 +52,7 @@ func (us *UserService) GetALL(limit, page int, orderBy, sortBy, status, role, se
 		if users[i].Location != nil {
 			users[i].LocationName = users[i].Location.Name
 		}
+		us.loadUserLocations(&users[i])
 	}
 
 	totalPages := int(math.Ceil(float64(totalRecords) / float64(limit)))
@@ -79,6 +80,7 @@ func (us *UserService) GetID(id string) (models.User, error) {
 	if user.Location != nil {
 		user.LocationName = user.Location.Name
 	}
+	us.loadUserLocations(&user)
 
 	return user, nil
 }
@@ -110,4 +112,32 @@ func (us *UserService) UpdateToDelete(user models.User) (models.User, error) {
 		return models.User{}, result.Error
 	}
 	return user, nil
+}
+
+// loadUserLocations loads multi-location assignments from user_locations junction table
+func (us *UserService) loadUserLocations(user *models.User) {
+	var userLocations []models.UserLocation
+	us.DB.Where("user_id = ?", user.ID).Preload("Location").Find(&userLocations)
+	user.Locations = make([]models.Location, 0, len(userLocations))
+	user.LocationIDs = make([]uint, 0, len(userLocations))
+	for _, ul := range userLocations {
+		user.Locations = append(user.Locations, ul.Location)
+		user.LocationIDs = append(user.LocationIDs, ul.LocationID)
+	}
+}
+
+// SyncUserLocations replaces all location assignments for a user
+func (us *UserService) SyncUserLocations(userID uint, locationIDs []uint) error {
+	// Delete existing assignments
+	if err := us.DB.Where("user_id = ?", userID).Delete(&models.UserLocation{}).Error; err != nil {
+		return err
+	}
+	// Create new assignments
+	for _, locID := range locationIDs {
+		ul := models.UserLocation{UserID: userID, LocationID: locID}
+		if err := us.DB.Create(&ul).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

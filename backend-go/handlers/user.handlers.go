@@ -20,6 +20,7 @@ type UserService interface {
 	Create(user models.User) (models.User, error)
 	Update(user models.User) (models.User, error)
 	UpdateToDelete(user models.User) (models.User, error)
+	SyncUserLocations(userID uint, locationIDs []uint) error
 }
 
 type UserHandler struct {
@@ -93,6 +94,7 @@ func (uh *UserHandler) CreateHandler(c echo.Context) error {
 		Password       string  `json:"password"`
 		Role           string  `json:"role" gorm:"default:USER"`
 		CommissionRate float64 `json:"commission_rate"`
+		LocationIDs    []uint  `json:"location_ids"`
 	}
 
 	if err = c.Bind(&formData); err != nil {
@@ -135,7 +137,17 @@ func (uh *UserHandler) CreateHandler(c echo.Context) error {
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	return ResponseSuccess(c, "created", user)
+
+	// Sync multi-location assignments
+	if len(formData.LocationIDs) > 0 {
+		if err := uh.UserServices.SyncUserLocations(user.ID, formData.LocationIDs); err != nil {
+			log.Println("Failed to sync user locations:", err)
+		}
+	}
+
+	// Reload user to include locations
+	updatedUser, _ := uh.UserServices.GetID(strconv.Itoa(int(user.ID)))
+	return ResponseSuccess(c, "created", updatedUser)
 }
 
 func (uh *UserHandler) UpdateHandler(c echo.Context) error {
@@ -167,6 +179,7 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 		VanID          any     `json:"van_id"`      // Accept string or number
 		LocationID     any     `json:"location_id"` // Accept string or number
 		CommissionRate float64 `json:"commission_rate"`
+		LocationIDs    []uint  `json:"location_ids"`
 	}
 
 	if err = c.Bind(&dto); err != nil {
@@ -270,6 +283,13 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 	user, err = uh.UserServices.Update(user)
 	if err != nil {
 		return ResponseError(c, err)
+	}
+
+	// Sync multi-location assignments if provided
+	if dto.LocationIDs != nil {
+		if err := uh.UserServices.SyncUserLocations(user.ID, dto.LocationIDs); err != nil {
+			log.Println("Failed to sync user locations:", err)
+		}
 	}
 
 	// Reload user from database to get complete updated record including commission_rate

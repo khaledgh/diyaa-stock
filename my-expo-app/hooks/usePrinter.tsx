@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useRef, useState, useCallback, useEffect, ReactNode } from 'react';
-import { Alert } from 'react-native';
 import PrinterDemo from '../components/PrinterDemo';
 import { PrintableReceiptData } from '../utils/receiptImagePrinter';
 
@@ -27,18 +26,24 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
   const printerRef = useRef<PrinterRef>(null);
   const [showUI, setShowUI] = useState(false);
   const pendingPrintRef = useRef<PrintableReceiptData | null>(null);
+  const pendingResolveRef = useRef<(() => void) | null>(null);
+  const pendingRejectRef = useRef<((err: Error) => void) | null>(null);
 
   // When printer connects and we have a pending job, execute it
   const checkPendingPrint = useCallback(async () => {
     if (pendingPrintRef.current && printerRef.current?.isConnected()) {
       const data = pendingPrintRef.current;
+      const resolve = pendingResolveRef.current;
+      const reject = pendingRejectRef.current;
       pendingPrintRef.current = null;
+      pendingResolveRef.current = null;
+      pendingRejectRef.current = null;
       setShowUI(false);
       try {
         await printerRef.current.printReceiptData(data);
-        Alert.alert('Success', 'Receipt sent to printer.');
+        if (resolve) resolve();
       } catch (err: any) {
-        Alert.alert('Print Error', err?.message || 'Failed to print receipt.');
+        if (reject) reject(err);
       }
     }
   }, []);
@@ -62,20 +67,28 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
 
   const printReceiptData = async (data: PrintableReceiptData): Promise<void> => {
     if (!printerRef.current) throw new Error('Printer component not mounted');
-    // If not connected, queue the job and open printer UI
-    if (!printerRef.current.isConnected()) {
-      pendingPrintRef.current = data;
-      setShowUI(true);
-      return; // Will auto-print when connected, or user can skip
+    // If connected, print immediately
+    if (printerRef.current.isConnected()) {
+      return await printerRef.current.printReceiptData(data);
     }
-    return await printerRef.current.printReceiptData(data);
+    // Not connected: queue the job, open printer UI, and wait until it prints or user cancels
+    return new Promise<void>((resolve, reject) => {
+      pendingPrintRef.current = data;
+      pendingResolveRef.current = resolve;
+      pendingRejectRef.current = reject;
+      setShowUI(true);
+    });
   };
 
   const isConnected = (): boolean => printerRef.current?.isConnected() || false;
   const getConnectedDevice = () => printerRef.current?.getConnectedDevice();
   const openPrinterUI = () => setShowUI(true);
   const closePrinterUI = () => {
-    pendingPrintRef.current = null; // Clear pending job on skip/close
+    const reject = pendingRejectRef.current;
+    pendingPrintRef.current = null;
+    pendingResolveRef.current = null;
+    pendingRejectRef.current = null;
+    if (reject) reject(new Error('Printing cancelled'));
     setShowUI(false);
   };
 

@@ -42,6 +42,7 @@ export default function Users() {
     salary: '',
     address: '',
     location_id: '',
+    location_ids: [] as number[],
     is_active: 1,
     commission_rate: 0,
   });
@@ -117,6 +118,7 @@ export default function Users() {
         salary: user.salary || '',
         address: user.address || '',
         location_id: user.location_id || '',
+        location_ids: user.location_ids || [],
         is_active: user.is_active,
         commission_rate: user.commission_rate || 0,
       });
@@ -133,6 +135,7 @@ export default function Users() {
         salary: '',
         address: '',
         location_id: '',
+        location_ids: [],
         is_active: 1,
         commission_rate: 0,
       });
@@ -257,7 +260,15 @@ export default function Users() {
                       <TableCell>{user.phone || '-'}</TableCell>
                       <TableCell>{user.position || '-'}</TableCell>
                       <TableCell>
-                        {user.location_name ? (
+                        {user.locations && user.locations.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {user.locations.map((loc: any) => (
+                              <span key={loc.id} className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                                {loc.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : user.location_name ? (
                           <span className="text-sm text-blue-600">{user.location_name}</span>
                         ) : (
                           <span className="text-sm text-gray-400">-</span>
@@ -491,14 +502,14 @@ export default function Users() {
 
               <TabsContent value="assignment" className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="location_id">Assign to Location</Label>
+                  <Label htmlFor="location_id">Primary Location</Label>
                   <select
                     id="location_id"
                     value={formData.location_id}
                     onChange={(e) => setFormData({ ...formData, location_id: e.target.value })}
                     className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <option value="">No location assigned</option>
+                    <option value="">No primary location</option>
                     {locations?.map((location: any) => (
                       <option key={location.id} value={location.id}>
                         {location.name} ({location.type})
@@ -506,18 +517,61 @@ export default function Users() {
                     ))}
                   </select>
                   <p className="text-xs text-muted-foreground">
-                    Assign this user to a location. Sales users will be able to sell from this location's stock in the POS app.
+                    The primary/default location for this user.
                   </p>
                 </div>
 
-                {formData.location_id && (
+                <div className="space-y-2">
+                  <Label>Assigned Locations (Multi-Select)</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Select all locations this user can operate from. In the mobile app, they can switch between these.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                    {locations?.map((location: any) => {
+                      const isChecked = formData.location_ids.includes(location.id);
+                      return (
+                        <label
+                          key={location.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                            isChecked
+                              ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700'
+                              : 'bg-white border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const newIds = e.target.checked
+                                ? [...formData.location_ids, location.id]
+                                : formData.location_ids.filter((id: number) => id !== location.id);
+                              setFormData({ ...formData, location_ids: newIds });
+                            }}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div>
+                            <p className="text-sm font-medium">{location.name}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{location.type}</p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {formData.location_ids.length > 0 && (
+                    <p className="text-xs text-blue-600 font-medium">
+                      {formData.location_ids.length} location(s) selected
+                    </p>
+                  )}
+                </div>
+
+                {formData.location_ids.length > 0 && (
                   <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                     <div className="flex items-start gap-2">
                       <Briefcase className="h-5 w-5 text-blue-600 mt-0.5" />
                       <div>
-                        <p className="font-medium text-blue-900 dark:text-blue-100">Location Assignment</p>
+                        <p className="font-medium text-blue-900 dark:text-blue-100">Multi-Location Assignment</p>
                         <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                          This user will have access to the POS app and can sell products from the assigned location's inventory.
+                          This user can work across {formData.location_ids.length} location(s). In the mobile app, they will select which location to operate from each day.
                         </p>
                       </div>
                     </div>

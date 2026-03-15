@@ -121,12 +121,23 @@ export default function ProfileScreen({ navigation }: any) {
               <Text className="text-base text-gray-900">{user?.email}</Text>
             </View>
 
-            {user?.location_id && (
+            {user?.locations && user.locations.length > 0 ? (
+              <View className="mb-3 pb-3 border-b border-gray-100">
+                <Text className="text-xs text-gray-500 mb-1">Assigned Locations</Text>
+                <View className="flex-row flex-wrap gap-1.5 mt-1">
+                  {user.locations.map((loc: any) => (
+                    <View key={loc.id} className="bg-blue-50 rounded-full px-3 py-1">
+                      <Text className="text-xs font-semibold text-blue-700">{loc.name}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : user?.location_id ? (
               <View className="mb-3 pb-3 border-b border-gray-100">
                 <Text className="text-xs text-gray-500 mb-1">Assigned Location</Text>
                 <Text className="text-base text-gray-900 font-semibold">{user.location_name || `Location ${user.location_id}`}</Text>
               </View>
-            )}
+            ) : null}
 
             {user?.role === 'sales' && user?.commission_rate !== undefined && (
               <View className="mb-3 pb-3 border-b border-gray-100">
@@ -161,6 +172,19 @@ export default function ProfileScreen({ navigation }: any) {
               <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
             </TouchableOpacity>
           )}
+
+          {/* Customers Button */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Customers')}
+            className="bg-white rounded-2xl py-4 mb-3 flex-row items-center justify-between px-4"
+            style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 }}
+          >
+            <View className="flex-row items-center">
+              <Ionicons name="people-circle" size={24} color="#059669" />
+              <Text className="text-gray-900 font-semibold text-base ml-3">Customers</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
 
           {/* Change Password Button */}
           <TouchableOpacity
@@ -199,7 +223,7 @@ export default function ProfileScreen({ navigation }: any) {
 
           {/* App Info */}
           <View className="items-center py-4">
-            <Text className="text-gray-400 text-xs">Diyaa Stock Management</Text>
+            <Text className="text-gray-400 text-xs">DaftarStock</Text>
             <Text className="text-gray-400 text-xs mt-1">Version 1.0.0</Text>
           </View>
         </View>

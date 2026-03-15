@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
 import DashboardScreen from '../screens/DashboardScreen';
-import POSScreen from '../screens/POSScreen';
+import POSScreen from '../screens/POSScreenNew';
 import HistoryScreen from '../screens/HistoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import PurchaseInvoiceScreen from '../screens/PurchaseInvoiceScreen';
 import CreditNoteListScreen from '../screens/CreditNoteListScreen';
 import CreateCreditNoteScreen from '../screens/CreateCreditNoteScreen';
 import UserManagementScreen from '../screens/UserManagementScreen';
+import CustomerScreen from '../screens/CustomerScreen';
+import LocationSessionModal from '../components/LocationSessionModal';
 // import AIInvoiceScreen from '../screens/AIInvoiceScreen'; // Hidden for now
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -184,7 +187,25 @@ function SalesTabs() {
 function MainTabs() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  return isAdmin ? <AdminTabs /> : <SalesTabs />;
+  const [showLocationModal, setShowLocationModal] = useState(!isAdmin);
+  const [, setSessionLocationName] = useState<string | null>(null);
+
+  return (
+    <View style={{ flex: 1 }}>
+      {isAdmin ? <AdminTabs /> : <SalesTabs />}
+      {!isAdmin && user?.id && (
+        <LocationSessionModal
+          visible={showLocationModal}
+          userId={user.id}
+          onSessionSelected={(_locId, locName) => {
+            setSessionLocationName(locName);
+            setShowLocationModal(false);
+          }}
+          onDismiss={() => setShowLocationModal(false)}
+        />
+      )}
+    </View>
+  );
 }
 
 export default function AppNavigator() {
@@ -205,6 +226,7 @@ export default function AppNavigator() {
           <Stack.Screen name="CreditNoteList" component={CreditNoteListScreen} />
           <Stack.Screen name="CreateCreditNote" component={CreateCreditNoteScreen} />
           <Stack.Screen name="UserManagement" component={UserManagementScreen} />
+          <Stack.Screen name="Customers" component={CustomerScreen} />
         </>
       )}
     </Stack.Navigator>

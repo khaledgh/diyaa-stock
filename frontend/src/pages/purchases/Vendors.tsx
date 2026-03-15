@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Pagination } from '@/components/ui/pagination';
 import { vendorApi } from '@/lib/api';
-import { Building2, Plus, Edit, Trash2, Phone, Mail, Search, FileText } from 'lucide-react';
+import { Building2, Plus, Edit, Trash2, Phone, Mail, Search, FileText, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Vendors() {
@@ -30,6 +30,7 @@ export default function Vendors() {
     tax_number: '',
     payment_terms: '',
     credit_limit: '',
+    opening_balance: '',
   });
 
   const { data: vendorsResponse, isLoading } = useQuery({
@@ -134,6 +135,7 @@ export default function Vendors() {
       tax_number: '',
       payment_terms: '',
       credit_limit: '',
+      opening_balance: '',
     });
     setEditingVendor(null);
   };
@@ -149,6 +151,7 @@ export default function Vendors() {
       tax_number: vendor.tax_number || '',
       payment_terms: vendor.payment_terms || '',
       credit_limit: vendor.credit_limit || '',
+      opening_balance: vendor.opening_balance || '',
     });
     setIsDialogOpen(true);
   };
@@ -162,6 +165,7 @@ export default function Vendors() {
     const data = {
       ...formData,
       credit_limit: formData.credit_limit ? parseFloat(formData.credit_limit) : 0,
+      opening_balance: formData.opening_balance ? parseFloat(formData.opening_balance) : 0,
     };
 
     if (editingVendor) {
@@ -269,7 +273,7 @@ export default function Vendors() {
                 />
               </div>
 
-              <div className="col-span-2">
+              <div>
                 <Label>{t('vendors.creditLimit')}</Label>
                 <Input
                   type="number"
@@ -280,6 +284,20 @@ export default function Vendors() {
                   placeholder="0.00"
                 />
               </div>
+
+              {!editingVendor && (
+                <div>
+                  <Label>Opening Balance</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.opening_balance}
+                    onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })}
+                    placeholder="0.00"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Positive = amount owed to vendor</p>
+                </div>
+              )}
 
               <div className="col-span-2">
                 <Button 
@@ -327,6 +345,7 @@ export default function Vendors() {
                   <TableHead>{t('common.phone')}</TableHead>
                   <TableHead>{t('common.email')}</TableHead>
                   <TableHead>{t('vendors.paymentTerms')}</TableHead>
+                  <TableHead className="text-right">Balance</TableHead>
                   <TableHead className="text-right">{t('vendors.totalPurchases')}</TableHead>
                   <TableHead className="text-right">{t('common.actions')}</TableHead>
                 </TableRow>
@@ -334,7 +353,7 @@ export default function Vendors() {
               <TableBody>
                 {vendors?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                       {t('common.noData')}
                     </TableCell>
                   </TableRow>
@@ -360,6 +379,16 @@ export default function Vendors() {
                         ) : '-'}
                       </TableCell>
                       <TableCell>{vendor.payment_terms || '-'}</TableCell>
+                      <TableCell className="text-right">
+                        {vendor.balance && vendor.balance !== 0 ? (
+                          <span className={`inline-flex items-center gap-1 text-sm font-semibold ${vendor.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            <DollarSign className="h-3 w-3" />
+                            {Number(vendor.balance).toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div>
                           <div className="font-medium">{vendor.total_purchases || 0}</div>

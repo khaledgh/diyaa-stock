@@ -64,30 +64,33 @@ func (ch *CustomerHandler) GetIDHandler(c echo.Context) error {
 func (ch *CustomerHandler) CreateHandler(c echo.Context) error {
 	// Use DTO to handle flexible types from frontend
 	var dto struct {
-		Name        string `json:"name"`
-		Phone       string `json:"phone"`
-		Email       string `json:"email"`
-		Address     string `json:"address"`
-		TaxNumber   string `json:"tax_number"`
-		CreditLimit any    `json:"credit_limit"` // Accept string or number
-		IsActive    bool   `json:"is_active"`
+		Name           string  `json:"name"`
+		Phone          string  `json:"phone"`
+		Email          string  `json:"email"`
+		Address        string  `json:"address"`
+		TaxNumber      string  `json:"tax_number"`
+		CreditLimit    any     `json:"credit_limit"` // Accept string or number
+		OpeningBalance float64 `json:"opening_balance"`
+		IsActive       bool    `json:"is_active"`
 	}
-	
+
 	if err := c.Bind(&dto); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid customer data: "+err.Error())
 	}
-	
+
 	// Validate required fields
 	if dto.Name == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "Customer name is required")
 	}
-	
+
 	// Create customer with converted fields
 	customer := models.Customer{
-		Name:     dto.Name,
-		IsActive: dto.IsActive,
+		Name:           dto.Name,
+		IsActive:       dto.IsActive,
+		OpeningBalance: dto.OpeningBalance,
+		Balance:        dto.OpeningBalance, // Initial balance = opening balance
 	}
-	
+
 	if dto.Phone != "" {
 		customer.Phone = &dto.Phone
 	}
@@ -100,10 +103,10 @@ func (ch *CustomerHandler) CreateHandler(c echo.Context) error {
 	if dto.TaxNumber != "" {
 		customer.TaxNumber = &dto.TaxNumber
 	}
-	
+
 	// Convert credit_limit
 	customer.CreditLimit = convertToFloat64(dto.CreditLimit)
-	
+
 	response, err := ch.CustomerServices.Create(customer)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create customer: "+err.Error())
@@ -117,50 +120,56 @@ func (ch *CustomerHandler) UpdateHandler(c echo.Context) error {
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	// Use DTO to handle flexible types from frontend
 	var dto struct {
-		Name        string `json:"name"`
-		Phone       string `json:"phone"`
-		Email       string `json:"email"`
-		Address     string `json:"address"`
-		TaxNumber   string `json:"tax_number"`
-		CreditLimit any    `json:"credit_limit"` // Accept string or number
-		IsActive    bool   `json:"is_active"`
+		Name           string  `json:"name"`
+		Phone          string  `json:"phone"`
+		Email          string  `json:"email"`
+		Address        string  `json:"address"`
+		TaxNumber      string  `json:"tax_number"`
+		CreditLimit    any     `json:"credit_limit"` // Accept string or number
+		OpeningBalance float64 `json:"opening_balance"`
+		Balance        float64 `json:"balance"`
+		IsActive       bool    `json:"is_active"`
 	}
-	
+
 	if err = c.Bind(&dto); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid customer data: "+err.Error())
 	}
-	
+
 	// Update customer fields
 	customer.Name = dto.Name
 	customer.IsActive = dto.IsActive
-	
+	customer.OpeningBalance = dto.OpeningBalance
+	if dto.Balance != 0 {
+		customer.Balance = dto.Balance
+	}
+
 	if dto.Phone != "" {
 		customer.Phone = &dto.Phone
 	} else {
 		customer.Phone = nil
 	}
-	
+
 	if dto.Email != "" {
 		customer.Email = &dto.Email
 	} else {
 		customer.Email = nil
 	}
-	
+
 	if dto.Address != "" {
 		customer.Address = &dto.Address
 	} else {
 		customer.Address = nil
 	}
-	
+
 	if dto.TaxNumber != "" {
 		customer.TaxNumber = &dto.TaxNumber
 	} else {
 		customer.TaxNumber = nil
 	}
-	
+
 	// Convert credit_limit
 	customer.CreditLimit = convertToFloat64(dto.CreditLimit)
 

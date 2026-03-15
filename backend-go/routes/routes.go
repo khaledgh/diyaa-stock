@@ -111,7 +111,7 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	// Invoice routes - matches PHP: /api/invoices
 	salesInvoiceService := services.NewSalesInvoiceService(models.SalesInvoice{}, store)
 	purchaseInvoiceService := services.NewPurchaseInvoiceService(models.PurchaseInvoice{}, store)
-	invoiceHandler := handlers.NewInvoiceHandler(salesInvoiceService, purchaseInvoiceService, stockService, paymentService)
+	invoiceHandler := handlers.NewInvoiceHandler(salesInvoiceService, purchaseInvoiceService, stockService, paymentService, store)
 	apiGroup.GET("/invoices/stats", invoiceHandler.StatsHandler)
 	apiGroup.GET("/invoices", invoiceHandler.GetAllHandler)
 	apiGroup.GET("/invoices/:id", invoiceHandler.GetIDHandler)
@@ -128,7 +128,7 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	creditNoteService := services.NewCreditNoteService(store)
 
 	// Payment routes - matches PHP: /api/payments
-	paymentHandler := handlers.NewPaymentHandler(paymentService, salesInvoiceService, purchaseInvoiceService, creditNoteService)
+	paymentHandler := handlers.NewPaymentHandler(paymentService, salesInvoiceService, purchaseInvoiceService, creditNoteService, store)
 	apiGroup.GET("/payments", paymentHandler.GetAllHandler)
 	apiGroup.POST("/payments", paymentHandler.CreateHandler)
 
@@ -188,6 +188,16 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	// Commission routes
 	commissionHandler := handlers.NewCommissionHandler(store)
 	apiGroup.GET("/commissions", commissionHandler.GetCommissions)
+
+	// Daily Location Session & Settings routes
+	sessionHandler := handlers.NewSessionHandler(store)
+	apiGroup.GET("/sessions/today", sessionHandler.GetTodaySession)
+	apiGroup.POST("/sessions", sessionHandler.CreateTodaySession)
+	apiGroup.POST("/sessions/admin", sessionHandler.AdminSetSession)
+	apiGroup.GET("/sessions", sessionHandler.GetAllSessions)
+	apiGroup.GET("/settings/location-mode", sessionHandler.GetLocationMode)
+	apiGroup.PUT("/settings/location-mode", sessionHandler.SetLocationMode)
+	apiGroup.GET("/users/:user_id/locations", sessionHandler.GetUserLocations)
 
 	// Payment Allocation routes
 	paymentAllocationService := services.NewPaymentAllocationService(store)

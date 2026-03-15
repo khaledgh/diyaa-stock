@@ -226,8 +226,8 @@ class ApiService {
   }
 
   // Commission Endpoints
-  async getCommissions() {
-    const response = await this.api.get('/commissions');
+  async getCommissions(params?: { from_date?: string; to_date?: string }) {
+    const response = await this.api.get('/commissions', { params });
     return response.data;
   }
 
@@ -244,6 +244,44 @@ class ApiService {
 
   async approveCreditNote(id: number) {
     const response = await this.api.post(`/credit-notes/${id}/approve`);
+    return response.data;
+  }
+
+  // Session & Location Management
+  async getTodaySession() {
+    const response = await this.api.get('/sessions/today');
+    return response.data;
+  }
+
+  async createSession(locationId: number) {
+    const response = await this.api.post('/sessions', { location_id: locationId });
+    return response.data;
+  }
+
+  async getLocationMode() {
+    const response = await this.api.get('/settings/location-mode');
+    return response.data;
+  }
+
+  async getUserLocations(userId: number) {
+    const response = await this.api.get(`/users/${userId}/locations`);
+    return response.data;
+  }
+
+  // Category Endpoints
+  async getCategories() {
+    const response = await this.api.get('/categories');
+    return response.data;
+  }
+
+  // Customer Management
+  async createCustomer(data: { name: string; phone?: string; email?: string; address?: string; tax_number?: string; opening_balance?: number }) {
+    const response = await this.api.post('/customers', data);
+    return response.data;
+  }
+
+  async updateCustomer(id: number, data: any) {
+    const response = await this.api.put(`/customers/${id}`, data);
     return response.data;
   }
 

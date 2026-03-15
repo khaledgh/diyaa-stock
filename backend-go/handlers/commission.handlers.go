@@ -27,6 +27,9 @@ type CommissionResponse struct {
 // GetCommissions calculates commission owed to each sales rep based on their
 // commission_rate and the total sales invoices they created.
 func (h *CommissionHandler) GetCommissions(c echo.Context) error {
+	fromDate := c.QueryParam("from_date")
+	toDate := c.QueryParam("to_date")
+
 	// 1. Get all sales-role users with a commission rate > 0
 	var users []models.User
 	if err := h.DB.Where("role = ? AND commission_rate > 0", "sales").Find(&users).Error; err != nil {
@@ -38,9 +41,15 @@ func (h *CommissionHandler) GetCommissions(c echo.Context) error {
 	for _, u := range users {
 		// 2. Sum total_amount from sales invoices created by this user
 		var totalSales float64
-		row := h.DB.Model(&models.SalesInvoice{}).
-			Where("created_by = ? AND deleted_at IS NULL", u.ID).
-			Select("COALESCE(SUM(total_amount), 0)").Row()
+		q := h.DB.Model(&models.SalesInvoice{}).
+			Where("created_by = ? AND deleted_at IS NULL", u.ID)
+		if fromDate != "" {
+			q = q.Where("DATE(created_at) >= ?", fromDate)
+		}
+		if toDate != "" {
+			q = q.Where("DATE(created_at) <= ?", toDate)
+		}
+		row := q.Select("COALESCE(SUM(total_amount), 0)").Row()
 		if err := row.Scan(&totalSales); err != nil {
 			totalSales = 0
 		}

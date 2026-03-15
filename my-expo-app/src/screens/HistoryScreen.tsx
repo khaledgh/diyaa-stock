@@ -50,7 +50,6 @@ export default function HistoryScreen() {
         invoiceParams.location_id = selectedLocationId;
       }
 
-      console.log('Loading invoices with filters:', invoiceParams);
       const response = await apiService.getInvoices(invoiceParams);
 
       if (response.ok || response.success) {
@@ -61,8 +60,7 @@ export default function HistoryScreen() {
           paid_amount: parseFloat(inv.paid_amount) || 0,
         })));
       }
-    } catch (error) {
-      console.error('Failed to load invoices:', error);
+    } catch {
       Alert.alert('Error', 'Could not refresh data');
     } finally {
       setIsLoading(false);
@@ -74,8 +72,8 @@ export default function HistoryScreen() {
     try {
       const resp = await apiService.getLocations();
       if (resp.data) setLocations(resp.data);
-    } catch (e) {
-      console.error('Failed to load locations', e);
+    } catch {
+      // silently fail
     }
   }, [isAdmin]);
 
@@ -109,8 +107,7 @@ export default function HistoryScreen() {
               } else {
                 Alert.alert('Error', res.message || 'Failed to finalize invoice');
               }
-            } catch (error) {
-              console.error('Finalize error:', error);
+            } catch {
               Alert.alert('Error', 'Failed to finalize invoice');
             }
           },
@@ -372,11 +369,10 @@ export default function HistoryScreen() {
                         paidAmount: selectedInvoice.paid_amount,
                         date: new Date(selectedInvoice.created_at).toLocaleString(),
                         cashierName: user?.full_name,
-                        storeName: 'Transgate',
+                        storeName: 'DaftarStock',
                       };
                       await printReceiptData(printData);
                     } catch (err: any) {
-                      console.error('Print error:', err);
                       Alert.alert('Print Error', err?.message || 'Failed to print invoice');
                     } finally {
                       setIsPrinting(false);
