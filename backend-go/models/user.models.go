@@ -27,9 +27,10 @@ type User struct {
 	Location       *Location  `json:"location,omitempty" gorm:"foreignKey:LocationID"`
 	LocationName   string     `json:"location_name" gorm:"-"` // Computed field
 	Locations      []Location `json:"locations" gorm:"-"`     // Multi-location assignments (loaded via user_locations)
-	LocationIDs    []uint     `json:"location_ids" gorm:"-"`  // Convenience field for API responses
-	CommissionRate float64    `json:"commission_rate" gorm:"type:decimal(5,2);default:0"`
-	CreatedAt      time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	LocationIDs    []uint    `json:"location_ids" gorm:"-"`  // Convenience field for API responses
+	CommissionRate float64   `json:"commission_rate" gorm:"type:decimal(5,2);default:0"`
+	LocationMode   string    `json:"location_mode" gorm:"size:20;default:manual"` // manual, fixed
+	CreatedAt      time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt      time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
 }
 

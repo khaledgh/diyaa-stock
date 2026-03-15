@@ -26,14 +26,22 @@ export default function UserManagementScreen({ navigation }: any) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [locationEditingUser, setLocationEditingUser] = useState<User | null>(null);
+  const [updatingLocation, setUpdatingLocation] = useState(false);
 
   const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await apiService.getUsers();
-      setUsers(response.data || []);
+      const [usersRes, locationsRes] = await Promise.all([
+        apiService.getUsers(),
+        apiService.getLocations(),
+      ]);
+      setUsers(usersRes.data || []);
+      setLocations(locationsRes.data || []);
     } catch {
-      Alert.alert('Error', 'Failed to load users');
+      Alert.alert('Error', 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -111,6 +119,31 @@ export default function UserManagementScreen({ navigation }: any) {
       Alert.alert('Error', err?.message || 'Failed to update password');
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const handleUpdateLocation = async (locationId: number | null) => {
+    if (!locationEditingUser) return;
+    try {
+      setUpdatingLocation(true);
+      const res = await apiService.updateUser(locationEditingUser.id, {
+        email: locationEditingUser.email,
+        full_name: locationEditingUser.full_name,
+        role: locationEditingUser.role,
+        location_id: locationId,
+      });
+      if (res.ok || res.success) {
+        Alert.alert('Success', 'Location updated successfully');
+        setShowLocationModal(false);
+        setLocationEditingUser(null);
+        await loadUsers();
+      } else {
+        Alert.alert('Error', res.message || 'Failed to update location');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to update location');
+    } finally {
+      setUpdatingLocation(false);
     }
   };
 
@@ -195,6 +228,14 @@ export default function UserManagementScreen({ navigation }: any) {
                 >
                   <Ionicons name="lock-closed" size={16} color="#F59E0B" />
                   <Text className="text-yellow-700 text-xs font-semibold ml-1">Password</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => { setLocationEditingUser(user); setShowLocationModal(true); }}
+                  className="flex-row items-center bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg"
+                >
+                  <Ionicons name="location" size={16} color="#2563EB" />
+                  <Text className="text-blue-700 text-xs font-semibold ml-1">Location</Text>
                 </TouchableOpacity>
                 {user.role === 'sales' && (
                   <View className="flex-row items-center">
@@ -340,6 +381,59 @@ export default function UserManagementScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* Location Assignment Modal */}
+      <Modal
+        visible={showLocationModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowLocationModal(false)}
+      >
+        <View className="flex-1 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <SafeAreaView edges={['bottom']} className="bg-white rounded-t-3xl" style={{ maxHeight: '80%' }}>
+            <View className="p-6 border-b border-gray-100 flex-row justify-between items-center">
+              <View>
+                <Text className="text-xl font-bold text-gray-900">Assign Location</Text>
+                <Text className="text-sm text-gray-500">{locationEditingUser?.full_name}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowLocationModal(false)}>
+                <Ionicons name="close" size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView className="p-4">
+              <TouchableOpacity
+                onPress={() => handleUpdateLocation(null)}
+                className={`p-4 rounded-2xl mb-3 flex-row justify-between items-center ${locationEditingUser?.location_id === null ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-100'}`}
+              >
+                <Text className={`font-bold ${locationEditingUser?.location_id === null ? 'text-blue-700' : 'text-gray-700'}`}>
+                  None (Unassigned)
+                </Text>
+                {locationEditingUser?.location_id === null && <Ionicons name="checkmark-circle" size={20} color="#2563EB" />}
+              </TouchableOpacity>
+
+              {locations.map((loc) => (
+                <TouchableOpacity
+                  key={loc.id}
+                  onPress={() => handleUpdateLocation(loc.id)}
+                  disabled={updatingLocation}
+                  className={`p-4 rounded-2xl mb-3 flex-row justify-between items-center ${locationEditingUser?.location_id === loc.id ? 'bg-blue-50 border border-blue-200' : 'bg-white border border-gray-100'}`}
+                >
+                  <View>
+                    <Text className={`font-bold ${locationEditingUser?.location_id === loc.id ? 'text-blue-700' : 'text-gray-900'}`}>{loc.name}</Text>
+                    <Text className="text-xs text-gray-500">{loc.address || 'No address'}</Text>
+                  </View>
+                  {locationEditingUser?.location_id === loc.id && <Ionicons name="checkmark-circle" size={20} color="#2563EB" />}
+                </TouchableOpacity>
+              ))}
+              
+              {updatingLocation && (
+                <ActivityIndicator size="small" color="#2563EB" className="my-4" />
+              )}
+            </ScrollView>
+          </SafeAreaView>
         </View>
       </Modal>
     </SafeAreaView>

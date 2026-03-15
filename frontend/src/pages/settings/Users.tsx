@@ -46,6 +46,7 @@ export default function Users() {
     location_ids: [] as number[],
     is_active: 1,
     commission_rate: 0,
+    location_mode: 'manual',
   });
 
   const { data: locations } = useQuery({
@@ -154,6 +155,7 @@ export default function Users() {
         location_ids: user.location_ids || [],
         is_active: user.is_active,
         commission_rate: user.commission_rate || 0,
+        location_mode: user.location_mode || 'manual',
       });
     } else {
       setEditingUser(null);
@@ -171,6 +173,7 @@ export default function Users() {
         location_ids: [],
         is_active: 1,
         commission_rate: 0,
+        location_mode: 'manual',
       });
     }
     setIsDialogOpen(true);
@@ -636,6 +639,24 @@ export default function Users() {
                   </select>
                   <p className="text-xs text-muted-foreground">
                     The primary/default location for this user.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="location_mode">Login Location Strategy</Label>
+                  <select
+                    id="location_mode"
+                    value={formData.location_mode}
+                    onChange={(e) => setFormData({ ...formData, location_mode: e.target.value })}
+                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="manual">Manual Selection (Sales Choice)</option>
+                    <option value="fixed">Fixed Location (Always Primary)</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.location_mode === 'manual' 
+                      ? '✓ User must select which location to work from each day.' 
+                      : '✓ User is automatically logged into the primary location and cannot switch.'}
                   </p>
                 </div>
 

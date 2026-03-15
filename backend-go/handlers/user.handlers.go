@@ -94,6 +94,7 @@ func (uh *UserHandler) CreateHandler(c echo.Context) error {
 		Password       string  `json:"password"`
 		Role           string  `json:"role" gorm:"default:USER"`
 		CommissionRate float64 `json:"commission_rate"`
+		LocationMode   string  `json:"location_mode"`
 		LocationIDs    []uint  `json:"location_ids"`
 	}
 
@@ -110,6 +111,7 @@ func (uh *UserHandler) CreateHandler(c echo.Context) error {
 		Status:         formData.Status,
 		Role:           formData.Role,
 		CommissionRate: formData.CommissionRate,
+		LocationMode:   formData.LocationMode,
 	}
 
 	if user.Email == "" {
@@ -179,6 +181,7 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 		VanID          any     `json:"van_id"`      // Accept string or number
 		LocationID     any     `json:"location_id"` // Accept string or number
 		CommissionRate float64 `json:"commission_rate"`
+		LocationMode   string  `json:"location_mode"`
 		LocationIDs    []uint  `json:"location_ids"`
 	}
 
@@ -195,6 +198,9 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 		user.Role = dto.Role
 	}
 	user.CommissionRate = dto.CommissionRate
+	if dto.LocationMode != "" {
+		user.LocationMode = dto.LocationMode
+	}
 
 	// Handle status from frontend (is_active: 1/0 or status: "ACTIVE"/"INACTIVE")
 	if dto.Status != "" {

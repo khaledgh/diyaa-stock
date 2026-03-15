@@ -91,7 +91,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
     const confirmAddToCart = () => {
         if (!selectedProduct) return;
         const qty = parseFloat(tempQty.replace(',', '.')) || 1;
-        const price = parseFloat(tempPrice) || selectedProduct.unit_price;
+        const price = parseFloat(tempPrice.replace(',', '.')) || selectedProduct.unit_price;
         const existingItem = cart.find(item => item.product.id === selectedProduct.id);
         if (existingItem) {
             setCart(cart.map(item => {
@@ -254,7 +254,11 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                 </View>
             </SafeAreaView>
 
-            <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
+            <ScrollView 
+                className="flex-1 p-4" 
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 100 }}
+            >
                 {/* Vendor Section */}
                 <TouchableOpacity
                     onPress={() => setShowVendorModal(true)}
@@ -557,7 +561,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                     <Text className="text-xs text-gray-400 font-bold mb-1">QUANTITY</Text>
                                     <View className="flex-row items-center">
                                         <TouchableOpacity
-                                            onPress={() => setTempQty(String(Math.max(1, (parseFloat(tempQty.replace(',', '.')) || 1) - 1)))}
+                                            onPress={() => setTempQty(String(Math.max(0, (parseFloat(tempQty.replace(',', '.')) || 0) - 1)))}
                                             className="w-12 h-12 items-center justify-center bg-gray-100 rounded-xl"
                                         >
                                             <Ionicons name="remove" size={22} color="#374151" />
@@ -566,7 +570,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                             className="flex-1 text-center text-xl font-bold text-gray-900 mx-3 border border-gray-200 rounded-xl py-2"
                                             keyboardType="decimal-pad"
                                             value={tempQty}
-                                            onChangeText={setTempQty}
+                                            onChangeText={(val) => setTempQty(val)}
                                             selectTextOnFocus
                                         />
                                         <TouchableOpacity
