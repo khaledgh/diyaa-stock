@@ -200,3 +200,22 @@ export const expenseApi = {
   update: (id: number, data: any) => api.put(`/expenses/${id}`, data),
   delete: (id: number) => api.delete(`/expenses/${id}`),
 };
+
+export const sessionApi = {
+  getTodaySession: () => api.get('/sessions/today'),
+  createTodaySession: (locationId: number) => api.post('/sessions', { location_id: locationId }),
+  adminSetSession: (userId: number, locationId: number, date?: string) => 
+    api.post('/sessions/admin', { user_id: userId, location_id: locationId, date }),
+  getAllSessions: (date?: string) => api.get('/sessions', { params: { date } }),
+  getLocationMode: () => api.get('/settings/location-mode'),
+  setLocationMode: (mode: 'manual' | 'automatic') => api.put('/settings/location-mode', { mode }),
+  getUserLocations: (userId: number) => api.get(`/users/${userId}/locations`),
+};
+
+export const templateApi = {
+  getAll: () => api.get('/invoice-templates'),
+  getDefault: (type?: string) => api.get('/invoice-templates/default', { params: { type } }),
+  create: (data: any) => api.post('/invoice-templates', data),
+  update: (id: number, data: any) => api.put(`/invoice-templates/${id}`, data),
+  delete: (id: number) => api.delete(`/invoice-templates/${id}`),
+};

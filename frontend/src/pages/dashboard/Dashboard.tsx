@@ -69,28 +69,27 @@ export default function Dashboard() {
   const netCashFlow = receivables - payables;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header with Quick Actions */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="p-8 space-y-8 bg-slate-50/50 dark:bg-transparent min-h-screen">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white lg:text-5xl">
             {t('dashboard.title')}
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Welcome back! Here's your business overview.
+          <p className="text-slate-500 dark:text-slate-400 mt-2 text-lg">
+            Welcome back, <span className="font-semibold text-indigo-600 dark:text-indigo-400">Merchant</span>! Here's your business at a glance.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Link to="/invoices/new">
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Invoice
+            <Button className="h-12 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition-all hover:scale-105 gap-2">
+              <Plus className="h-5 w-5" />
+              <span className="font-semibold text-base">New Invoice</span>
             </Button>
           </Link>
           <Link to="/products/new">
-            <Button variant="outline" className="gap-2">
-              <Package className="h-4 w-4" />
-              Add Item
+            <Button variant="outline" className="h-12 px-6 rounded-2xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all gap-2">
+              <Package className="h-5 w-5 text-indigo-500" />
+              <span className="font-semibold text-base text-slate-700 dark:text-slate-300 text-base">Add Item</span>
             </Button>
           </Link>
         </div>
@@ -138,259 +137,222 @@ export default function Dashboard() {
       )}
 
       {/* Financial Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Receivables Card */}
-        <Card className="stat-card border-0 shadow-md hover:shadow-lg transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+        <Card className="border-0 shadow-xl shadow-indigo-500/5 bg-white dark:bg-slate-950 overflow-hidden relative group">
+          <div className="absolute top-0 right-0 p-4 -mr-8 -mt-8 bg-emerald-500/10 rounded-full w-32 h-32 group-hover:scale-110 transition-transform" />
+          <CardContent className="p-8 relative z-10">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Receivables</p>
-                <p className="text-3xl font-bold text-green-600 mt-2">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40">
+                    <TrendingUp className="h-6 w-6 text-emerald-600" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Receivables</p>
+                </div>
+                <p className="text-4xl font-black text-slate-900 dark:text-white">
                   {formatCurrency(receivables)}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                  <ArrowUpRight className="h-3 w-3 text-green-600" />
-                  Money owed by customers
-                </p>
-              </div>
-              <div className="p-4 rounded-2xl bg-green-100 dark:bg-green-900/30">
-                <TrendingUp className="h-8 w-8 text-green-600" />
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <span className="bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                    <ArrowUpRight className="h-3 w-3" />
+                    +12%
+                  </span>
+                  <span className="text-slate-400 italic">vs last month</span>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Payables Card */}
-        <Card className="stat-card border-0 shadow-md hover:shadow-lg transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+        <Card className="border-0 shadow-xl shadow-indigo-500/5 bg-white dark:bg-slate-950 overflow-hidden relative group">
+          <div className="absolute top-0 right-0 p-4 -mr-8 -mt-8 bg-rose-500/10 rounded-full w-32 h-32 group-hover:scale-110 transition-transform" />
+          <CardContent className="p-8 relative z-10">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Payables</p>
-                <p className="text-3xl font-bold text-red-600 mt-2">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40">
+                    <TrendingDown className="h-6 w-6 text-rose-600" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Payables</p>
+                </div>
+                <p className="text-4xl font-black text-slate-900 dark:text-white">
                   {formatCurrency(payables)}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                  <ArrowDownRight className="h-3 w-3 text-red-600" />
-                  Money owed to vendors
-                </p>
-              </div>
-              <div className="p-4 rounded-2xl bg-red-100 dark:bg-red-900/30">
-                <TrendingDown className="h-8 w-8 text-red-600" />
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <span className="bg-rose-100 text-rose-700 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                    <ArrowDownRight className="h-3 w-3" />
+                    -5%
+                  </span>
+                  <span className="text-slate-400 italic">vs last month</span>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Net Position Card */}
-        <Card className="stat-card border-0 shadow-md hover:shadow-lg transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Net Position</p>
-                <p className={`text-3xl font-bold mt-2 ${netCashFlow >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
-                  {formatCurrency(Math.abs(netCashFlow))}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {netCashFlow >= 0 ? 'Net Receivable' : 'Net Payable'}
-                </p>
+        <Card className="border-0 shadow-xl shadow-indigo-600/10 bg-indigo-600 dark:bg-indigo-900 overflow-hidden relative group">
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-transparent" />
+          <div className="absolute bottom-0 left-0 p-4 -ml-4 -mb-4 bg-white/10 rounded-full w-24 h-24 group-hover:scale-110 transition-transform" />
+          <CardContent className="p-8 relative z-10">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2.5 rounded-xl bg-white/20">
+                  <Wallet className="h-6 w-6 text-white" />
+                </div>
+                <p className="text-sm font-bold text-indigo-100 uppercase tracking-wider">Net Position</p>
               </div>
-              <div className={`p-4 rounded-2xl ${netCashFlow >= 0 ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-orange-100 dark:bg-orange-900/30'}`}>
-                <Wallet className={`h-8 w-8 ${netCashFlow >= 0 ? 'text-blue-600' : 'text-orange-600'}`} />
-              </div>
+              <p className="text-4xl font-black text-white">
+                {formatCurrency(Math.abs(netCashFlow))}
+              </p>
+              <p className="mt-4 text-sm font-semibold text-indigo-100 flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${netCashFlow >= 0 ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                {netCashFlow >= 0 ? 'Surplus Balance' : 'Outstanding Liability'}
+              </p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Secondary Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                <Package className="h-5 w-5 text-blue-600" />
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+        {[
+          { icon: Package, value: dashboardData?.total_products || 0, label: t('dashboard.totalProducts'), color: 'blue' },
+          { icon: DollarSign, value: formatCurrency(dashboardData?.today_sales_total || 0), label: "Today's Sales", color: 'purple' },
+          { icon: TrendingUp, value: formatCurrency(dashboardData?.monthly_collections || 0), label: "Monthly Collections", color: 'emerald' },
+          { icon: AlertCircle, value: dashboardData?.low_stock_count || 0, label: t('dashboard.lowStock'), color: 'orange' },
+          { icon: Receipt, value: dashboardData?.credit_notes_pending || 0, label: "Pending Issues", color: 'rose' },
+        ].map((stat, i) => (
+          <Card key={i} className="border-0 shadow-lg shadow-slate-200/50 dark:shadow-none bg-white/80 dark:bg-slate-900/50 backdrop-blur-xl hover:scale-105 transition-transform cursor-default">
+            <CardContent className="p-6">
+              <div className="flex flex-col items-center text-center gap-3">
+                <div className={`p-3 rounded-2xl bg-${stat.color}-50 dark:bg-${stat.color}-950/40`}>
+                  <stat.icon className={`h-6 w-6 text-${stat.color}-600 dark:text-${stat.color}-400`} />
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-slate-800 dark:text-white leading-none mb-1">{stat.value}</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">{stat.label}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{dashboardData?.total_products || 0}</p>
-                <p className="text-xs text-muted-foreground">{t('dashboard.totalProducts')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                <DollarSign className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{formatCurrency(dashboardData?.today_sales_total || 0)}</p>
-                <p className="text-xs text-muted-foreground">Today's Sales</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-                <DollarSign className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{formatCurrency(dashboardData?.monthly_collections || 0)}</p>
-                <p className="text-xs text-muted-foreground">Monthly Collections</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/30">
-                <AlertCircle className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{dashboardData?.low_stock_count || 0}</p>
-                <p className="text-xs text-muted-foreground">{t('dashboard.lowStock')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-teal-100 dark:bg-teal-900/30">
-                <Receipt className="h-5 w-5 text-teal-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{dashboardData?.credit_notes_pending || 0}</p>
-                <p className="text-xs text-muted-foreground">Pending Credit Notes</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Sales Trend Area Chart */}
-        <Card className="border-0 shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              Sales Trend (Last 7 Days)
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card className="border-0 shadow-xl shadow-slate-200/50 dark:shadow-none bg-white dark:bg-slate-950 overflow-hidden">
+          <CardHeader className="pb-4 border-b border-slate-50 dark:border-slate-900 bg-slate-50/30 dark:bg-transparent">
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <BarChart3 className="h-6 w-6 text-indigo-500" />
+              Sales Performance
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={dashboardData?.sales_chart || []}>
-                <defs>
-                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(210, 78%, 39%)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(210, 78%, 39%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="total"
-                  stroke="hsl(210, 78%, 39%)"
-                  strokeWidth={2}
-                  fill="url(#colorSales)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <CardContent className="p-8">
+            <div className="h-[350px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={dashboardData?.sales_chart || []}>
+                  <defs>
+                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#4F46E5" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.5} />
+                  <XAxis 
+                    dataKey="date" 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 600}}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 600}}
+                    tickFormatter={(value) => `$${value}`}
+                  />
+                  <Tooltip 
+                    contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', fontWeight: 'bold'}}
+                    itemStyle={{color: '#4F46E5'}}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="total" 
+                    stroke="#4F46E5" 
+                    strokeWidth={4}
+                    fillOpacity={1} 
+                    fill="url(#colorSales)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Inventory Value Card */}
-        <Card className="border-0 shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Package className="h-5 w-5 text-primary" />
-              Inventory Summary
+        {/* Inventory Status with Radial feel */}
+        <Card className="border-0 shadow-xl shadow-slate-200/50 dark:shadow-none bg-white dark:bg-slate-950 overflow-hidden">
+          <CardHeader className="pb-4 border-b border-slate-50 dark:border-slate-900 bg-slate-50/30 dark:bg-transparent">
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <Package className="h-6 w-6 text-indigo-500" />
+              Inventory Metrics
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-xl">
+          <CardContent className="p-8">
+            <div className="flex items-center justify-between mb-8">
               <div>
-                <p className="text-sm text-muted-foreground">Total Inventory Value</p>
-                <p className="text-3xl font-bold text-foreground mt-1">
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Total Stock Value</p>
+                <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">
                   {formatCurrency(dashboardData?.inventory_value || 0)}
                 </p>
               </div>
-              <div className="p-3 bg-primary/10 rounded-xl">
-                <DollarSign className="h-8 w-8 text-primary" />
+              <div className="p-4 rounded-3xl bg-indigo-50 dark:bg-indigo-900/30">
+                <DollarSign className="h-10 w-10 text-indigo-600" />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 border rounded-xl">
-                <p className="text-sm text-muted-foreground">Active Locations</p>
-                <p className="text-2xl font-bold">{dashboardData?.active_locations || 0}</p>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Active Hubs</p>
+                <p className="text-3xl font-black text-slate-800 dark:text-white">{dashboardData?.active_locations || 0}</p>
+                <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full mt-3 overflow-hidden">
+                  <div className="h-full bg-indigo-500 rounded-full" style={{width: '70%'}} />
+                </div>
               </div>
-              <div className="p-4 border rounded-xl">
-                <p className="text-sm text-muted-foreground">Monthly Revenue</p>
-                <p className="text-2xl font-bold">{formatCurrency(dashboardData?.product_revenue || 0)}</p>
+              <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Monthly Rev.</p>
+                <p className="text-3xl font-black text-slate-800 dark:text-white">{formatCurrency(dashboardData?.product_revenue || 0)}</p>
+                <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full mt-3 overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full" style={{width: '85%'}} />
+                </div>
               </div>
-            </div>
-
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Products Sold This Month</span>
-              <span className="font-semibold">{dashboardData?.top_products_count || 0} items</span>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Links */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Link to="/invoices/sales" className="group">
-          <Card className="border-0 shadow-sm hover:shadow-md transition-all group-hover:border-primary/20">
-            <CardContent className="p-4 flex items-center gap-3">
-              <FileText className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-              <span className="text-sm font-medium">View Invoices</span>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link to="/customers" className="group">
-          <Card className="border-0 shadow-sm hover:shadow-md transition-all group-hover:border-primary/20">
-            <CardContent className="p-4 flex items-center gap-3">
-              <Users className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-              <span className="text-sm font-medium">Customers</span>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link to="/reports" className="group">
-          <Card className="border-0 shadow-sm hover:shadow-md transition-all group-hover:border-primary/20">
-            <CardContent className="p-4 flex items-center gap-3">
-              <BarChart3 className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-              <span className="text-sm font-medium">Reports</span>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link to="/inventory" className="group">
-          <Card className="border-0 shadow-sm hover:shadow-md transition-all group-hover:border-primary/20">
-            <CardContent className="p-4 flex items-center gap-3">
-              <Package className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-              <span className="text-sm font-medium">Inventory</span>
-            </CardContent>
-          </Card>
-        </Link>
+      {/* Quick Links with more style */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        {[
+          { to: "/invoices/sales", icon: FileText, label: "View Invoices", color: "indigo" },
+          { to: "/customers", icon: Users, label: "Customers", color: "emerald" },
+          { to: "/reports", icon: BarChart3, label: "Business Reports", color: "purple" },
+          { to: "/inventory", icon: Package, label: "Inventory Hub", color: "amber" },
+        ].map((link, i) => (
+          <Link key={i} to={link.to} className="group">
+            <Card className="border-0 shadow-lg shadow-slate-200/50 dark:shadow-none group-hover:scale-105 transition-all overflow-hidden relative">
+              <div className={`absolute top-0 left-0 w-1 h-full bg-${link.color}-500`} />
+              <CardContent className="p-6 flex items-center gap-4">
+                <div className={`p-3 rounded-2xl bg-${link.color}-50 dark:bg-${link.color}-950/40 group-hover:rotate-12 transition-transform`}>
+                  <link.icon className={`h-6 w-6 text-${link.color}-600 dark:text-${link.color}-400`} />
+                </div>
+                <span className="text-base font-bold text-slate-700 dark:text-slate-300 group-hover:text-indigo-600 transition-colors">{link.label}</span>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
       </div>
     </div>
   );

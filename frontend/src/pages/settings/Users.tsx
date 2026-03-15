@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Edit, Trash2, Search, Shield, UserPlus, Briefcase } from 'lucide-react';
+import { Edit, Trash2, Search, Shield, UserPlus, Briefcase, Settings2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { userApi } from '@/lib/api';
+import { userApi, sessionApi, locationApi } from '@/lib/api';
 
 export default function Users() {
   const { t } = useTranslation();
@@ -50,9 +51,41 @@ export default function Users() {
   const { data: locations } = useQuery({
     queryKey: ['locations'],
     queryFn: async () => {
-      const response = await fetch('/api/locations');
-      const data = await response.json();
-      return data.data || [];
+      const response = await locationApi.getAll();
+      return response.data.data || [];
+    },
+  });
+
+  const { data: locationMode } = useQuery({
+    queryKey: ['locationMode'],
+    queryFn: async () => {
+      const response = await sessionApi.getLocationMode();
+      return response.data.mode || 'automatic';
+    },
+  });
+
+  const { data: activeSessions } = useQuery({
+    queryKey: ['activeSessions'],
+    queryFn: async () => {
+      const response = await sessionApi.getAllSessions();
+      return response.data.data || [];
+    },
+  });
+
+  const updateModeMutation = useMutation({
+    mutationFn: sessionApi.setLocationMode,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locationMode'] });
+      toast.success('Location mode updated');
+    },
+  });
+
+  const setSessionMutation = useMutation({
+    mutationFn: ({ userId, locationId }: { userId: number; locationId: number }) =>
+      sessionApi.adminSetSession(userId, locationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activeSessions'] });
+      toast.success('User session updated for today');
     },
   });
 
@@ -199,18 +232,61 @@ export default function Users() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <Shield className="h-8 w-8 text-purple-600" />
-            User Management
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">Manage system users and their roles</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                <Shield className="h-8 w-8 text-purple-600" />
+                User Management
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">Manage system users and their roles</p>
+            </div>
+            <Button onClick={() => handleOpenDialog()} size="lg" className="shadow-lg">
+              <UserPlus className="mr-2 h-5 w-5" />
+              Add User
+            </Button>
+          </div>
         </div>
-        <Button onClick={() => handleOpenDialog()} size="lg" className="shadow-lg">
-          <UserPlus className="mr-2 h-5 w-5" />
-          Add User
-        </Button>
+
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-white dark:from-slate-900 dark:to-slate-950">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Settings2 className="h-4 w-4 text-indigo-600" />
+              Location Mode Settings
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-4">
+              <p className="text-xs text-muted-foreground italic">
+                Control how sales reps select their operating location.
+              </p>
+              <div className="flex items-center gap-2 p-1 bg-white dark:bg-slate-800 rounded-lg border border-indigo-100 dark:border-slate-700 shadow-sm">
+                <Button
+                  variant={locationMode === 'automatic' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="flex-1 text-xs h-8"
+                  onClick={() => updateModeMutation.mutate('automatic')}
+                >
+                  User Choice
+                </Button>
+                <Button
+                  variant={locationMode === 'manual' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="flex-1 text-xs h-8"
+                  onClick={() => updateModeMutation.mutate('manual')}
+                >
+                  Admin Set
+                </Button>
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                {locationMode === 'automatic'
+                  ? '✓ Sales reps choose their location daily on the mobile app'
+                  : '✓ Admins must assign today\'s location for each sales rep'}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="border-0 shadow-lg">
@@ -239,6 +315,7 @@ export default function Users() {
                   <TableHead>Phone</TableHead>
                   <TableHead>Position</TableHead>
                   <TableHead>Location</TableHead>
+                  <TableHead>Today's Session</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Commission</TableHead>
                   <TableHead>Status</TableHead>
@@ -248,7 +325,7 @@ export default function Users() {
               <TableBody>
                 {users?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={10} className="text-center py-8">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -272,6 +349,47 @@ export default function Users() {
                           <span className="text-sm text-blue-600">{user.location_name}</span>
                         ) : (
                           <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {user.role === 'sales' || user.role === 'employee' ? (
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const session = activeSessions?.find((s: any) => s.user_id === user.id);
+                              if (session) {
+                                return (
+                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1 lg:pr-3 py-0.5">
+                                    <Clock className="h-3 w-3" />
+                                    <span className="max-w-[80px] truncate">{session.location?.name}</span>
+                                  </Badge>
+                                );
+                              }
+                              return (
+                                <span className="text-xs text-gray-400 italic">No session</span>
+                              );
+                            })()}
+                            {locationMode === 'manual' && (
+                              <select
+                                className="text-[10px] border rounded px-1 h-6 bg-white dark:bg-slate-900 outline-none focus:ring-1 focus:ring-indigo-500"
+                                value=""
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    setSessionMutation.mutate({
+                                      userId: user.id,
+                                      locationId: Number(e.target.value),
+                                    });
+                                  }
+                                }}
+                              >
+                                <option value="">Assign Today</option>
+                                {locations?.map((l: any) => (
+                                  <option key={l.id} value={l.id}>{l.name}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-300">-</span>
                         )}
                       </TableCell>
                       <TableCell>

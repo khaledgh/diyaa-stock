@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import {
   FileText,
@@ -23,6 +23,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { templateApi } from '@/lib/api';
 import { 
   Dialog, 
   DialogContent, 
@@ -72,7 +74,7 @@ interface Template {
     show_logo: boolean;
     primary_color: string;
     font_family: string;
-    paper_size: 'a4' | 'letter' | 'thermal';
+    paper_size: 'a4' | 'letter' | 'thermal' | 'thermal_80';
   };
   custom_texts: {
     title?: string;
@@ -80,11 +82,11 @@ interface Template {
     terms?: string;
   };
   is_default: boolean;
-  created_at: string;
+  created_at?: string;
 }
 
 // Default templates
-const DEFAULT_TEMPLATES: Template[] = [
+export const DEFAULT_TEMPLATES: Template[] = [
   {
     id: 'default-invoice',
     name: 'Standard Invoice',
@@ -136,35 +138,65 @@ const DEFAULT_TEMPLATES: Template[] = [
 ];
 
 export default function InvoiceTemplates() {
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const queryClient = useQueryClient();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
 
-  // Load templates from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('invoice_templates');
-    if (saved) {
-      try {
-        setTemplates(JSON.parse(saved));
-      } catch {
-        setTemplates(DEFAULT_TEMPLATES);
-      }
-    } else {
-      setTemplates(DEFAULT_TEMPLATES);
-    }
-  }, []);
+  const { data: templates = [], isLoading } = useQuery({
+    queryKey: ['invoice-templates'],
+    queryFn: async () => {
+      const response = await templateApi.getAll();
+      return (response.data.data || []).map((t: any) => ({
+        ...t,
+        fields: typeof t.fields === 'string' ? JSON.parse(t.fields) : t.fields,
+        layout: typeof t.layout === 'string' ? JSON.parse(t.layout) : t.layout,
+        custom_texts: typeof t.custom_texts === 'string' ? JSON.parse(t.custom_texts) : t.custom_texts,
+      })) as Template[];
+    },
+  });
 
-  // Save templates to localStorage
-  const saveTemplates = (newTemplates: Template[]) => {
-    localStorage.setItem('invoice_templates', JSON.stringify(newTemplates));
-    setTemplates(newTemplates);
-  };
+  const saveMutation = useMutation({
+    mutationFn: (template: Template) => {
+      const payload = {
+        ...template,
+        fields: JSON.stringify(template.fields),
+        layout: JSON.stringify(template.layout),
+        custom_texts: JSON.stringify(template.custom_texts),
+      };
+      if (typeof template.id === 'number') {
+        return templateApi.update(template.id, payload);
+      }
+      return templateApi.create(payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoice-templates'] });
+      setIsEditorOpen(false);
+      setEditingTemplate(null);
+      toast.success('Template saved successfully!');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => templateApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoice-templates'] });
+      toast.success('Template deleted');
+    },
+  });
+
+  const setDefaultMutation = useMutation({
+    mutationFn: (template: Template) => templateApi.update(Number(template.id), { ...template, is_default: true, fields: JSON.stringify(template.fields), layout: JSON.stringify(template.layout), custom_texts: JSON.stringify(template.custom_texts) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoice-templates'] });
+      toast.success('Default template updated');
+    },
+  });
 
   const handleCreateTemplate = () => {
     const newTemplate: Template = {
-      id: `template-${Date.now()}`,
+      id: 'new',
       name: 'New Template',
       type: 'invoice',
       fields: ['company_name', 'invoice_number', 'invoice_date', 'items_table', 'total_amount'],
@@ -177,7 +209,6 @@ export default function InvoiceTemplates() {
       },
       custom_texts: {},
       is_default: false,
-      created_at: new Date().toISOString()
     };
     setEditingTemplate(newTemplate);
     setIsEditorOpen(true);
@@ -190,49 +221,26 @@ export default function InvoiceTemplates() {
 
   const handleSaveTemplate = () => {
     if (!editingTemplate) return;
-    
-    const existingIndex = templates.findIndex(t => t.id === editingTemplate.id);
-    let newTemplates: Template[];
-    
-    if (existingIndex >= 0) {
-      newTemplates = templates.map(t => t.id === editingTemplate.id ? editingTemplate : t);
-    } else {
-      newTemplates = [...templates, editingTemplate];
-    }
-    
-    saveTemplates(newTemplates);
-    setIsEditorOpen(false);
-    setEditingTemplate(null);
-    toast.success('Template saved successfully!');
+    saveMutation.mutate(editingTemplate);
   };
 
-  const handleDeleteTemplate = (templateId: string) => {
+  const handleDeleteTemplate = (templateId: number) => {
     if (!window.confirm('Are you sure you want to delete this template?')) return;
-    
-    const newTemplates = templates.filter(t => t.id !== templateId);
-    saveTemplates(newTemplates);
-    toast.success('Template deleted');
+    deleteMutation.mutate(templateId);
   };
 
-  const handleSetDefault = (templateId: string) => {
-    const newTemplates = templates.map(t => ({
-      ...t,
-      is_default: t.id === templateId
-    }));
-    saveTemplates(newTemplates);
-    toast.success('Default template updated');
+  const handleSetDefault = (template: Template) => {
+    setDefaultMutation.mutate(template);
   };
 
   const handleDuplicateTemplate = (template: Template) => {
     const duplicate: Template = {
       ...template,
-      id: `template-${Date.now()}`,
+      id: 'new',
       name: `${template.name} (Copy)`,
       is_default: false,
-      created_at: new Date().toISOString()
     };
-    saveTemplates([...templates, duplicate]);
-    toast.success('Template duplicated');
+    saveMutation.mutate(duplicate);
   };
 
   const toggleField = (fieldId: string) => {
@@ -270,7 +278,16 @@ export default function InvoiceTemplates() {
       </div>
 
       {/* Templates Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {isLoading ? (
+        <div className="flex items-center justify-center p-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      ) : templates.length === 0 ? (
+        <div className="text-center p-12 bg-muted/50 rounded-xl border-2 border-dashed">
+          <p className="text-muted-foreground">No templates found. Create your first one!</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {templates.map((template) => (
           <Card key={template.id} className={template.is_default ? 'ring-2 ring-blue-500' : ''}>
             <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
@@ -314,10 +331,10 @@ export default function InvoiceTemplates() {
                 </Button>
                 {!template.is_default && (
                   <>
-                    <Button variant="outline" size="sm" onClick={() => handleSetDefault(template.id)}>
+                    <Button variant="outline" size="sm" onClick={() => handleSetDefault(template)}>
                       <Check className="mr-1 h-3 w-3" /> Set Default
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteTemplate(template.id)} className="text-red-500">
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteTemplate(Number(template.id))} className="text-red-500">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </>
@@ -326,14 +343,15 @@ export default function InvoiceTemplates() {
             </CardContent>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
 
       {/* Template Editor Dialog */}
       <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
-              {editingTemplate?.id.startsWith('template-') ? 'Edit' : 'Create'} Template
+              {editingTemplate?.id === 'new' ? 'Create' : 'Edit'} Template
             </DialogTitle>
           </DialogHeader>
 
@@ -395,7 +413,8 @@ export default function InvoiceTemplates() {
                     >
                       <option value="a4">A4</option>
                       <option value="letter">Letter</option>
-                      <option value="thermal">Thermal (80mm)</option>
+                      <option value="thermal">Thermal (58mm)</option>
+                      <option value="thermal_80">Thermal (80mm)</option>
                     </select>
                   </div>
                   <div>

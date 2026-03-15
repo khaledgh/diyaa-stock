@@ -322,6 +322,14 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.GET("/chatbot/sessions/:id", chatbotHandler.GetSessionHistory)
 	apiGroup.DELETE("/chatbot/sessions/:id", chatbotHandler.DeleteSession)
 
+	// Invoice Template routes
+	templateHandler := handlers.NewInvoiceTemplateHandler(store)
+	apiGroup.GET("/invoice-templates", templateHandler.GetAllTemplates)
+	apiGroup.GET("/invoice-templates/default", templateHandler.GetDefaultTemplate)
+	apiGroup.POST("/invoice-templates", templateHandler.CreateTemplate)
+	apiGroup.PUT("/invoice-templates/:id", templateHandler.UpdateTemplate)
+	apiGroup.DELETE("/invoice-templates/:id", templateHandler.DeleteTemplate)
+
 	// Telegram routes (Public for webhook)
 	telegramHandler := handlers.NewTelegramHandler(store, chatbotService, purchaseInvoiceService, salesInvoiceService)
 	e.POST("/api/telegram/webhook", telegramHandler.WebhookHandler)

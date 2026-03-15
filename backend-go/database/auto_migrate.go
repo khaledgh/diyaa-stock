@@ -64,6 +64,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.UserLocation{},
 		&models.DailyLocationSession{},
 		&models.SystemSetting{},
+		&models.InvoiceTemplate{},
 	)
 
 	if err != nil {

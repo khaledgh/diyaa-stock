@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import apiService from '../src/services/api.service';
 import { PrintableReceiptData } from '../utils/receiptImagePrinter';
 import { captureRef } from 'react-native-view-shot';
 import { decodePNG } from '../utils/pngDecoder';
@@ -59,6 +60,7 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
   const [savedDeviceAddr, setSavedDeviceAddr] = useState<string | null>(null);
   const [btEnabled, setBtEnabled] = useState(false);
   const [receiptData, setReceiptData] = useState<PrintableReceiptData | null>(null);
+  const [template, setTemplate] = useState<any>(null);
   const receiptViewRef = useRef<View>(null);
 
   // -------------------- PERMISSIONS --------------------
@@ -272,6 +274,25 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
     };
 
     init();
+    
+    const fetchTemplate = async () => {
+      try {
+        const response = await apiService.getDefaultTemplate('invoice');
+        if (response.ok || response.success) {
+          const t = response.data;
+          setTemplate({
+            ...t,
+            fields: typeof t.fields === 'string' ? JSON.parse(t.fields) : t.fields,
+            layout: typeof t.layout === 'string' ? JSON.parse(t.layout) : t.layout,
+            custom_texts: typeof t.custom_texts === 'string' ? JSON.parse(t.custom_texts) : t.custom_texts,
+          });
+        }
+      } catch (err) {
+        console.log('Template fetch error:', err);
+      }
+    };
+    fetchTemplate();
+
     return () => { cancelled = true; };
   }, []);
 
@@ -414,10 +435,15 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
   // Printer doesn't support UTF-8 Arabic or GS v 0 raster.
   // Use ESC * (bit image) line-by-line — universally supported on all ESC/POS printers.
   // Each line: ESC * m nL nH [data] where m=0 (8-dot single density) or m=33 (24-dot double density)
-  const PRINTER_WIDTH = 384; // 58mm = 384 dots
+  
+  const getPrinterWidth = () => {
+    if (template?.layout?.paper_size === 'thermal_80') return 576;
+    return 384; // Default 58mm
+  };
 
   const printReceiptData = async (data: PrintableReceiptData) => {
-    console.log('🖨️ printReceiptData (ESC * bitmap):', data.invoiceNumber);
+    const printerWidth = getPrinterWidth();
+    console.log(`🖨️ printReceiptData (ESC * bitmap): ${data.invoiceNumber}, width=${printerWidth}`);
 
     if (!connectedDevice) {
       throw new Error('No printer connected');
@@ -438,7 +464,7 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
         format: 'png',
         quality: 1,
         result: 'tmpfile',
-        width: PRINTER_WIDTH,
+        width: printerWidth,
       });
       console.log('📸 Captured:', tmpUri);
 
@@ -454,8 +480,8 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
       const { width: imgW, height: imgH, pixels } = png;
       console.log(`📷 Image: ${imgW}x${imgH}`);
 
-      // 5. Convert to 1-bit monochrome at PRINTER_WIDTH
-      const outW = PRINTER_WIDTH;
+      // 5. Convert to 1-bit monochrome at printerWidth
+      const outW = printerWidth;
       const scaleX = imgW / outW;
       const scaleY = scaleX;
       const outH = Math.round(imgH / scaleY);
@@ -581,7 +607,7 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
   // -------------------- UI --------------------
   const bitmapView = (
     <View collapsable={false} style={{ position: 'absolute', top: -9999, left: 0 }}>
-      <ReceiptBitmapView ref={receiptViewRef} data={receiptData} />
+      <ReceiptBitmapView ref={receiptViewRef} data={receiptData} template={template} />
     </View>
   );
 

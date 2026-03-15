@@ -185,6 +185,10 @@ export default function POSScreen({ navigation }: any) {
   const [partialAmount, setPartialAmount] = useState('');
   const [isPrinting, setIsPrinting] = useState(false);
   const [draftCount, setDraftCount] = useState(0);
+  const [locationMode, setLocationMode] = useState<'automatic' | 'manual' | null>(null);
+  const [hasCheckedSession, setHasCheckedSession] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [userLocations, setUserLocations] = useState<any[]>([]);
   const isAdmin = user?.role === 'admin';
 
   const cartWidth = 380;
@@ -233,18 +237,87 @@ export default function POSScreen({ navigation }: any) {
       setIsLoading(false);
     }
   }, [selectedLocationId, user?.location_id, isAdmin]);
-
+  // -------------------- NEW SESSION LOGIC --------------------
   const loadLocations = useCallback(async () => {
-    if (!isAdmin) return;
     try {
       const resp = await apiService.getLocations();
       if (resp.data) {
         setLocations(resp.data);
       }
-    } catch {
-      // silently fail
+    } catch { /* silently fail */ }
+  }, []);
+
+  const initSession = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      // 1. Get location mode
+      const modeResp = await apiService.getLocationMode();
+      const mode = modeResp.mode || 'automatic';
+      setLocationMode(mode);
+
+      // 2. Get today's session
+      const sessResp = await apiService.getTodaySession();
+      if (sessResp.ok && sessResp.session) {
+        setSelectedLocationId(sessResp.session.location_id);
+      } else {
+        // No session found
+        if (isAdmin) {
+          await loadLocations();
+          setShowLocationModal(true);
+        } else if (mode === 'automatic') {
+          const locsResp = await apiService.getUserLocations(user?.id || 0);
+          const userLocs = locsResp.data || [];
+          setUserLocations(userLocs);
+          if (userLocs.length === 1) {
+            handleLocationSelect(userLocs[0].id);
+          } else {
+            setShowLocationModal(true);
+          }
+        } else {
+          Alert.alert(
+            'Location Required',
+            'Your location for today has not been assigned by an admin. Please contact your manager.'
+          );
+        }
+      }
+    } catch (e) {
+      console.error('Session init error:', e);
+    } finally {
+      setIsLoading(false);
+      setHasCheckedSession(true);
     }
-  }, [isAdmin]);
+  }, [isAdmin, user?.id]);
+
+  const handleLocationSelect = async (locId: number) => {
+    try {
+      setIsLoading(true);
+      if (!isAdmin) {
+        await apiService.createSession(locId);
+      }
+      setSelectedLocationId(locId);
+      setShowLocationModal(false);
+    } catch (e) {
+      Alert.alert('Error', 'Failed to start session at this location');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filterStock = useCallback(() => {
+    if (!searchQuery.trim()) {
+      setFilteredStock(stockItems);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = stockItems.filter(
+      (item) =>
+        item.name.toLowerCase().includes(query) ||
+        item.sku?.toLowerCase().includes(query) ||
+        item.barcode?.toLowerCase().includes(query)
+    );
+    setFilteredStock(filtered);
+  }, [searchQuery, stockItems]);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -275,27 +348,16 @@ export default function POSScreen({ navigation }: any) {
     }
   }, [loadStock, loadCustomers, loadLocations, isAdmin]);
 
-  const filterStock = useCallback(() => {
-    if (!searchQuery.trim()) {
-      setFilteredStock(stockItems);
-      return;
-    }
-
-    const query = searchQuery.toLowerCase();
-    const filtered = stockItems.filter(
-      (item) =>
-        item.name.toLowerCase().includes(query) ||
-        item.sku?.toLowerCase().includes(query) ||
-        item.barcode?.toLowerCase().includes(query)
-    );
-    setFilteredStock(filtered);
-  }, [searchQuery, stockItems]);
-
   useEffect(() => {
-    if (isAdmin) {
-      loadLocations();
+    initSession();
+  }, [initSession]);
+
+  // Customer First Flow
+  useEffect(() => {
+    if (hasCheckedSession && selectedLocationId && !selectedCustomer && !showCustomerModal) {
+      setTimeout(() => setShowCustomerModal(true), 500);
     }
-  }, [isAdmin, loadLocations]);
+  }, [hasCheckedSession, selectedLocationId, selectedCustomer, showCustomerModal]);
 
   const loadDraftCount = useCallback(async () => {
     try {
@@ -585,97 +647,11 @@ export default function POSScreen({ navigation }: any) {
     ? customerSearchResults
     : customers;
 
-  if (isLoading && stockItems.length === 0) {
+  if (isLoading && stockItems.length === 0 && !showLocationModal) {
     return (
-      <View className="flex-1 bg-gray-50">
-        <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-          <View className="bg-white px-5 py-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}>
-            <View className="mb-2 h-6 w-32 rounded-lg bg-gray-200" />
-            <View className="h-4 w-24 rounded bg-gray-100" />
-          </View>
-        </SafeAreaView>
-
-        <View className="p-4">
-          <View className="mb-3 flex-row gap-3">
-            {[1, 2].map((i) => (
-              <View
-                key={i}
-                className="h-48 flex-1 rounded-3xl bg-white p-4"
-                style={{ elevation: 2 }}>
-                <View className="mb-3 h-6 w-20 rounded-full bg-gray-200" />
-                <View className="mb-2 h-10 w-full rounded bg-gray-100" />
-                <View className="mb-4 h-4 w-16 rounded bg-gray-100" />
-                <View className="flex-row items-center justify-between">
-                  <View className="h-8 w-20 rounded bg-gray-200" />
-                  <View className="h-12 w-12 rounded-2xl bg-gray-200" />
-                </View>
-              </View>
-            ))}
-          </View>
-          <View className="mb-3 flex-row gap-3">
-            {[1, 2].map((i) => (
-              <View
-                key={i}
-                className="h-48 flex-1 rounded-3xl bg-white p-4"
-                style={{ elevation: 2 }}>
-                <View className="mb-3 h-6 w-20 rounded-full bg-gray-200" />
-                <View className="mb-2 h-10 w-full rounded bg-gray-100" />
-                <View className="mb-4 h-4 w-16 rounded bg-gray-100" />
-                <View className="flex-row items-center justify-between">
-                  <View className="h-8 w-20 rounded bg-gray-200" />
-                  <View className="h-12 w-12 rounded-2xl bg-gray-200" />
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  // Admin must select a location before accessing POS
-  if (isAdmin && !selectedLocationId) {
-    return (
-      <View className="flex-1 bg-gray-50">
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
-        <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
-          <View className="bg-white px-5 py-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}>
-            <Text className="text-2xl font-bold tracking-tight text-gray-900">Point of Sale</Text>
-            <Text className="mt-0.5 text-sm text-gray-500">Select a location to continue</Text>
-          </View>
-        </SafeAreaView>
-        <View className="flex-1 items-center justify-center p-6">
-          <View className="w-20 h-20 items-center justify-center rounded-full bg-blue-100 mb-6">
-            <Ionicons name="location" size={40} color="#2563EB" />
-          </View>
-          <Text className="text-xl font-bold text-gray-900 mb-2">Choose Location</Text>
-          <Text className="text-sm text-gray-500 text-center mb-8">Select a branch/location to load its products and start selling.</Text>
-          <View className="w-full">
-            {locations.map((loc) => (
-              <TouchableOpacity
-                key={loc.id}
-                onPress={() => setSelectedLocationId(loc.id)}
-                className="bg-white flex-row items-center p-4 rounded-2xl mb-3 border border-gray-200"
-                style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}
-              >
-                <View className="w-12 h-12 items-center justify-center rounded-xl bg-blue-50 mr-4">
-                  <Ionicons name="storefront" size={24} color="#2563EB" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-base font-bold text-gray-900">{loc.name}</Text>
-                  {loc.type && <Text className="text-xs text-gray-500 mt-0.5 capitalize">{loc.type}</Text>}
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-            ))}
-            {locations.length === 0 && (
-              <View className="items-center p-8">
-                <ActivityIndicator size="large" color="#2563EB" />
-                <Text className="text-gray-500 mt-4">Loading locations...</Text>
-              </View>
-            )}
-          </View>
-        </View>
+      <View className="flex-1 bg-gray-50 items-center justify-center">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text className="mt-4 text-gray-500 font-medium">Loading session...</Text>
       </View>
     );
   }
@@ -813,11 +789,53 @@ export default function POSScreen({ navigation }: any) {
     </Modal>
   );
 
+  const renderLocationModal = (
+    <Modal visible={showLocationModal} animationType="slide" transparent>
+      <View className="flex-1 justify-center bg-black/60 px-6">
+        <View className="rounded-3xl bg-white p-6 shadow-2xl">
+          <View className="mb-6 items-center">
+            <View className="mb-3 h-16 w-16 items-center justify-center rounded-2xl bg-blue-100">
+              <Ionicons name="location" size={32} color="#3B82F6" />
+            </View>
+            <Text className="text-xl font-bold text-gray-900">Select Operating Location</Text>
+            <Text className="mt-1 text-center text-gray-500">
+              Where are you working from today?
+            </Text>
+          </View>
+          <ScrollView className="max-h-80">
+            {(isAdmin ? locations : userLocations).map((loc: any) => (
+              <TouchableOpacity
+                key={loc.id}
+                onPress={() => handleLocationSelect(loc.id)}
+                className="mb-3 flex-row items-center rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                <View className="mr-4 h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm">
+                  <Ionicons name="business" size={20} color="#3B82F6" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-semibold text-gray-900">{loc.name}</Text>
+                  <Text className="text-xs text-gray-500 capitalize">{loc.type || 'Branch'}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          {isAdmin && (
+            <TouchableOpacity
+              onPress={() => setShowLocationModal(false)}
+              className="mt-4 items-center py-2">
+              <Text className="font-semibold text-gray-400">Cancel</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <View className="flex-1 bg-gray-50">
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
-
-      {/* Modern Header with SafeArea */}
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={true} />
+      {renderLocationModal}
+      <CustomerModal />
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
         <View className="bg-white px-5 py-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}>
           <View className="mb-4 flex-row items-center justify-between">
@@ -855,15 +873,41 @@ export default function POSScreen({ navigation }: any) {
             </View>
           </View>
 
-          <View className="flex-row items-center rounded-2xl border border-gray-200 bg-gray-50 px-5 py-3.5">
-            <Ionicons name="search" size={20} color="#9CA3AF" style={{ marginRight: 12 }} />
-            <TextInput
-              className="flex-1 text-base text-gray-900"
-              placeholder="Search products..."
-              placeholderTextColor="#9CA3AF"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
+          <View className="flex-row items-center gap-2">
+            <TouchableOpacity
+              onPress={() => setShowCustomerModal(true)}
+              className={`flex-1 flex-row items-center rounded-2xl px-4 py-3.5 ${selectedCustomer ? 'bg-indigo-50 border border-indigo-100' : 'bg-gray-100'
+                }`}>
+              <Ionicons
+                name="person-circle"
+                size={22}
+                color={selectedCustomer ? '#4F46E5' : '#6B7280'}
+              />
+              <Text
+                className={`ml-2 flex-1 font-semibold ${selectedCustomer ? 'text-indigo-700' : 'text-gray-500'
+                  }`}
+                numberOfLines={1}>
+                {selectedCustomer ? selectedCustomer.name : 'Select Customer'}
+              </Text>
+              {selectedCustomer && (
+                <TouchableOpacity onPress={() => setSelectedCustomer(null)}>
+                  <Ionicons name="close-circle" size={18} color="#4F46E5" />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+
+            <View className="w-0.5 h-6 bg-gray-200 mx-1" />
+
+            <View className="flex-1 flex-row items-center rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3.5">
+              <Ionicons name="search" size={20} color="#9CA3AF" />
+              <TextInput
+                className="ml-2 flex-1 text-base text-gray-900"
+                placeholder="Search products..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
           </View>
 
           {isAdmin && (

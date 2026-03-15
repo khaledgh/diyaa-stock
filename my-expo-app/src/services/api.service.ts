@@ -285,6 +285,11 @@ class ApiService {
     return response.data;
   }
 
+  async getDefaultTemplate(type = 'invoice') {
+    const response = await this.api.get('/invoice-templates/default', { params: { type } });
+    return response.data;
+  }
+
   // AI/Chatbot Extraction
   async extractDataWithAI(message: string, base64Image?: string, mimeType = 'image/jpeg') {
     const response = await this.api.post('/chatbot', {
