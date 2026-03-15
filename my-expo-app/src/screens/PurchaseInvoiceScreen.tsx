@@ -294,7 +294,16 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity
-                            onPress={() => setShowItemModal(true)}
+                            onPress={() => {
+                                if (!selectedVendor) {
+                                    Alert.alert('Vendor Required', 'Please select a vendor first.', [
+                                        { text: 'Select Vendor', onPress: () => setShowVendorModal(true) },
+                                        { text: 'Cancel', style: 'cancel' }
+                                    ]);
+                                    return;
+                                }
+                                setShowItemModal(true);
+                            }}
                             className="flex-row items-center bg-blue-600 px-4 py-2 rounded-xl"
                         >
                             <Ionicons name="add" size={18} color="white" />
@@ -340,7 +349,16 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                     >
                                         <Ionicons name="remove" size={22} color="#4B5563" />
                                     </TouchableOpacity>
-                                    <Text className="w-10 text-center font-bold text-gray-900 text-lg">{item.quantity}</Text>
+                                    <TextInput
+                                        className="w-16 text-center font-bold text-gray-900 text-lg p-0"
+                                        keyboardType="decimal-pad"
+                                        defaultValue={item.quantity.toString()}
+                                        onEndEditing={(e) => {
+                                            const val = e.nativeEvent.text;
+                                            updateCartQuantity(item.product.id, parseFloat(val.replace(',', '.')) || 0);
+                                        }}
+                                        selectTextOnFocus
+                                    />
                                     <TouchableOpacity
                                         onPress={() => updateCartQuantity(item.product.id, item.quantity + 1)}
                                         className="w-10 h-10 items-center justify-center"

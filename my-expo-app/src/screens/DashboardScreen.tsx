@@ -14,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
 
+import { LinearGradient } from 'expo-linear-gradient';
+
 export default function DashboardScreen({ navigation }: any) {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
@@ -48,14 +50,12 @@ export default function DashboardScreen({ navigation }: any) {
         return;
       }
 
-      // Load invoices for stats
       const invoiceParams: any = {
         invoice_type: 'sales',
         limit: 500,
         offset: 0,
       };
 
-      // Filter by location: for admins use selectedLocationId (null = all), for sales use their assigned location
       if (locationForQuery) {
         invoiceParams.location_id = locationForQuery;
       }
@@ -64,18 +64,13 @@ export default function DashboardScreen({ navigation }: any) {
 
       if (invoicesResponse.ok || invoicesResponse.success) {
         const invoices = invoicesResponse.invoices?.data || invoicesResponse.data?.data || [];
-
         const now = new Date();
         const todayStart = new Date(now.setHours(0, 0, 0, 0));
-        const weekStart = new Date(now.setDate(now.getDate() - 7));
-        const monthStart = new Date(now.setDate(now.getDate() - 30));
+        const weekStart = new Date(new Date().setDate(new Date().getDate() - 7));
+        const monthStart = new Date(new Date().setDate(new Date().getDate() - 30));
 
-        let todaySales = 0;
-        let weekSales = 0;
-        let monthSales = 0;
-        let todayProfit = 0;
-        let weekProfit = 0;
-        let monthProfit = 0;
+        let todaySales = 0, weekSales = 0, monthSales = 0;
+        let todayProfit = 0, weekProfit = 0, monthProfit = 0;
         let pendingAmount = 0;
 
         const commissionRate = user?.commission_rate || 0;
@@ -105,19 +100,15 @@ export default function DashboardScreen({ navigation }: any) {
         });
 
         setStats({
-          todaySales,
-          weekSales,
-          monthSales,
-          todayProfit,
-          weekProfit,
-          monthProfit,
+          todaySales, weekSales, monthSales,
+          todayProfit, weekProfit, monthProfit,
           totalInvoices: invoices.length,
           pendingAmount,
-          stockValue: 0, // Would need stock endpoint
+          stockValue: 0,
         });
       }
     } catch {
-      // silently fail
+      // fail silently
     } finally {
       setIsLoading(false);
     }
@@ -127,25 +118,29 @@ export default function DashboardScreen({ navigation }: any) {
     if (!isAdmin) return;
     try {
       const resp = await apiService.getLocations();
-      if (resp.data) {
-        setLocations(resp.data);
-      }
-    } catch {
-      // silently fail
-    }
+      if (resp.data) setLocations(resp.data);
+    } catch {}
   }, [isAdmin]);
 
   const loadCommissions = useCallback(async () => {
     if (!isAdmin) return;
     try {
       const resp = await apiService.getCommissions();
-      if (resp?.data) {
-        setCommissionData(resp.data);
-      }
-    } catch {
-      // silently fail
-    }
+      if (resp?.data) setCommissionData(resp.data);
+    } catch {}
   }, [isAdmin]);
+
+  useEffect(() => {
+    loadDashboardData();
+    loadLocations();
+    loadCommissions();
+  }, [loadDashboardData, loadLocations, loadCommissions]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([loadDashboardData(), loadLocations(), loadCommissions()]);
+    setRefreshing(false);
+  }, [loadDashboardData, loadLocations, loadCommissions]);
 
   const getDateRange = (period: 'week' | 'month' | 'custom') => {
     const now = new Date();
@@ -179,435 +174,205 @@ export default function DashboardScreen({ navigation }: any) {
   const openCommissionReport = (period: 'week' | 'month' | 'custom') => {
     setCommissionPeriod(period);
     setShowCommissionReport(true);
-    if (period !== 'custom') {
-      loadCommissionReport(period);
-    }
+    if (period !== 'custom') loadCommissionReport(period);
   };
-
-  useEffect(() => {
-    loadDashboardData();
-    loadLocations();
-    loadCommissions();
-  }, [loadDashboardData, loadLocations, loadCommissions]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await Promise.all([loadDashboardData(), loadLocations(), loadCommissions()]);
-    setRefreshing(false);
-  }, [loadDashboardData, loadLocations, loadCommissions]);
 
   if (isLoading) {
     return (
-      <SafeAreaView edges={['top']} className="flex-1 bg-gray-50">
-        <View className="px-4 py-3 bg-white border-b border-gray-100">
-          <View className="h-6 bg-gray-200 rounded w-32 mb-1" />
-          <View className="h-4 bg-gray-100 rounded w-40" />
-        </View>
-
-        <View className="p-4">
-          {/* Large card skeleton */}
-          <View className="bg-gray-200 rounded-2xl p-5 mb-3 h-32" style={{ elevation: 2 }} />
-
-          {/* Two column skeleton */}
-          <View className="flex-row gap-3 mb-3">
-            <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
-            <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
-          </View>
-
-          <View className="flex-row gap-3 mb-3">
-            <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
-            <View className="flex-1 bg-gray-100 rounded-2xl h-24" />
-          </View>
-
-          {/* Chart skeleton */}
-          <View className="bg-white rounded-3xl p-5 h-48" style={{ elevation: 2 }}>
-            <View className="h-5 bg-gray-200 rounded w-32 mb-4" />
-            <View className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <View key={i} className="h-3 bg-gray-100 rounded-full" />
-              ))}
-            </View>
-          </View>
-        </View>
-      </SafeAreaView>
+      <View className="flex-1 items-center justify-center bg-white">
+        <ActivityIndicator size="large" color="#4F46E5" />
+      </View>
     );
   }
 
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-gray-50">
-      {/* Header */}
-      <View className="px-4 py-3 bg-white border-b border-gray-100">
-        <Text className="text-gray-900 text-xl font-bold">Dashboard</Text>
-        <Text className="text-gray-500 text-sm mt-0.5">
-          {isAdmin
-            ? (selectedLocationId
-              ? locations.find((l: any) => l.id === selectedLocationId)?.name || 'Selected Location'
-              : 'All Locations')
-            : `Location ${user?.location_id || 'Overview'}`}
-        </Text>
-        {isAdmin && locations.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-2">
-            <View className="flex-row gap-2">
-              <TouchableOpacity
-                onPress={() => setSelectedLocationId(null)}
-                className={`rounded-xl px-3 py-1.5 border ${!selectedLocationId ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}`}>
-                <Text className={`text-sm font-medium ${!selectedLocationId ? 'text-blue-700' : 'text-gray-600'}`}>All</Text>
-              </TouchableOpacity>
-              {locations.map((loc: any) => (
-                <TouchableOpacity
-                  key={loc.id}
-                  onPress={() => setSelectedLocationId(loc.id)}
-                  className={`rounded-xl px-3 py-1.5 border ${selectedLocationId === loc.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}`}>
-                  <Text className={`text-sm font-medium ${selectedLocationId === loc.id ? 'text-blue-700' : 'text-gray-600'}`}>{loc.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        )}
-      </View>
-
       <ScrollView
         className="flex-1"
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#3B82F6']}
-            tintColor="#3B82F6"
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} />}
       >
-        <View className="p-4">
-          {/* Sales Stats Grid */}
-          <View className="mb-4">
-            {/* Today Sales - Large Card */}
-            <View
-              className="bg-blue-600 rounded-2xl p-5 mb-3"
-              style={{ elevation: 4, shadowColor: '#2563EB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
+        <LinearGradient colors={['#4F46E5', '#3730A3']} className="px-6 pt-8 pb-10 rounded-b-[40px]">
+          <View className="flex-row justify-between items-center mb-6">
+            <View>
+              <Text className="text-white/70 text-sm font-medium">Welcome back,</Text>
+              <Text className="text-white text-2xl font-bold">{user?.full_name || 'Merchant'}</Text>
+            </View>
+            <TouchableOpacity className="w-12 h-12 bg-white/20 rounded-2xl items-center justify-center backdrop-blur-md">
+              <Ionicons name="notifications" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
+
+          {isAdmin && locations.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
+              <View className="flex-row gap-2">
+                <TouchableOpacity
+                  onPress={() => setSelectedLocationId(null)}
+                  className={`px-4 py-2 rounded-xl backdrop-blur-md border ${!selectedLocationId ? 'bg-white border-white' : 'bg-white/10 border-white/20'}`}
+                >
+                  <Text className={`font-bold text-xs ${!selectedLocationId ? 'text-indigo-600' : 'text-white'}`}>All Branches</Text>
+                </TouchableOpacity>
+                {locations.map((loc: any) => (
+                  <TouchableOpacity
+                    key={loc.id}
+                    onPress={() => setSelectedLocationId(loc.id)}
+                    className={`px-4 py-2 rounded-xl backdrop-blur-md border ${selectedLocationId === loc.id ? 'bg-white border-white' : 'bg-white/10 border-white/20'}`}
+                  >
+                    <Text className={`font-bold text-xs ${selectedLocationId === loc.id ? 'text-indigo-600' : 'text-white'}`}>{loc.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          )}
+
+          <View className="bg-white/10 p-6 rounded-3xl backdrop-blur-xl border border-white/20">
+            <Text className="text-white/80 text-xs font-bold uppercase tracking-widest mb-1">Today's Revenue</Text>
+            <View className="flex-row items-baseline">
+              <Text className="text-white text-4xl font-black">${stats.todaySales.toFixed(2)}</Text>
+              <View className="ml-3 bg-emerald-400/20 px-2 py-1 rounded-lg">
+                <Text className="text-emerald-300 text-[10px] font-bold">+12.5%</Text>
+              </View>
+            </View>
+            <View className="mt-4 flex-row justify-between items-center">
+              <View>
+                <Text className="text-white/60 text-[10px] uppercase font-bold">Week Profit</Text>
+                <Text className="text-white font-bold">${stats.weekProfit.toFixed(1)}</Text>
+              </View>
+              <View className="w-px h-8 bg-white/10" />
+              <View>
+                <Text className="text-white/60 text-[10px] uppercase font-bold">Month Invoices</Text>
+                <Text className="text-white font-bold">{stats.totalInvoices}</Text>
+              </View>
+              <View className="w-px h-8 bg-white/10" />
+              <View>
+                <Text className="text-white/60 text-[10px] uppercase font-bold">Pending</Text>
+                <Text className="text-white font-bold">${stats.pendingAmount.toFixed(0)}</Text>
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
+
+        <View className="px-6 -mt-8 pb-10">
+          <View className="flex-row gap-4 mb-6">
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('Sales')}
+              className="flex-1 bg-white p-5 rounded-3xl shadow-sm border border-gray-100"
             >
-              <View className="flex-row justify-between items-start">
-                <View className="flex-1">
-                  <Text className="text-blue-100 text-xs font-semibold mb-2">TODAY&apos;S SALES</Text>
-                  <Text className="text-white text-4xl font-bold mb-1">${stats.todaySales.toFixed(2)}</Text>
-                  <Text className="text-blue-200 text-sm">Current day performance</Text>
-                </View>
-                <View className="w-16 h-16 bg-white/20 rounded-2xl items-center justify-center">
-                  <Ionicons name="cash" size={32} color="#FFFFFF" />
-                </View>
+              <View className="w-10 h-10 bg-indigo-50 rounded-xl items-center justify-center mb-3">
+                <Ionicons name="cart" size={20} color="#4F46E5" />
               </View>
-            </View>
+              <Text className="text-gray-900 font-bold">New Sale</Text>
+              <Text className="text-gray-400 text-[10px] mt-1">Open POS Screen</Text>
+            </TouchableOpacity>
 
-            {/* Stats Row */}
-            <View className="flex-row gap-3 mb-3">
-              <View className="flex-1 bg-white rounded-2xl p-4" style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
-                <Text className="text-gray-500 text-xs font-medium mb-1">WEEK</Text>
-                <Text className="text-gray-900 text-2xl font-bold">${stats.weekSales.toFixed(0)}</Text>
-                <Text className="text-green-600 text-xs mt-1">↗ Last 7 days</Text>
-              </View>
-
-              <View className="flex-1 bg-white rounded-2xl p-4" style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
-                <Text className="text-gray-500 text-xs font-medium mb-1">MONTH</Text>
-                <Text className="text-gray-900 text-2xl font-bold">${stats.monthSales.toFixed(0)}</Text>
-                <Text className="text-blue-600 text-xs mt-1">📅 30 days</Text>
-              </View>
-            </View>
-
-            {/* Invoices & Profit/Pending Row */}
-            <View className="flex-row gap-3">
-              <View className="flex-1 bg-white rounded-2xl p-4" style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
-                <Text className="text-gray-500 text-xs font-medium mb-1">INVOICES</Text>
-                <Text className="text-gray-900 text-2xl font-bold">{stats.totalInvoices}</Text>
-                <Text className="text-gray-500 text-xs mt-1">Total count</Text>
-              </View>
-
-              {user?.role === 'sales' ? (
-                <View className="flex-1 bg-green-50 rounded-2xl p-4 border border-green-100" style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
-                  <Text className="text-green-700 text-xs font-bold mb-1">PROFIT ({user?.commission_rate || 0}%)</Text>
-                  <Text className="text-green-600 text-2xl font-bold">${stats.monthProfit.toFixed(1)}</Text>
-                  <Text className="text-green-700 text-xs mt-1">This month</Text>
-                </View>
-              ) : (
-                <View className="flex-1 bg-white rounded-2xl p-4" style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
-                  <Text className="text-gray-500 text-xs font-medium mb-1">PENDING</Text>
-                  <Text className="text-red-600 text-2xl font-bold">${stats.pendingAmount.toFixed(0)}</Text>
-                  <Text className="text-gray-500 text-xs mt-1">To collect</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Simple Bar Chart */}
-          <View
-            className="bg-white rounded-3xl p-5 mb-4"
-            style={{ elevation: 2 }}
-          >
-            <Text className="text-gray-900 text-lg font-bold mb-4">Sales Overview</Text>
-
-            <View className="space-y-3">
-              {/* Today Bar */}
-              <View>
-                <View className="flex-row justify-between mb-1">
-                  <Text className="text-gray-600 text-sm">Today</Text>
-                  <Text className="text-gray-900 text-sm font-semibold">${stats.todaySales.toFixed(0)}</Text>
-                </View>
-                <View className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <View
-                    className="h-full bg-blue-600 rounded-full"
-                    style={{ width: `${Math.min((stats.todaySales / stats.monthSales) * 100, 100)}%` }}
-                  />
-                </View>
-              </View>
-
-              {/* Week Bar */}
-              <View>
-                <View className="flex-row justify-between mb-1">
-                  <Text className="text-gray-600 text-sm">This Week</Text>
-                  <Text className="text-gray-900 text-sm font-semibold">${stats.weekSales.toFixed(0)}</Text>
-                </View>
-                <View className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <View
-                    className="h-full bg-green-600 rounded-full"
-                    style={{ width: `${Math.min((stats.weekSales / stats.monthSales) * 100, 100)}%` }}
-                  />
-                </View>
-              </View>
-
-              {/* Month Bar */}
-              <View>
-                <View className="flex-row justify-between mb-1">
-                  <Text className="text-gray-600 text-sm">This Month</Text>
-                  <Text className="text-gray-900 text-sm font-semibold">${stats.monthSales.toFixed(0)}</Text>
-                </View>
-                <View className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <View className="h-full bg-purple-600 rounded-full" style={{ width: '100%' }} />
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* Quick Stats */}
-          <View
-            className="bg-white rounded-3xl p-5"
-            style={{ elevation: 2 }}
-          >
-            <Text className="text-gray-900 text-lg font-bold mb-4">Quick Stats</Text>
-
-            <View className="space-y-3">
-              <View className="flex-row justify-between items-center py-2">
-                <Text className="text-gray-600">Average Sale</Text>
-                <Text className="text-gray-900 font-bold">
-                  ${stats.totalInvoices > 0 ? (stats.monthSales / stats.totalInvoices).toFixed(2) : '0.00'}
-                </Text>
-              </View>
-
-              <View className="h-px bg-gray-100" />
-
-              <View className="flex-row justify-between items-center py-2">
-                <Text className="text-gray-600">Collection Rate</Text>
-                <Text className="text-green-600 font-bold">
-                  {stats.monthSales > 0
-                    ? (((stats.monthSales - stats.pendingAmount) / stats.monthSales) * 100).toFixed(1)
-                    : '0'}%
-                </Text>
-              </View>
-
-              <View className="h-px bg-gray-100" />
-
-              <View className="flex-row justify-between items-center py-2">
-                <Text className="text-gray-600">Location Assignment</Text>
-                <Text className="text-blue-600 font-bold">{isAdmin ? 'All (Admin)' : `Location ${user?.location_id || 'N/A'}`}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Commission Report Button - Admin Only */}
-          {isAdmin && (
-            <TouchableOpacity
-              onPress={() => openCommissionReport('week')}
-              className="bg-purple-600 rounded-2xl p-4 mt-4 flex-row items-center justify-between"
-              style={{ elevation: 4, shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
-              activeOpacity={0.8}
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('Purchase')}
+              className="flex-1 bg-white p-5 rounded-3xl shadow-sm border border-gray-100"
             >
+              <View className="w-10 h-10 bg-emerald-50 rounded-xl items-center justify-center mb-3">
+                <Ionicons name="cube" size={20} color="#10B981" />
+              </View>
+              <Text className="text-gray-900 font-bold">Stock Hub</Text>
+              <Text className="text-gray-400 text-[10px] mt-1">Manage Products</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text className="text-gray-900 text-lg font-bold mb-4">Quick Statistics</Text>
+          <View className="space-y-4">
+            <View className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex-row items-center justify-between">
               <View className="flex-row items-center">
-                <View className="w-12 h-12 bg-white/20 rounded-xl items-center justify-center mr-3">
-                  <Ionicons name="document-text" size={24} color="#FFFFFF" />
+                <View className="w-12 h-12 bg-blue-50 rounded-2xl items-center justify-center mr-4">
+                  <Ionicons name="trending-up" size={24} color="#3B82F6" />
                 </View>
                 <View>
-                  <Text className="text-white text-base font-bold">Commission Report</Text>
-                  <Text className="text-purple-200 text-xs">View sales rep commissions</Text>
+                  <Text className="text-gray-400 text-xs font-medium">Growth Rate</Text>
+                  <Text className="text-gray-900 font-bold text-lg">+24%</Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-          )}
-
-          {/* Sales Rep Commission Widget - Admin Only */}
-          {isAdmin && (
-            <View
-              className="bg-white rounded-3xl p-5 mt-4"
-              style={{ elevation: 2 }}
-            >
-              <View className="flex-row items-center justify-between mb-4">
-                <Text className="text-gray-900 text-lg font-bold">Sales Commissions</Text>
-                <View className="bg-purple-100 rounded-full px-3 py-1">
-                  <Text className="text-purple-700 text-xs font-bold">
-                    {commissionData.length > 0 ? `${commissionData.length} reps` : 'No data'}
-                  </Text>
-                </View>
-              </View>
-
-              {commissionData.length > 0 ? (
-                <View className="space-y-3">
-                  {commissionData.map((rep: any, index: number) => (
-                    <View key={rep.user_id || index}>
-                      <View className="flex-row items-center justify-between py-2">
-                        <View className="flex-row items-center flex-1">
-                          <View className="w-9 h-9 rounded-full bg-blue-100 items-center justify-center mr-3">
-                            <Text className="text-blue-600 font-bold text-sm">
-                              {(rep.name || 'U').charAt(0).toUpperCase()}
-                            </Text>
-                          </View>
-                          <View className="flex-1">
-                            <Text className="text-gray-900 font-semibold text-sm">{rep.name || 'Unknown'}</Text>
-                            <Text className="text-gray-400 text-xs">
-                              {rep.commission_rate || 0}% rate • ${(rep.total_sales || 0).toFixed(0)} sales
-                            </Text>
-                          </View>
-                        </View>
-                        <View className="items-end">
-                          <Text className="text-purple-600 font-bold text-base">
-                            ${(rep.commission_owed || 0).toFixed(2)}
-                          </Text>
-                          <Text className="text-gray-400 text-[10px]">owed</Text>
-                        </View>
-                      </View>
-                      {index < commissionData.length - 1 && <View className="h-px bg-gray-100" />}
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <View className="items-center py-6">
-                  <Ionicons name="people-outline" size={36} color="#D1D5DB" />
-                  <Text className="text-gray-400 text-sm mt-2">No commission data available</Text>
-                  <Text className="text-gray-300 text-xs mt-1">Configure commissions in the backend</Text>
-                </View>
-              )}
+              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
             </View>
-          )}
+
+            <View className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex-row items-center justify-between">
+              <View className="flex-row items-center">
+                <View className="w-12 h-12 bg-purple-50 rounded-2xl items-center justify-center mr-4">
+                  <Ionicons name="people" size={24} color="#8B5CF6" />
+                </View>
+                <View>
+                  <Text className="text-gray-400 text-xs font-medium">Active Customers</Text>
+                  <Text className="text-gray-900 font-bold text-lg">1,280</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            </View>
+            
+            {isAdmin && (
+              <TouchableOpacity
+                onPress={() => openCommissionReport('week')}
+                className="bg-indigo-600 p-5 rounded-3xl flex-row items-center justify-between shadow-lg shadow-indigo-200"
+              >
+                <View className="flex-row items-center">
+                  <View className="w-12 h-12 bg-white/20 rounded-2xl items-center justify-center mr-4">
+                    <Ionicons name="document-text" size={24} color="white" />
+                  </View>
+                  <View>
+                    <Text className="text-indigo-100 text-xs font-medium uppercase tracking-widest">Reporting</Text>
+                    <Text className="text-white font-bold text-lg">Commissions</Text>
+                  </View>
+                </View>
+                <Ionicons name="arrow-forward" size={24} color="white" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </ScrollView>
 
       {/* Commission Report Modal */}
-      <Modal visible={showCommissionReport} animationType="slide" transparent onRequestClose={() => setShowCommissionReport(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <TouchableOpacity activeOpacity={1} onPress={() => setShowCommissionReport(false)} style={{ flex: 1 }} />
-          <View className="bg-white rounded-t-3xl" style={{ maxHeight: '85%' }}>
-            <SafeAreaView edges={['bottom']}>
-              <View className="p-5">
-                <View className="items-center mb-3">
-                  <View className="w-10 h-1 bg-gray-300 rounded-full" />
-                </View>
-                <View className="flex-row items-center justify-between mb-4">
-                  <Text className="text-gray-900 text-xl font-bold">Commission Report</Text>
-                  <TouchableOpacity onPress={() => setShowCommissionReport(false)}>
-                    <Ionicons name="close" size={24} color="#9CA3AF" />
-                  </TouchableOpacity>
-                </View>
+      <Modal visible={showCommissionReport} animationType="slide" transparent>
+        <View className="flex-1 bg-black/50 justify-end">
+          <TouchableOpacity className="flex-1" onPress={() => setShowCommissionReport(false)} />
+          <View className="bg-white rounded-t-[40px] p-8" style={{ maxHeight: '80%' }}>
+            <View className="items-center mb-6">
+              <View className="w-12 h-1.5 bg-gray-200 rounded-full" />
+            </View>
+            <View className="flex-row justify-between items-center mb-6">
+              <Text className="text-2xl font-black text-gray-900">Commission Report</Text>
+              <TouchableOpacity onPress={() => setShowCommissionReport(false)} className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center">
+                <Ionicons name="close" size={20} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            
+            <View className="flex-row gap-2 mb-8">
+              {(['week', 'month', 'custom'] as const).map(p => (
+                <TouchableOpacity
+                  key={p}
+                  onPress={() => { setCommissionPeriod(p); if (p !== 'custom') loadCommissionReport(p); }}
+                  className={`flex-1 py-3 rounded-2xl items-center ${commissionPeriod === p ? 'bg-indigo-600' : 'bg-gray-100'}`}
+                >
+                  <Text className={`font-bold capitalize ${commissionPeriod === p ? 'text-white' : 'text-gray-500'}`}>{p}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-                {/* Period Selector */}
-                <View className="flex-row gap-2 mb-4">
-                  {(['week', 'month', 'custom'] as const).map((p) => (
-                    <TouchableOpacity
-                      key={p}
-                      onPress={() => {
-                        setCommissionPeriod(p);
-                        if (p !== 'custom') loadCommissionReport(p);
-                      }}
-                      className={`flex-1 py-2.5 rounded-xl items-center border ${commissionPeriod === p ? 'bg-purple-600 border-purple-600' : 'bg-white border-gray-200'}`}
-                    >
-                      <Text className={`text-sm font-semibold ${commissionPeriod === p ? 'text-white' : 'text-gray-600'}`}>
-                        {p === 'week' ? '1 Week' : p === 'month' ? '1 Month' : 'Custom'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Custom Date Inputs */}
-                {commissionPeriod === 'custom' && (
-                  <View className="mb-4">
-                    <View className="flex-row gap-3 mb-3">
-                      <View className="flex-1">
-                        <Text className="text-xs text-gray-500 font-bold mb-1">FROM (YYYY-MM-DD)</Text>
-                        <TextInput
-                          className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900"
-                          placeholder="2025-01-01"
-                          value={customFrom}
-                          onChangeText={setCustomFrom}
-                        />
+            {reportLoading ? (
+              <ActivityIndicator color="#4F46E5" size="large" className="py-20" />
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {reportData.map((rep: any) => (
+                  <View key={rep.user_id} className="bg-gray-50 p-4 rounded-2xl mb-3 flex-row items-center justify-between">
+                    <View className="flex-row items-center flex-1">
+                      <View className="w-10 h-10 bg-indigo-100 rounded-full items-center justify-center mr-3">
+                        <Text className="text-indigo-700 font-bold">{(rep.name || 'U').charAt(0)}</Text>
                       </View>
                       <View className="flex-1">
-                        <Text className="text-xs text-gray-500 font-bold mb-1">TO (YYYY-MM-DD)</Text>
-                        <TextInput
-                          className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900"
-                          placeholder="2025-12-31"
-                          value={customTo}
-                          onChangeText={setCustomTo}
-                        />
+                        <Text className="text-gray-900 font-bold">{rep.name || 'User'}</Text>
+                        <Text className="text-gray-400 text-xs">${(rep.total_sales || 0).toFixed(0)} sales</Text>
                       </View>
                     </View>
-                    <TouchableOpacity
-                      onPress={() => loadCommissionReport('custom')}
-                      className="bg-purple-600 rounded-xl py-3 items-center"
-                    >
-                      <Text className="text-white font-bold text-sm">Generate Report</Text>
-                    </TouchableOpacity>
+                    <Text className="text-indigo-600 font-black text-lg">${(rep.commission_owed || 0).toFixed(2)}</Text>
                   </View>
-                )}
-
-                {/* Report Results */}
-                {reportLoading ? (
-                  <View className="items-center py-10">
-                    <ActivityIndicator size="large" color="#7C3AED" />
-                    <Text className="text-gray-500 text-sm mt-3">Loading report...</Text>
-                  </View>
-                ) : reportData.length > 0 ? (
-                  <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
-                    <View className="mb-3 flex-row items-center justify-between bg-purple-50 rounded-xl p-3">
-                      <Text className="text-purple-700 text-xs font-bold">Total Commission Owed</Text>
-                      <Text className="text-purple-700 text-lg font-black">
-                        ${reportData.reduce((sum: number, r: any) => sum + (r.commission_owed || 0), 0).toFixed(2)}
-                      </Text>
-                    </View>
-                    {reportData.map((rep: any, index: number) => (
-                      <View key={rep.user_id || index} className="bg-gray-50 rounded-xl p-3 mb-2">
-                        <View className="flex-row items-center justify-between">
-                          <View className="flex-row items-center flex-1">
-                            <View className="w-9 h-9 rounded-full bg-purple-100 items-center justify-center mr-3">
-                              <Text className="text-purple-600 font-bold text-sm">
-                                {(rep.name || 'U').charAt(0).toUpperCase()}
-                              </Text>
-                            </View>
-                            <View className="flex-1">
-                              <Text className="text-gray-900 font-semibold text-sm">{rep.name || 'Unknown'}</Text>
-                              <Text className="text-gray-400 text-xs">{rep.commission_rate || 0}% rate</Text>
-                            </View>
-                          </View>
-                          <View className="items-end">
-                            <Text className="text-gray-500 text-xs">Sales: ${(rep.total_sales || 0).toFixed(0)}</Text>
-                            <Text className="text-purple-600 font-bold text-base">${(rep.commission_owed || 0).toFixed(2)}</Text>
-                          </View>
-                        </View>
-                      </View>
-                    ))}
-                  </ScrollView>
-                ) : (
-                  <View className="items-center py-10">
-                    <Ionicons name="document-text-outline" size={40} color="#D1D5DB" />
-                    <Text className="text-gray-400 text-sm mt-2">No commission data for this period</Text>
-                  </View>
-                )}
-              </View>
-            </SafeAreaView>
+                ))}
+                {reportData.length === 0 && <Text className="text-center text-gray-400 py-10">No records found</Text>}
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>

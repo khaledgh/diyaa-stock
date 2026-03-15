@@ -21,6 +21,7 @@ import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
 import { StockItem, Customer, CartItem, Category } from '../types';
 import { usePrinter } from '../../hooks/usePrinter';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const ALL_CATEGORY = '__ALL__';
@@ -65,6 +66,9 @@ export default function POSScreenNew({ navigation }: any) {
   const [paymentType, setPaymentType] = useState<'paid' | 'partial'>('paid');
   const [partialAmount, setPartialAmount] = useState('');
   const [isPrinting, setIsPrinting] = useState(false);
+  const [locationMode, setLocationMode] = useState<'automatic' | 'manual'>('automatic');
+  const [userLocations, setUserLocations] = useState<any[]>([]);
+  const [todaySession, setTodaySession] = useState<any>(null);
 
   // Search
   const [searchResults, setSearchResults] = useState<StockItem[]>([]);
@@ -139,9 +143,35 @@ export default function POSScreenNew({ navigation }: any) {
     }
   }, []);
 
+  const loadSessionInfo = useCallback(async () => {
+    if (isAdmin) return;
+    try {
+      const [modeResp, sessionResp, locsResp] = await Promise.all([
+        apiService.getLocationMode(),
+        apiService.getTodaySession(),
+        apiService.getUserLocations(user?.id || 0),
+      ]);
+      
+      const mode = modeResp.mode || 'automatic';
+      setLocationMode(mode);
+      setTodaySession(sessionResp.session);
+      setUserLocations(locsResp.data || []);
+      
+      if (sessionResp.session) {
+        setSelectedLocationId(sessionResp.session.location_id);
+      }
+    } catch {
+      // ignore
+    }
+  }, [user?.id, isAdmin]);
+
   useEffect(() => {
-    if (isAdmin) loadLocations();
-  }, [isAdmin, loadLocations]);
+    if (isAdmin) {
+      loadLocations();
+    } else {
+      loadSessionInfo();
+    }
+  }, [isAdmin, loadLocations, loadSessionInfo]);
 
   useEffect(() => {
     loadStock();
@@ -336,7 +366,7 @@ export default function POSScreenNew({ navigation }: any) {
                           paidAmount,
                           date: new Date().toLocaleString(),
                           cashierName: user?.full_name,
-                          storeName: 'DaftarStock',
+                          storeName: user?.location_name || 'DaftarStock', // Use location name
                         });
                       } catch (err: any) {
                         Alert.alert('Print Error', err?.message || 'Failed to print');
@@ -407,6 +437,84 @@ export default function POSScreenNew({ navigation }: any) {
     );
   }
 
+  // ─── Sales Location Selector (Based on Mode) ───────────────────────────
+  if (!isAdmin && !todaySession && locationMode === 'automatic') {
+    return (
+      <View className="flex-1 bg-gray-50">
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFF' }}>
+          <View className="bg-white px-5 py-4 border-b border-gray-100">
+            <Text className="text-2xl font-bold text-gray-900">Start Session</Text>
+            <Text className="text-sm text-gray-500 mt-1">Choose where you are working today</Text>
+          </View>
+        </SafeAreaView>
+        <ScrollView className="flex-1 p-5">
+          {userLocations.length > 0 ? (
+            userLocations.map((loc) => (
+              <TouchableOpacity
+                key={loc.id}
+                onPress={async () => {
+                  try {
+                    setIsLoading(true);
+                    const resp = await apiService.createSession(loc.id);
+                    if (resp.ok || resp.success) {
+                      setTodaySession(resp.data);
+                      setSelectedLocationId(loc.id);
+                      loadStock();
+                    }
+                  } catch (err: any) {
+                    Alert.alert('Error', err?.message || 'Failed to start session');
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+                className="bg-white flex-row items-center p-5 rounded-2xl mb-4 border border-blue-50"
+                style={{ elevation: 3 }}>
+                <View className="w-12 h-12 items-center justify-center rounded-2xl bg-blue-50 mr-4">
+                  <Ionicons name="storefront" size={26} color="#2563EB" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-bold text-gray-900">{loc.name}</Text>
+                  <Text className="text-xs text-gray-500 uppercase font-semibold">{loc.type || 'Branch'}</Text>
+                </View>
+                <Ionicons name="arrow-forward-circle" size={28} color="#2563EB" />
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View className="items-center py-20">
+              <Ionicons name="alert-circle-outline" size={64} color="#D1D5DB" />
+              <Text className="text-gray-500 text-lg font-bold mt-4">No Locations Assigned</Text>
+              <Text className="text-gray-400 text-center mt-2 px-10">
+                You are not specifically assigned to any location. Please contact your manager.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (!isAdmin && !todaySession && locationMode === 'manual') {
+    return (
+      <View className="flex-1 bg-gray-50 items-center justify-center p-10">
+        <View className="w-20 h-20 bg-orange-100 rounded-full items-center justify-center mb-6">
+          <Ionicons name="lock-closed" size={40} color="#F97316" />
+        </View>
+        <Text className="text-xl font-bold text-gray-900 text-center">Location Not Assigned</Text>
+        <Text className="text-gray-500 text-center mt-3 leading-6">
+          Your operating location for today must be set by an Administrator.
+          Please ask your manager to assign your station.
+        </Text>
+        <TouchableOpacity 
+          onPress={loadSessionInfo}
+          className="mt-8 bg-white border border-gray-200 px-6 py-3 rounded-full flex-row items-center">
+          <Ionicons name="refresh" size={18} color="#4B5563" className="mr-2" />
+          <Text className="text-gray-600 font-bold ml-2">Check Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   // ─── Admin Location Selector ────────────────────────────────────────────
   if (isAdmin && !selectedLocationId) {
     return (
@@ -425,23 +533,24 @@ export default function POSScreenNew({ navigation }: any) {
           <Text className="text-xl font-bold text-gray-900 mb-2">Choose Location</Text>
           <Text className="text-sm text-gray-500 text-center mb-8">Select a branch to load products</Text>
           <View className="w-full">
-            {locations.map((loc) => (
-              <TouchableOpacity
-                key={loc.id}
-                onPress={() => setSelectedLocationId(loc.id)}
-                className="bg-white flex-row items-center p-4 rounded-2xl mb-3 border border-gray-200"
-                style={{ elevation: 2 }}>
-                <View className="w-12 h-12 items-center justify-center rounded-xl bg-blue-50 mr-4">
-                  <Ionicons name="storefront" size={24} color="#2563EB" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-base font-bold text-gray-900">{loc.name}</Text>
-                  {loc.type && <Text className="text-xs text-gray-500 capitalize">{loc.type}</Text>}
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-            ))}
-            {locations.length === 0 && (
+            {locations.length > 0 ? (
+              locations.map((loc) => (
+                <TouchableOpacity
+                  key={loc.id}
+                  onPress={() => setSelectedLocationId(loc.id)}
+                  className="bg-white flex-row items-center p-4 rounded-2xl mb-3 border border-gray-200"
+                  style={{ elevation: 2 }}>
+                  <View className="w-12 h-12 items-center justify-center rounded-xl bg-blue-50 mr-4">
+                    <Ionicons name="storefront" size={24} color="#2563EB" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-base font-bold text-gray-900">{loc.name}</Text>
+                    {loc.type && <Text className="text-xs text-gray-500 capitalize">{loc.type}</Text>}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                </TouchableOpacity>
+              ))
+            ) : (
               <View className="items-center p-8">
                 <ActivityIndicator size="large" color="#2563EB" />
                 <Text className="text-gray-500 mt-4">Loading locations...</Text>
@@ -484,15 +593,15 @@ export default function POSScreenNew({ navigation }: any) {
         {/* Quantity stepper */}
         {!outOfStock && (
           <View className="flex-row items-center">
-            {qty > 0 && (
+            {qty > 0 ? (
               <>
                 <TouchableOpacity
                   onPress={() => setCartQty(item, qty - 1)}
-                  className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
+                  className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center">
                   <Ionicons name="remove" size={20} color="#374151" />
                 </TouchableOpacity>
                 <TextInput
-                  className="w-12 text-center text-base font-bold text-gray-900 mx-1"
+                  className="w-10 text-center text-base font-bold text-gray-900 mx-1"
                   value={qty.toString()}
                   onChangeText={(t) => {
                     const val = parseDecimal(t);
@@ -502,13 +611,19 @@ export default function POSScreenNew({ navigation }: any) {
                   selectTextOnFocus
                 />
               </>
-            )}
+            ) : null}
             <TouchableOpacity
               onPress={() => {
+                if (!selectedCustomer) {
+                  // Prompt to select customer first as requested
+                  setShowCustomerModal(true);
+                  showToast("Please select a customer first");
+                  return;
+                }
                 setCartQty(item, qty + 1);
                 if (qty === 0) showToast(`${item.name} added`);
               }}
-              className="w-9 h-9 rounded-full bg-blue-600 items-center justify-center"
+              className={`w-10 h-10 rounded-full items-center justify-center ${selectedCustomer ? 'bg-blue-600' : 'bg-blue-300'}`}
               style={{ elevation: 3 }}>
               <Ionicons name="add" size={20} color="#FFF" />
             </TouchableOpacity>
@@ -589,6 +704,29 @@ export default function POSScreenNew({ navigation }: any) {
               ))}
             </View>
           </ScrollView>
+
+          {/* Customer Selection Bar (Prioritized per user request) */}
+          <View className="mb-2">
+            <TouchableOpacity
+              onPress={() => setShowCustomerModal(true)}
+              className={`flex-row items-center justify-between rounded-xl px-4 py-4 border ${selectedCustomer ? 'border-green-300 bg-green-50' : 'border-blue-300 bg-blue-50'}`}
+              style={{ elevation: 2 }}>
+              <View className="flex-1 flex-row items-center">
+                <View className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${selectedCustomer ? 'bg-green-100' : 'bg-blue-100'}`}>
+                  <Ionicons name="person" size={20} color={selectedCustomer ? '#10B981' : '#2563EB'} />
+                </View>
+                <View>
+                  <Text className={`text-[10px] font-bold uppercase ${selectedCustomer ? 'text-green-600' : 'text-blue-600'}`}>
+                    {selectedCustomer ? 'Customer Info' : 'Required'}
+                  </Text>
+                  <Text className="text-base font-bold text-gray-900">
+                    {selectedCustomer ? selectedCustomer.name : 'Select Customer'}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={selectedCustomer ? '#10B981' : '#2563EB'} />
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
 
@@ -600,9 +738,12 @@ export default function POSScreenNew({ navigation }: any) {
         contentContainerStyle={{ paddingTop: 8, paddingBottom: 100 }}
         renderItem={({ item: section }) => (
           <View>
-            <Text className="text-sm font-bold text-gray-500 uppercase tracking-wide px-5 pt-4 pb-2">
-              {section.title}
-            </Text>
+            <View className="flex-row items-center px-5 pt-4 pb-2">
+              <View className="w-1 h-4 bg-blue-600 rounded-full mr-2" />
+              <Text className="text-sm font-extrabold text-gray-800 uppercase tracking-widest">
+                {section.title}
+              </Text>
+            </View>
             {section.data.map((item) => renderItemCard(item))}
           </View>
         )}

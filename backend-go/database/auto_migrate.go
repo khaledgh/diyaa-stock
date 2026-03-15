@@ -171,15 +171,23 @@ func MigrateWithData(db *gorm.DB) error {
 		return err
 	}
 
-	// Add any initial data seeding here if needed
-	log.Println("Checking for initial data...")
-
-	// Example: Create default admin user if none exists
-	var userCount int64
-	db.Model(&models.User{}).Count(&userCount)
-	if userCount == 0 {
-		log.Println("No users found. You may want to create an admin user.")
-		// Add admin user creation logic here if needed
+	// Seed default invoice template if none exists
+	var templateCount int64
+	db.Model(&models.InvoiceTemplate{}).Where("type = ? AND is_default = ?", "invoice", true).Count(&templateCount)
+	if templateCount == 0 {
+		log.Println("Seeding default invoice template...")
+		defaultTemplate := models.InvoiceTemplate{
+			Name:      "Standard Professional",
+			Type:      "invoice",
+			IsDefault: true,
+			Fields:    `["invoice_number", "date", "customer_name", "items", "total_amount"]`,
+			Layout:    `{"paper_size": "thermal_58", "show_logo": true, "font_size": "medium"}`,
+		}
+		if err := db.Create(&defaultTemplate).Error; err != nil {
+			log.Printf("Warning: Could not seed default template: %v", err)
+		} else {
+			log.Println("Default invoice template seeded.")
+		}
 	}
 
 	return nil
