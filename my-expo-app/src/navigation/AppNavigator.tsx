@@ -64,6 +64,16 @@ function AdminTabs() {
         }}
       />
       <Tab.Screen
+        name="Sales"
+        component={POSScreen}
+        options={{
+          tabBarLabel: 'Sales',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'cart' : 'cart-outline'} color={color} size={24} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Purchase"
         component={PurchaseInvoiceScreen}
         options={{

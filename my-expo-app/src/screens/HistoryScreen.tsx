@@ -17,14 +17,17 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import apiService from '../services/api.service';
 import { Invoice } from '../types';
+import { usePrinter } from '../../hooks/usePrinter';
 
 export default function HistoryScreen() {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  const { printReceiptData } = usePrinter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [transactionType, setTransactionType] = useState<'sales' | 'purchase'>('sales');
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(user?.location_id || null);
   const [locations, setLocations] = useState<any[]>([]);
@@ -312,7 +315,7 @@ export default function HistoryScreen() {
                       <View key={index} className="bg-white rounded-2xl p-4 mb-2 border border-gray-100">
                         <View className="flex-row justify-between items-start">
                           <View className="flex-1">
-                            <Text className="text-gray-900 font-bold text-base">{item.product_name}</Text>
+                            <Text className="text-gray-900 font-bold text-base">{(item as any).product?.name_en || (item as any).product?.name_ar || item.product_name || 'Unknown'}</Text>
                             <Text className="text-gray-500 text-xs mt-1">Qty: {item.quantity} × ${item.unit_price.toFixed(2)}</Text>
                           </View>
                           <Text className="text-gray-900 font-black text-lg">${item.total.toFixed(2)}</Text>
@@ -347,6 +350,54 @@ export default function HistoryScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
+
+                {/* Print Invoice */}
+                <TouchableOpacity
+                  onPress={async () => {
+                    try {
+                      setIsPrinting(true);
+                      const printData = {
+                        invoiceNumber: selectedInvoice.invoice_number,
+                        customerName: selectedInvoice.customer_name || undefined,
+                        items: (selectedInvoice.items || []).map((item: any) => ({
+                          name: item.product?.name_en || item.product?.name_ar || item.product_name || item.name || 'Item',
+                          quantity: item.quantity,
+                          unitPrice: parseFloat(item.unit_price) || 0,
+                          total: parseFloat(item.total) || 0,
+                        })),
+                        subtotal: selectedInvoice.total_amount,
+                        discount: 0,
+                        tax: 0,
+                        total: selectedInvoice.total_amount,
+                        paidAmount: selectedInvoice.paid_amount,
+                        date: new Date(selectedInvoice.created_at).toLocaleString(),
+                        cashierName: user?.full_name,
+                        storeName: 'Transgate',
+                      };
+                      await printReceiptData(printData);
+                    } catch (err: any) {
+                      console.error('Print error:', err);
+                      Alert.alert('Print Error', err?.message || 'Failed to print invoice');
+                    } finally {
+                      setIsPrinting(false);
+                    }
+                  }}
+                  disabled={isPrinting}
+                  className={`w-full flex-row items-center justify-center h-14 rounded-2xl mb-3 ${isPrinting ? 'bg-blue-400' : 'bg-blue-600'}`}
+                  style={{ elevation: 4 }}
+                >
+                  {isPrinting ? (
+                    <>
+                      <ActivityIndicator size="small" color="white" />
+                      <Text className="text-white font-bold ml-2">Printing...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="print" size={20} color="white" />
+                      <Text className="text-white font-bold ml-2">Print Invoice</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={() => handleDelete(selectedInvoice.id)}

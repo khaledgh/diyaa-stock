@@ -176,7 +176,9 @@ class ApiService {
 
   async getInvoices(filters?: {
     invoice_type?: string;
-    location_id?: number; // Filter by location_id (van, warehouse, or branch)
+    location_id?: number;
+    status?: string;
+    user_id?: number;
     limit?: number;
     offset?: number;
   }) {
@@ -206,7 +208,7 @@ class ApiService {
   }
 
   async finalizeInvoice(id: number, type: string) {
-    const response = await this.api.post(`/invoices/${id}/finalize`, {}, {
+    const response = await this.api.put(`/invoices/${id}`, { status: 'finalized' }, {
       params: { invoice_type: type },
     });
     return response.data;

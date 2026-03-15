@@ -19,10 +19,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
-import receiptService from '../services/receipt.service';
 import { StockItem, Customer, CartItem } from '../types';
 import { usePrinter } from '../../hooks/usePrinter';
-import PrinterDemo from '../../components/PrinterDemo';
 // import * as ImagePicker from 'expo-image-picker'; // Camera scan hidden for now
 
 // Cart Item Component with internal state to prevent drawer re-renders
@@ -166,7 +164,7 @@ const CartItemComponent = React.memo(
 export default function POSScreen({ navigation }: any) {
   const { user, logout } = useAuth();
   const { height } = useWindowDimensions();
-  const { printReceiptData, isConnected, printerRef } = usePrinter();
+  const { printReceiptData } = usePrinter();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [filteredStock, setFilteredStock] = useState<StockItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -185,6 +183,8 @@ export default function POSScreen({ navigation }: any) {
   const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
   const [paymentType, setPaymentType] = useState<'paid' | 'partial'>('paid');
   const [partialAmount, setPartialAmount] = useState('');
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [draftCount, setDraftCount] = useState(0);
   const isAdmin = user?.role === 'admin';
 
   const cartWidth = 380;
@@ -201,7 +201,7 @@ export default function POSScreen({ navigation }: any) {
   const loadStock = useCallback(async () => {
     const locationId = selectedLocationId || user?.location_id;
 
-    console.log('Loading stock for location:', locationId);
+    // console.log('Loading stock for location:', locationId);
 
     if (!locationId) {
       if (!isAdmin) Alert.alert('Error', 'No location assigned to your account');
@@ -210,12 +210,12 @@ export default function POSScreen({ navigation }: any) {
     }
 
     try {
-      console.log('Calling getLocationStock API with locationId:', locationId);
+      // console.log('Calling getLocationStock API with locationId:', locationId);
       const response = await apiService.getLocationStock(locationId);
-      console.log('Stock response:', response);
+      // console.log('Stock response:', response);
 
       if (response.ok || response.success) {
-        console.log('Stock data:', response.data);
+        // console.log('Stock data:', response.data);
         // Transform backend data to match frontend interface
         const transformedData = (response.data || []).map((item: any) => ({
           id: item.product_id,
@@ -229,10 +229,10 @@ export default function POSScreen({ navigation }: any) {
           location_id: item.location_id,
         }));
 
-        console.log('Transformed stock items:', transformedData);
+        // console.log('Transformed stock items:', transformedData);
         setStockItems(transformedData);
       } else {
-        console.log('Stock response not successful:', response);
+        // console.log('Stock response not successful:', response);
       }
     } catch (error) {
       console.error('Failed to load stock:', error);
@@ -248,23 +248,20 @@ export default function POSScreen({ navigation }: any) {
       const resp = await apiService.getLocations();
       if (resp.data) {
         setLocations(resp.data);
-        if (!selectedLocationId && resp.data.length > 0) {
-          setSelectedLocationId(resp.data[0].id);
-        }
       }
     } catch (e) {
       console.error('Failed to load locations', e);
     }
-  }, [isAdmin, selectedLocationId]);
+  }, [isAdmin]);
 
   const loadCustomers = useCallback(async () => {
     try {
       const response = await apiService.getCustomers();
-      console.log('Customers response:', response);
+      // console.log('Customers response:', response);
 
       // Handle pagination response format: {data: [], total: 0, current_page: 1, ...}
       const customersData = response.data || [];
-      console.log('Customers data:', customersData);
+      // console.log('Customers data:', customersData);
 
       if (Array.isArray(customersData)) {
         setCustomers(customersData);
@@ -311,10 +308,20 @@ export default function POSScreen({ navigation }: any) {
     }
   }, [isAdmin, loadLocations]);
 
+  const loadDraftCount = useCallback(async () => {
+    try {
+      const locationId = selectedLocationId || user?.location_id;
+      const res = await apiService.getInvoices({ invoice_type: 'sales', status: 'draft', location_id: locationId, limit: 1 });
+      const total = res?.data?.pagination?.total || res?.pagination?.total || 0;
+      setDraftCount(total);
+    } catch (_) { /* ignore */ }
+  }, [selectedLocationId, user?.location_id]);
+
   useEffect(() => {
     loadStock();
     loadCustomers();
-  }, [loadStock, loadCustomers]);
+    loadDraftCount();
+  }, [loadStock, loadCustomers, loadDraftCount]);
 
   useEffect(() => {
     filterStock();
@@ -399,6 +406,47 @@ export default function POSScreen({ navigation }: any) {
     return cart.reduce((sum, item) => sum + item.total, 0);
   }, [cart]);
 
+  const handleSaveDraft = async () => {
+    if (cart.length === 0) {
+      Alert.alert('Error', 'Cart is empty');
+      return;
+    }
+    if (!user?.location_id) {
+      Alert.alert('Error', 'No location assigned to your account');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const invoiceData = {
+        location_id: selectedLocationId || user.location_id!,
+        customer_id: selectedCustomer?.id,
+        items: cart.map((item) => ({
+          product_id: item.product.id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          discount_percent: item.discount_percent || 0,
+        })),
+        paid_amount: 0,
+        payment_method: 'cash',
+        status: 'draft',
+      };
+      const response = await apiService.createSalesInvoice(invoiceData);
+      if (response.ok || response.success) {
+        Alert.alert('Saved', 'Invoice saved as draft');
+        setCart([]);
+        setSelectedCustomer(null);
+        setShowCart(false);
+        loadDraftCount();
+      } else {
+        Alert.alert('Error', response.message || 'Failed to save draft');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to save draft');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) {
       Alert.alert('Error', 'Cart is empty');
@@ -436,13 +484,10 @@ export default function POSScreen({ navigation }: any) {
                 })),
                 paid_amount: paidAmount,
                 payment_method: 'cash',
+                status: 'finalized',
               };
 
-              console.log('Creating invoice with data:', JSON.stringify(invoiceData, null, 2));
-
-              const response = transactionType === 'purchase'
-                ? await apiService.createPurchaseInvoice(invoiceData)
-                : await apiService.createSalesInvoice(invoiceData);
+              const response = await apiService.createSalesInvoice(invoiceData);
 
               if (response.ok || response.success) {
                 const invoice = response.data;
@@ -452,50 +497,34 @@ export default function POSScreen({ navigation }: any) {
                   {
                     text: 'Print Receipt',
                     onPress: async () => {
-                      const receiptData = {
-                        invoiceNumber: invoice.invoice_number,
-                        customerName: selectedCustomer?.name,
-                        items: cart.length > 0 ? cart : invoice.items || [],
-                        subtotal: parseFloat(invoice.subtotal) || 0,
-                        tax: parseFloat(invoice.tax_amount) || 0,
-                        discount: parseFloat(invoice.discount_amount) || 0,
-                        total: parseFloat(invoice.total_amount) || 0,
-                        date: new Date().toLocaleString(),
-                        locationId: selectedLocationId || user.location_id!,
-                        cashierName: user.full_name,
-                      };
-
                       try {
-                        if (isConnected()) {
-                          await printReceiptData({
-                            invoiceNumber: receiptData.invoiceNumber,
-                            customerName: receiptData.customerName,
-                            items: cart.map(item => ({
-                              name: item.product.name,
-                              quantity: item.quantity,
-                              unitPrice: item.unit_price,
-                              total: item.total,
-                            })),
-                            subtotal: receiptData.subtotal,
-                            discount: receiptData.discount,
-                            tax: receiptData.tax,
-                            total: receiptData.total,
-                            paidAmount: paidAmount,
-                            date: receiptData.date,
-                            cashierName: receiptData.cashierName,
-                          });
-                          Alert.alert('Success', 'Receipt sent to Bluetooth printer.');
-                        } else {
-                          await receiptService.printReceipt(receiptData);
-                        }
-                      } catch (error) {
-                        console.error('Print error:', error);
-                        Alert.alert(
-                          'Print Error',
-                          'Failed to print receipt. Check printer connection.'
-                        );
+                        setIsPrinting(true);
+                        const printData = {
+                          invoiceNumber: invoice.invoice_number,
+                          customerName: selectedCustomer?.name,
+                          items: cart.map(item => ({
+                            name: item.product.name,
+                            quantity: item.quantity,
+                            unitPrice: item.unit_price,
+                            total: item.total,
+                          })),
+                          subtotal: parseFloat(invoice.subtotal) || 0,
+                          discount: parseFloat(invoice.discount_amount) || 0,
+                          tax: parseFloat(invoice.tax_amount) || 0,
+                          total: parseFloat(invoice.total_amount) || 0,
+                          paidAmount: paidAmount,
+                          date: new Date().toLocaleString(),
+                          cashierName: user.full_name,
+                          storeName: 'Transgate',
+                        };
+                        await printReceiptData(printData);
+                      } catch (err: any) {
+                        console.error('❌ Print error:', err);
+                        Alert.alert('Print Error', err?.message || 'Failed to print receipt');
+                      } finally {
+                        setIsPrinting(false);
                       }
-                      clearCart();
+                      setCart([]);
                       setSelectedCustomer(null);
                       setShowCart(false);
                       loadStock();
@@ -504,7 +533,7 @@ export default function POSScreen({ navigation }: any) {
                   {
                     text: 'Skip',
                     onPress: () => {
-                      clearCart();
+                      setCart([]);
                       setSelectedCustomer(null);
                       setShowCart(false);
                       loadStock();
@@ -618,6 +647,53 @@ export default function POSScreen({ navigation }: any) {
     );
   }
 
+  // Admin must select a location before accessing POS
+  if (isAdmin && !selectedLocationId) {
+    return (
+      <View className="flex-1 bg-gray-50">
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
+        <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
+          <View className="bg-white px-5 py-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 }}>
+            <Text className="text-2xl font-bold tracking-tight text-gray-900">Point of Sale</Text>
+            <Text className="mt-0.5 text-sm text-gray-500">Select a location to continue</Text>
+          </View>
+        </SafeAreaView>
+        <View className="flex-1 items-center justify-center p-6">
+          <View className="w-20 h-20 items-center justify-center rounded-full bg-blue-100 mb-6">
+            <Ionicons name="location" size={40} color="#2563EB" />
+          </View>
+          <Text className="text-xl font-bold text-gray-900 mb-2">Choose Location</Text>
+          <Text className="text-sm text-gray-500 text-center mb-8">Select a branch/location to load its products and start selling.</Text>
+          <View className="w-full">
+            {locations.map((loc) => (
+              <TouchableOpacity
+                key={loc.id}
+                onPress={() => setSelectedLocationId(loc.id)}
+                className="bg-white flex-row items-center p-4 rounded-2xl mb-3 border border-gray-200"
+                style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }}
+              >
+                <View className="w-12 h-12 items-center justify-center rounded-xl bg-blue-50 mr-4">
+                  <Ionicons name="storefront" size={24} color="#2563EB" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-bold text-gray-900">{loc.name}</Text>
+                  {loc.type && <Text className="text-xs text-gray-500 mt-0.5 capitalize">{loc.type}</Text>}
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            ))}
+            {locations.length === 0 && (
+              <View className="items-center p-8">
+                <ActivityIndicator size="large" color="#2563EB" />
+                <Text className="text-gray-500 mt-4">Loading locations...</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   const CustomerModal = () => (
     <Modal
       visible={showCustomerModal}
@@ -672,7 +748,7 @@ export default function POSScreen({ navigation }: any) {
                   setShowCustomerModal(false);
                   setCustomerSearchQuery('');
                 }}
-                className="mb-3 rounded-2xl border border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 p-4"
+                className={`mb-3 rounded-2xl p-4 ${!selectedCustomer ? 'border-2 border-green-400 bg-green-50' : 'border border-gray-200 bg-white'}`}
                 activeOpacity={0.7}
                 style={{
                   shadowColor: '#000',
@@ -764,6 +840,12 @@ export default function POSScreen({ navigation }: any) {
               <Text className="mt-0.5 text-sm text-gray-500">Sales Terminal</Text>
             </View>
             <View className="flex-row items-center gap-3">
+              {draftCount > 0 && (
+                <View className="flex-row items-center rounded-2xl bg-orange-100 px-3 py-3">
+                  <Ionicons name="document-text" size={18} color="#F97316" />
+                  <Text className="ml-1 text-sm font-bold text-orange-600">{draftCount}</Text>
+                </View>
+              )}
               <TouchableOpacity
                 onPress={() => setShowCart(true)}
                 className="flex-row items-center rounded-2xl bg-blue-600 px-4 py-3"
@@ -801,22 +883,6 @@ export default function POSScreen({ navigation }: any) {
           {isAdmin && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3">
               <View className="flex-row gap-2 pr-4">
-                {/* Transaction Type Toggle */}
-                <View className="flex-row rounded-xl bg-gray-100 p-1">
-                  <TouchableOpacity
-                    className={`rounded-lg px-4 py-2 ${transactionType === 'sales' ? 'bg-white' : ''}`}
-                    style={transactionType === 'sales' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 } : {}}
-                    onPress={() => setTransactionType('sales')}>
-                    <Text className={`font-medium ${transactionType === 'sales' ? 'text-blue-600' : 'text-gray-500'}`}>Sales</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    className={`rounded-lg px-4 py-2 ${transactionType === 'purchase' ? 'bg-white' : ''}`}
-                    style={transactionType === 'purchase' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 } : {}}
-                    onPress={() => setTransactionType('purchase')}>
-                    <Text className={`font-medium ${transactionType === 'purchase' ? 'text-blue-600' : 'text-gray-500'}`}>Purchase</Text>
-                  </TouchableOpacity>
-                </View>
-
                 {/* Location Selection */}
                 {locations.map((loc) => (
                   <TouchableOpacity
@@ -1067,33 +1133,48 @@ export default function POSScreen({ navigation }: any) {
                     )}
                   </View>
 
-                  <TouchableOpacity
-                    onPress={handleCheckout}
-                    disabled={cart.length === 0 || isLoading}
-                    className={`rounded-2xl py-4 ${cart.length === 0 || isLoading ? 'bg-gray-200' : 'bg-blue-600'}`}
-                    style={
-                      cart.length > 0 && !isLoading
-                        ? {
-                          shadowColor: '#3B82F6',
-                          shadowOffset: { width: 0, height: 6 },
-                          shadowOpacity: 0.4,
-                          shadowRadius: 12,
-                          elevation: 8,
-                        }
-                        : {}
-                    }
-                    activeOpacity={0.8}>
-                    {isLoading ? (
-                      <ActivityIndicator color="white" />
-                    ) : (
+                  <View className="flex-row gap-3">
+                    <TouchableOpacity
+                      onPress={handleSaveDraft}
+                      disabled={cart.length === 0 || isLoading}
+                      className={`flex-1 rounded-2xl py-4 ${cart.length === 0 || isLoading ? 'bg-gray-200' : 'bg-orange-500'}`}
+                      activeOpacity={0.8}>
                       <View className="flex-row items-center justify-center">
-                        <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
-                        <Text className="ml-2 text-center text-base font-bold text-white">
-                          Complete Sale
+                        <Ionicons name="document-text-outline" size={20} color="#FFFFFF" />
+                        <Text className="ml-1.5 text-center text-sm font-bold text-white">
+                          Draft
                         </Text>
                       </View>
-                    )}
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={handleCheckout}
+                      disabled={cart.length === 0 || isLoading}
+                      className={`flex-[2] rounded-2xl py-4 ${cart.length === 0 || isLoading ? 'bg-gray-200' : 'bg-blue-600'}`}
+                      style={
+                        cart.length > 0 && !isLoading
+                          ? {
+                            shadowColor: '#3B82F6',
+                            shadowOffset: { width: 0, height: 6 },
+                            shadowOpacity: 0.4,
+                            shadowRadius: 12,
+                            elevation: 8,
+                          }
+                          : {}
+                      }
+                      activeOpacity={0.8}>
+                      {isLoading ? (
+                        <ActivityIndicator color="white" />
+                      ) : (
+                        <View className="flex-row items-center justify-center">
+                          <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
+                          <Text className="ml-2 text-center text-base font-bold text-white">
+                            Complete Sale
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </SafeAreaView>
             </View>
@@ -1103,10 +1184,16 @@ export default function POSScreen({ navigation }: any) {
 
       <CustomerModal />
 
-      {/* Hidden Bluetooth Printer Component */}
-      <View style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}>
-        <PrinterDemo ref={printerRef} />
-      </View>
+      {/* Printing Overlay */}
+      {isPrinting && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <View className="bg-white rounded-3xl p-8 items-center" style={{ minWidth: 200 }}>
+            <ActivityIndicator size="large" color="#3B82F6" />
+            <Text className="text-gray-900 font-bold text-lg mt-4">Printing...</Text>
+            <Text className="text-gray-500 text-sm mt-1">Please wait</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

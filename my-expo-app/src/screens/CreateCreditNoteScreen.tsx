@@ -112,7 +112,7 @@ export default function CreateCreditNoteScreen({ route, navigation }: any) {
                     <View key={item.product_id} className="bg-white rounded-2xl p-4 mb-3 border border-gray-100" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
                         <View className="flex-row justify-between mb-2">
                             <View className="flex-1">
-                                <Text className="font-bold text-gray-900">{item.product_name}</Text>
+                                <Text className="font-bold text-gray-900">{(item as any).product?.name_en || (item as any).product?.name_ar || item.product_name || 'Unknown Product'}</Text>
                                 <Text className="text-xs text-gray-500">Purchased: {item.quantity} | Price: ${item.unit_price}</Text>
                             </View>
                             <Text className="font-black text-blue-600">${(item.unit_price * (returnItems[item.product_id] || 0)).toFixed(2)}</Text>
@@ -139,25 +139,27 @@ export default function CreateCreditNoteScreen({ route, navigation }: any) {
                 ))}
             </ScrollView>
 
-            <View className="bg-white p-6 rounded-t-3xl" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 16 }}>
-                <View className="flex-row justify-between items-center mb-6">
-                    <Text className="text-gray-500 font-medium">Refund Amount</Text>
-                    <Text className="text-3xl font-black text-red-600">${calculateTotal().toFixed(2)}</Text>
-                </View>
+            <SafeAreaView edges={['bottom']} className="bg-white rounded-t-3xl" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 16 }}>
+                <View className="p-6">
+                    <View className="flex-row justify-between items-center mb-6">
+                        <Text className="text-gray-500 font-medium">Refund Amount</Text>
+                        <Text className="text-3xl font-black text-red-600">${calculateTotal().toFixed(2)}</Text>
+                    </View>
 
-                <TouchableOpacity
-                    onPress={handleSubmit}
-                    disabled={isSubmitting || calculateTotal() <= 0}
-                    className={`h-14 rounded-2xl flex-row items-center justify-center ${isSubmitting || calculateTotal() <= 0 ? 'bg-gray-200' : 'bg-red-600'}`}
-                >
-                    {isSubmitting ? <ActivityIndicator color="white" /> : (
-                        <>
-                            <Ionicons name="checkmark-circle" size={22} color="white" />
-                            <Text className="text-white font-bold text-lg ml-2">Confirm Return</Text>
-                        </>
-                    )}
-                </TouchableOpacity>
-            </View>
+                    <TouchableOpacity
+                        onPress={handleSubmit}
+                        disabled={isSubmitting || calculateTotal() <= 0}
+                        className={`h-14 rounded-2xl flex-row items-center justify-center ${isSubmitting || calculateTotal() <= 0 ? 'bg-gray-200' : 'bg-red-600'}`}
+                    >
+                        {isSubmitting ? <ActivityIndicator color="white" /> : (
+                            <>
+                                <Ionicons name="checkmark-circle" size={22} color="white" />
+                                <Text className="text-white font-bold text-lg ml-2">Confirm Return</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
         </View>
     );
 }

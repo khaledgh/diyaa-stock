@@ -156,9 +156,14 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 		LastName       string  `json:"last_name"`
 		FullName       string  `json:"full_name"` // Frontend sends this
 		Phone          string  `json:"phone"`
+		Password       string  `json:"password"`
 		Role           string  `json:"role"`
 		Status         string  `json:"status"`
+		IsActive       any     `json:"is_active"` // Frontend sends 1/0 or true/false
 		Position       string  `json:"position"`
+		HireDate       string  `json:"hire_date"`
+		Salary         any     `json:"salary"` // Accept string or number
+		Address        string  `json:"address"`
 		VanID          any     `json:"van_id"`      // Accept string or number
 		LocationID     any     `json:"location_id"` // Accept string or number
 		CommissionRate float64 `json:"commission_rate"`
@@ -169,12 +174,61 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 	}
 
 	// Update user fields
-	user.Email = dto.Email
+	if dto.Email != "" {
+		user.Email = dto.Email
+	}
 	user.Phone = dto.Phone
-	user.Role = dto.Role
+	if dto.Role != "" {
+		user.Role = dto.Role
+	}
 	user.CommissionRate = dto.CommissionRate
+
+	// Handle status from frontend (is_active: 1/0 or status: "ACTIVE"/"INACTIVE")
 	if dto.Status != "" {
 		user.Status = dto.Status
+	}
+	if dto.IsActive != nil {
+		switch v := dto.IsActive.(type) {
+		case float64:
+			if v == 1 {
+				user.Status = "ACTIVE"
+			} else {
+				user.Status = "INACTIVE"
+			}
+		case bool:
+			if v {
+				user.Status = "ACTIVE"
+			} else {
+				user.Status = "INACTIVE"
+			}
+		}
+	}
+
+	// Handle password update
+	if dto.Password != "" {
+		hashedPassword, hashErr := bcrypt.GenerateFromPassword([]byte(dto.Password), bcrypt.DefaultCost)
+		if hashErr == nil {
+			user.Password = string(hashedPassword)
+		}
+	}
+
+	// Handle employee info fields
+	if dto.HireDate != "" {
+		user.HireDate = &dto.HireDate
+	}
+	if dto.Address != "" {
+		user.Address = &dto.Address
+	}
+	// Handle salary (can be string or number from frontend)
+	if dto.Salary != nil && dto.Salary != "" {
+		switch v := dto.Salary.(type) {
+		case float64:
+			user.Salary = v
+		case string:
+			if parsed, parseErr := strconv.ParseFloat(v, 64); parseErr == nil {
+				user.Salary = parsed
+			}
+		}
 	}
 
 	// Handle full_name splitting
@@ -217,13 +271,13 @@ func (uh *UserHandler) UpdateHandler(c echo.Context) error {
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	// Reload user from database to get complete updated record including commission_rate
 	updatedUser, err := uh.UserServices.GetID(id)
 	if err != nil {
 		return ResponseError(c, err)
 	}
-	
+
 	return ResponseSuccess(c, "updated", updatedUser)
 }
 

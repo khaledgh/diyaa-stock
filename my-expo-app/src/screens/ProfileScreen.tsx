@@ -1,15 +1,70 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
-import PrinterSettingsScreen from './PrinterSettingsScreen';
-import PrinterDemo from '../../components/PrinterDemo';
+import { usePrinter } from '../../hooks/usePrinter';
+import apiService from '../services/api.service';
 
 export default function ProfileScreen({ navigation }: any) {
   const { user, logout } = useAuth();
-  const [showPrinterSettings, setShowPrinterSettings] = useState(false);
-  const [showPrinterDemo, setShowPrinterDemo] = useState(false);
+  const { openPrinterUI } = usePrinter();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [showCommissionModal, setShowCommissionModal] = useState(false);
+  const [commissionValue, setCommissionValue] = useState('');
+
+  const handleChangePassword = async () => {
+    if (!newPassword || newPassword.length < 4) {
+      Alert.alert('Error', 'Password must be at least 4 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+    try {
+      setIsUpdating(true);
+      const res = await apiService.updateUser(user!.id, { password: newPassword });
+      if (res.ok || res.success) {
+        Alert.alert('Success', 'Password updated successfully');
+        setShowPasswordModal(false);
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        Alert.alert('Error', res.message || 'Failed to update password');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to update password');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleUpdateCommission = async () => {
+    const rate = parseFloat(commissionValue);
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      Alert.alert('Error', 'Commission rate must be between 0 and 100');
+      return;
+    }
+    if (!user?.id) return;
+    try {
+      setIsUpdating(true);
+      const res = await apiService.updateUser(user.id, { commission_rate: rate });
+      if (res.ok || res.success) {
+        Alert.alert('Success', 'Commission rate updated');
+        setShowCommissionModal(false);
+      } else {
+        Alert.alert('Error', res.message || 'Failed to update');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to update');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -107,28 +162,28 @@ export default function ProfileScreen({ navigation }: any) {
             </TouchableOpacity>
           )}
 
-          {/* Printer Settings Button */}
+          {/* Change Password Button */}
           <TouchableOpacity
-            onPress={() => setShowPrinterSettings(true)}
+            onPress={() => setShowPasswordModal(true)}
+            className="bg-white rounded-2xl py-4 mb-3 flex-row items-center justify-between px-4"
+            style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 }}
+          >
+            <View className="flex-row items-center">
+              <Ionicons name="lock-closed" size={24} color="#F59E0B" />
+              <Text className="text-gray-900 font-semibold text-base ml-3">Change Password</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          {/* Printer Button */}
+          <TouchableOpacity
+            onPress={openPrinterUI}
             className="bg-white rounded-2xl py-4 mb-3 flex-row items-center justify-between px-4"
             style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 }}
           >
             <View className="flex-row items-center">
               <Ionicons name="print" size={24} color="#3B82F6" />
-              <Text className="text-gray-900 font-semibold text-base ml-3">Printer Settings</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          {/* Printer Demo Button */}
-          <TouchableOpacity
-            onPress={() => setShowPrinterDemo(true)}
-            className="bg-white rounded-2xl py-4 mb-3 flex-row items-center justify-between px-4"
-            style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 }}
-          >
-            <View className="flex-row items-center">
-              <Ionicons name="print-outline" size={24} color="#10B981" />
-              <Text className="text-gray-900 font-semibold text-base ml-3">Printer Demo</Text>
+              <Text className="text-gray-900 font-semibold text-base ml-3">Printer</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
@@ -150,30 +205,82 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
       </ScrollView>
 
-      {/* Printer Settings Modal */}
-      <Modal
-        visible={showPrinterSettings}
-        animationType="slide"
-        presentationStyle="fullScreen"
-      >
-        <PrinterSettingsScreen onClose={() => setShowPrinterSettings(false)} />
+      {/* Change Password Modal */}
+      <Modal visible={showPasswordModal} animationType="fade" transparent onRequestClose={() => setShowPasswordModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
+          <View className="bg-white rounded-3xl p-6">
+            <Text className="text-xl font-bold text-gray-900 mb-4">Change Password</Text>
+            <View className="mb-4">
+              <Text className="text-xs text-gray-500 font-bold mb-1">NEW PASSWORD</Text>
+              <TextInput
+                className="border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
+                secureTextEntry
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="Enter new password"
+              />
+            </View>
+            <View className="mb-6">
+              <Text className="text-xs text-gray-500 font-bold mb-1">CONFIRM PASSWORD</Text>
+              <TextInput
+                className="border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirm new password"
+              />
+            </View>
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                onPress={() => { setShowPasswordModal(false); setNewPassword(''); setConfirmPassword(''); }}
+                className="flex-1 h-12 items-center justify-center bg-gray-100 rounded-xl"
+              >
+                <Text className="text-gray-700 font-bold">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleChangePassword}
+                disabled={isUpdating}
+                className={`flex-1 h-12 items-center justify-center rounded-xl ${isUpdating ? 'bg-yellow-300' : 'bg-yellow-500'}`}
+              >
+                {isUpdating ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold">Update</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
-      {/* Printer Demo Modal */}
-      <Modal
-        visible={showPrinterDemo}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <SafeAreaView edges={['top']} className="flex-1 bg-white">
-          <View className="px-4 py-3 border-b border-gray-100 flex-row items-center">
-            <TouchableOpacity onPress={() => setShowPrinterDemo(false)} className="mr-3">
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
-            <Text className="text-gray-900 text-xl font-bold">Printer Demo</Text>
+      {/* Commission Modal (admin) */}
+      <Modal visible={showCommissionModal} animationType="fade" transparent onRequestClose={() => setShowCommissionModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
+          <View className="bg-white rounded-3xl p-6">
+            <Text className="text-xl font-bold text-gray-900 mb-4">Update Commission Rate</Text>
+            <View className="mb-6">
+              <Text className="text-xs text-gray-500 font-bold mb-1">COMMISSION (%)</Text>
+              <TextInput
+                className="border border-gray-200 rounded-xl px-4 py-3 text-lg font-bold text-gray-900"
+                keyboardType="numeric"
+                value={commissionValue}
+                onChangeText={setCommissionValue}
+                placeholder="e.g. 15"
+              />
+            </View>
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                onPress={() => setShowCommissionModal(false)}
+                className="flex-1 h-12 items-center justify-center bg-gray-100 rounded-xl"
+              >
+                <Text className="text-gray-700 font-bold">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleUpdateCommission}
+                disabled={isUpdating}
+                className={`flex-1 h-12 items-center justify-center rounded-xl ${isUpdating ? 'bg-green-300' : 'bg-green-600'}`}
+              >
+                {isUpdating ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold">Save</Text>}
+              </TouchableOpacity>
+            </View>
           </View>
-          <PrinterDemo />
-        </SafeAreaView>
+        </View>
       </Modal>
     </SafeAreaView>
   );

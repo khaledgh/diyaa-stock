@@ -23,7 +23,7 @@ func NewUserService(u models.User, db *gorm.DB) *UserService {
 func (us *UserService) GetALL(limit, page int, orderBy, sortBy, status, role, searchTerm string) (PaginationResponse, error) {
 	users := []models.User{}
 	var totalRecords int64
-	
+
 	query := us.DB.Model(&models.User{}).Preload("Location")
 	if searchTerm != "" {
 		searchTermWithWildcard := "%" + searchTerm + "%"
@@ -39,12 +39,12 @@ func (us *UserService) GetALL(limit, page int, orderBy, sortBy, status, role, se
 	}
 
 	query.Count(&totalRecords)
-	
+
 	offset := (page - 1) * limit
 	if err := query.Order(sortBy + " " + orderBy).Offset(offset).Limit(limit).Find(&users).Error; err != nil {
 		return PaginationResponse{}, err
 	}
-	
+
 	// Populate computed fields
 	for i := range users {
 		users[i].FullName = users[i].FirstName + " " + users[i].LastName
@@ -53,11 +53,11 @@ func (us *UserService) GetALL(limit, page int, orderBy, sortBy, status, role, se
 			users[i].LocationName = users[i].Location.Name
 		}
 	}
-	
+
 	totalPages := int(math.Ceil(float64(totalRecords) / float64(limit)))
-	
+
 	log.Println("response", users)
-	
+
 	return PaginationResponse{
 		Data:        users,
 		Total:       int(totalRecords),
@@ -72,14 +72,14 @@ func (us *UserService) GetID(id string) (models.User, error) {
 	if result := us.DB.Preload("Location").First(&user, id); result.Error != nil {
 		return models.User{}, result.Error
 	}
-	
+
 	// Populate computed fields
 	user.FullName = user.FirstName + " " + user.LastName
 	user.IsActive = user.Status == "ACTIVE"
 	if user.Location != nil {
 		user.LocationName = user.Location.Name
 	}
-	
+
 	return user, nil
 }
 
@@ -99,7 +99,7 @@ func (us *UserService) Create(user models.User) (models.User, error) {
 }
 
 func (us *UserService) Update(user models.User) (models.User, error) {
-	if result := us.DB.Model(&user).Updates(user); result.Error != nil {
+	if result := us.DB.Save(&user); result.Error != nil {
 		return models.User{}, result.Error
 	}
 	return user, nil

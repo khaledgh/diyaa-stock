@@ -1,10 +1,9 @@
 import React, {
   useState,
   useEffect,
+  useRef,
   forwardRef,
   useImperativeHandle,
-  useCallback,
-  useRef,
 } from 'react';
 import {
   View,
@@ -15,982 +14,601 @@ import {
   ScrollView,
   PermissionsAndroid,
   Platform,
+  Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { printArabicReceiptLocally as printArabicReceiptUtil, ReceiptData } from '../utils/arabicPrinter';
-import { PrintableReceiptData, generateReceiptEscPos } from '../utils/receiptImagePrinter';
+import { PrintableReceiptData } from '../utils/receiptImagePrinter';
+import { captureRef } from 'react-native-view-shot';
+import { decodePNG } from '../utils/pngDecoder';
+import ReceiptBitmapView from './ReceiptBitmapView';
+import * as FileSystem from 'expo-file-system';
 
-// Initialize BLE manager dynamically to handle Expo Go compatibility
-let bleManager: any = null;
+// Import Bluetooth Classic (SPP) — this printer uses Classic BT, NOT BLE
+let RNBluetoothClassic: any = null;
 
-const initializeBLEManager = async () => {
+const initializeBTClassic = async () => {
   try {
-    const { BleManager } = await import('react-native-ble-plx');
-    bleManager = new BleManager();
-    console.log('BLE Manager initialized successfully');
+    const mod = await import('react-native-bluetooth-classic');
+    RNBluetoothClassic = mod.default;
+    console.log('🔵 Bluetooth Classic module loaded');
   } catch (error) {
-    console.warn('BLE module not available:', error);
+    console.warn('Bluetooth Classic module not available:', error);
   }
 };
 
-// Initialize BLE manager on module load
-initializeBLEManager();
+initializeBTClassic();
 
-const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.ReactNode {
+const SAVED_DEVICE_KEY = 'saved_bt_printer';
+
+// Helper: convert number[] to base64 string for Classic BT write
+const bytesToBase64 = (bytes: number[]): string => {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+};
+
+const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideUI?: boolean; onClose?: () => void }, ref: any): React.ReactNode {
   const [devices, setDevices] = useState<any[]>([]);
   const [connectedDevice, setConnectedDevice] = useState<any | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [savedDevice, setSavedDevice] = useState<any | null>(null);
-  const [bluetoothState, setBluetoothState] = useState<string>('unknown');
+  const [savedDeviceAddr, setSavedDeviceAddr] = useState<string | null>(null);
+  const [btEnabled, setBtEnabled] = useState(false);
+  const [receiptData, setReceiptData] = useState<PrintableReceiptData | null>(null);
   const receiptViewRef = useRef<View>(null);
 
-  const SAVED_DEVICE_KEY = 'saved_bluetooth_printer';
-
-  // -------------------- DEVICE MGMT --------------------
-  const saveDevice = async (device: any) => {
-    console.log('Saving device:', device);
-    await AsyncStorage.setItem(SAVED_DEVICE_KEY, JSON.stringify(device));
-    setSavedDevice(device);
-    console.log('Device saved, current savedDevice state:', device);
-  };
-
-  const attemptAutoReconnect = useCallback(async (device: any) => {
+  // -------------------- PERMISSIONS --------------------
+  const requestPermissions = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
     try {
-      if (!bleManager) {
-        console.log('BLE manager not available for auto-reconnect');
-        return;
-      }
-      setIsConnecting(true);
-      console.log('Attempting to connect to saved device:', device.id);
-      const connectedDevice = await bleManager.connectToDevice(device.id);
-      setConnectedDevice(connectedDevice);
-      await saveDevice(connectedDevice);
-      console.log('✅ Auto-reconnected to', connectedDevice.name);
-    } catch (e) {
-      console.log('Auto-reconnect failed:', e);
-    } finally {
-      setIsConnecting(false);
-    }
-  }, []);
-
-  const requestBluetoothPermissions = async () => {
-    try {
-      // Request location permission (required for BLE scanning on Android)
-      const locationGranted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        {
-          title: 'Location Permission',
-          message: 'This app needs location permission to scan for Bluetooth devices.',
-          buttonNeutral: 'Ask Me Later',
-          buttonNegative: 'Cancel',
-          buttonPositive: 'OK',
-        }
-      );
-
-      if (locationGranted !== PermissionsAndroid.RESULTS.GRANTED) {
-        Alert.alert(
-          'Permission Required',
-          'Location permission is required for Bluetooth scanning. Please grant it in app settings.',
-          [{ text: 'OK' }]
-        );
-        return false;
-      }
-
-      // For Android 12+, request Bluetooth permissions
-      if (Number(Platform.Version) >= 31) { // Android 12+
-        const bluetoothScanGranted = await PermissionsAndroid.request(
+      if (Number(Platform.Version) >= 31) {
+        const results = await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          {
-            title: 'Bluetooth Scan Permission',
-            message: 'This app needs permission to scan for Bluetooth devices.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-
-        const bluetoothConnectGranted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-          {
-            title: 'Bluetooth Connect Permission',
-            message: 'This app needs permission to connect to Bluetooth devices.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-
-        if (bluetoothScanGranted !== PermissionsAndroid.RESULTS.GRANTED ||
-            bluetoothConnectGranted !== PermissionsAndroid.RESULTS.GRANTED) {
-          Alert.alert(
-            'Bluetooth Permissions Required',
-            'Bluetooth scan and connect permissions are required. Please grant them in app settings.',
-            [{ text: 'OK' }]
-          );
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        ]);
+        const allGranted = Object.values(results).every(r => r === PermissionsAndroid.RESULTS.GRANTED);
+        if (!allGranted) {
+          Alert.alert('Permissions Required', 'Bluetooth and Location permissions are needed.');
+          return false;
+        }
+      } else {
+        const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert('Permission Required', 'Location permission is needed for Bluetooth.');
           return false;
         }
       }
-
       return true;
-    } catch (error) {
-      console.error('Permission request failed:', error);
+    } catch (e) {
+      console.error('Permission error:', e);
       return false;
     }
   };
 
+  // -------------------- SEND DATA VIA SPP --------------------
+  const CHUNK_SIZE = 512; // bytes per BT write chunk to avoid buffer overflow
+
+  const sendChunk = async (address: string, chunk: number[]): Promise<void> => {
+    const b64 = bytesToBase64(chunk);
+    try {
+      await RNBluetoothClassic._nativeModule.writeToDevice(address, b64);
+    } catch (e: any) {
+      // Fallback: try the standard way
+      await connectedDevice.write(b64, 'base64');
+    }
+  };
+
   const sendEscPosCommands = async (commands: number[]) => {
-    if (!connectedDevice) {
-      throw new Error('No printer connected');
-    }
-    if (!bleManager) {
-      throw new Error('BLE module not available');
-    }
+    if (!connectedDevice) throw new Error('No printer connected');
+    if (!RNBluetoothClassic) throw new Error('Bluetooth Classic module not available');
 
-    console.log(`📨 Sending ${commands.length} ESC/POS bytes...`);
+    console.log(`📨 Sending ${commands.length} bytes via Classic BT SPP...`);
 
-    let activeDevice = connectedDevice;
+    const address = connectedDevice.address;
 
-    const discoverPrintCharacteristic = async (device: any) => {
-      // Ensure services are discovered
-      await device.discoverAllServicesAndCharacteristics();
-      const services = await device.services();
-      console.log('📋 Services:', services.map((s: any) => s.uuid));
-
-      // Known thermal printer service UUIDs
-      const KNOWN_PRINT_SERVICES = [
-        '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Common ESC/POS BLE
-        '000018f0-0000-1000-8000-00805f9b34fb', // Generic printer
-        'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Nordic UART
-      ];
-
-      let printService = null;
-      for (const knownUuid of KNOWN_PRINT_SERVICES) {
-        printService = services.find((s: any) => s.uuid.toLowerCase().includes(knownUuid));
-        if (printService) break;
-      }
-
-      // Fallback: try any service with a writable characteristic
-      if (!printService) {
-        for (const service of services) {
-          const chars = await service.characteristics();
-          const writable = chars.find((c: any) => c.isWritableWithoutResponse || c.isWritableWithResponse);
-          if (writable) {
-            printService = service;
-            break;
-          }
+    if (commands.length <= CHUNK_SIZE) {
+      // Small payload — send in one go
+      const b64 = bytesToBase64(commands);
+      try {
+        await RNBluetoothClassic._nativeModule.writeToDevice(address, b64);
+        console.log('✅ Transmission completed via native module');
+      } catch (e: any) {
+        console.error(`❌ Native write failed, trying device.write:`, e?.message);
+        try {
+          await connectedDevice.write(b64, 'base64');
+          console.log('✅ Transmission completed via device.write');
+        } catch (e2: any) {
+          console.error(`❌ device.write also failed:`, e2?.message);
+          throw e2;
         }
       }
-
-      if (!printService) {
-        throw new Error('No print service found on this device');
+    } else {
+      // Large payload (bitmap) — send in chunks with small delays
+      const totalChunks = Math.ceil(commands.length / CHUNK_SIZE);
+      console.log(`📨 Sending in ${totalChunks} chunks of ${CHUNK_SIZE} bytes...`);
+      for (let i = 0; i < commands.length; i += CHUNK_SIZE) {
+        const chunk = commands.slice(i, i + CHUNK_SIZE);
+        await sendChunk(address, chunk);
+        // Small delay between chunks to let the printer process
+        if (i + CHUNK_SIZE < commands.length) {
+          await new Promise(r => setTimeout(r, 20));
+        }
       }
-
-      console.log('✅ Print service:', printService.uuid);
-      const characteristics = await printService.characteristics();
-
-      // Find writable characteristic (prefer WriteWithoutResponse for speed)
-      const writeChar = characteristics.find((c: any) => c.isWritableWithoutResponse) ||
-                        characteristics.find((c: any) => c.isWritableWithResponse);
-
-      if (!writeChar) {
-        throw new Error('No writable characteristic found');
-      }
-
-      console.log('✅ Write characteristic:', writeChar.uuid, 
-        writeChar.isWritableWithoutResponse ? '(no-response)' : '(with-response)');
-
-      return { serviceUuid: printService.uuid, writeChar };
-    };
-
-    let discovery: any;
-    try {
-      discovery = await discoverPrintCharacteristic(activeDevice);
-    } catch (serviceError) {
-      console.warn('⚠️ Service discovery failed, reconnecting...', serviceError);
-      activeDevice = await refreshConnection({ reason: 'Service discovery failed' });
-      discovery = await discoverPrintCharacteristic(activeDevice);
-    }
-
-    const { serviceUuid, writeChar } = discovery;
-    const useWithoutResponse = writeChar.isWritableWithoutResponse;
-    const CHUNK_SIZE = 100; // Safe BLE chunk size for thermal printers
-
-    console.log(`📤 Sending in ${Math.ceil(commands.length / CHUNK_SIZE)} chunks of up to ${CHUNK_SIZE} bytes...`);
-
-    for (let i = 0; i < commands.length; i += CHUNK_SIZE) {
-      const chunk = commands.slice(i, Math.min(i + CHUNK_SIZE, commands.length));
-      const chunkBuffer = new Uint8Array(chunk);
-      const chunkBase64 = arrayBufferToBase64(chunkBuffer.buffer);
-
-      if (useWithoutResponse) {
-        await bleManager.writeCharacteristicWithoutResponseForDevice(
-          activeDevice.id, serviceUuid, writeChar.uuid, chunkBase64
-        );
-      } else {
-        await bleManager.writeCharacteristicWithResponseForDevice(
-          activeDevice.id, serviceUuid, writeChar.uuid, chunkBase64
-        );
-      }
-
-      // Brief pause every few chunks to let printer buffer process
-      if ((i / CHUNK_SIZE) % 5 === 4) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-    }
-
-    console.log('✅ Transmission completed');
-  };
-
-  const testSimplePrint = async () => {
-    console.log('🧪 Testing simple ESC/POS text print...');
-    if (!connectedDevice) {
-      return Alert.alert('Error', 'No printer connected');
-    }
-
-    try {
-      // Send simple text commands first
-      const commands: number[] = [];
-      commands.push(0x1b, 0x40); // Initialize printer
-      commands.push(0x1b, 0x61, 0x01); // Center alignment
-      commands.push(0x48, 0x65, 0x6c, 0x6c, 0x6f); // "Hello"
-      commands.push(0x0a); // New line
-      commands.push(0x57, 0x6f, 0x72, 0x6c, 0x64); // "World"
-      commands.push(0x0a, 0x0a, 0x0a); // Feed paper
-      commands.push(0x1d, 0x56, 0x01); // Cut
-      
-      await sendEscPosCommands(commands);
-      
-      console.log('✅ Simple text print completed');
-      Alert.alert('Success', 'Simple text printed! Check printer output.');
-    } catch (error) {
-      console.error('❌ Simple text print error:', error);
-      Alert.alert('Error', `Failed to print text: ${error}`);
+      console.log('✅ Chunked transmission completed');
     }
   };
 
-  const loadSavedDevice = useCallback(async () => {
-    console.log('🔍 loadSavedDevice: Starting to load saved device...');
-    try {
-      const saved = await AsyncStorage.getItem(SAVED_DEVICE_KEY);
-      console.log('🔍 loadSavedDevice: Raw saved data from AsyncStorage:', saved);
-
-      if (!saved) {
-        console.log('🔍 loadSavedDevice: No saved device found in storage');
-        setSavedDevice(null);
-        return;
-      }
-
-      const device = JSON.parse(saved);
-      console.log('🔍 loadSavedDevice: Successfully parsed device:', device);
-      console.log('🔍 loadSavedDevice: Setting savedDevice state...');
-      setSavedDevice(device);
-      console.log('🔍 loadSavedDevice: savedDevice state set successfully');
-
-      console.log('🔍 loadSavedDevice: Attempting auto-reconnect...');
-      attemptAutoReconnect(device);
-    } catch (error) {
-      console.error('🔍 loadSavedDevice: Error loading saved device:', error);
-      console.log('🔍 loadSavedDevice: Clearing potentially corrupted data...');
-      await AsyncStorage.removeItem(SAVED_DEVICE_KEY);
-      console.log('🔍 loadSavedDevice: Corrupted data cleared');
-      setSavedDevice(null);
-    }
-  }, [attemptAutoReconnect]);
+  // -------------------- DEVICE MANAGEMENT --------------------
+  const saveDeviceAddress = async (address: string) => {
+    await AsyncStorage.setItem(SAVED_DEVICE_KEY, address);
+    setSavedDeviceAddr(address);
+  };
 
   const clearSavedDevice = async () => {
-    console.log('Clearing saved device');
     await AsyncStorage.removeItem(SAVED_DEVICE_KEY);
-    setSavedDevice(null);
-    console.log('Saved device cleared');
+    setSavedDeviceAddr(null);
   };
 
-  // -------------------- INIT --------------------
-  useEffect(() => {
-    console.log('PrinterDemo component mounted');
-    if (!bleManager) {
-      console.log('BLE module not available - running in Expo Go mode');
-      // Don't show alert on init, let user discover this when they try to use Bluetooth
-    } else {
-      console.log('BLE module available - full Bluetooth functionality enabled');
+  const loadBondedDevices = async () => {
+    if (!RNBluetoothClassic) {
+      Alert.alert('Error', 'Bluetooth Classic module not available. Use a development build.');
+      return;
     }
-    loadSavedDevice();
-  }, [loadSavedDevice]);
 
-  // Debug: Log when savedDevice changes
-  useEffect(() => {
-    console.log('savedDevice state changed:', savedDevice);
-  }, [savedDevice]);
+    const ok = await requestPermissions();
+    if (!ok) return;
 
-  const enableBluetooth = async () => {
+    setIsScanning(true);
     try {
-      console.log('Attempting to enable Bluetooth...');
-
-      // First try BLE (for development builds)
-      if (bleManager) {
-        // Request necessary permissions first
-        const permissionsGranted = await requestBluetoothPermissions();
-        if (!permissionsGranted) {
-          return; // Permissions not granted, user was alerted
-        }
-
-        const state = await bleManager.state();
-        console.log('Bluetooth state:', state);
-        setBluetoothState(state); // Store state for UI display
-
-        if (state === 'PoweredOff') {
-          Alert.alert(
-            'Bluetooth is Disabled',
-            'Bluetooth must be enabled to use this app. Please follow these steps:\n\n1. Pull down the notification shade\n2. Long-press the Bluetooth icon\n3. Turn Bluetooth ON\n\nThen return to this app.',
-            [
-              {
-                text: 'I\'ve Enabled Bluetooth',
-                onPress: () => {
-                  // Check again after user says they enabled it
-                  setTimeout(() => enableBluetooth(), 1000);
-                },
-              },
-              {
-                text: 'Open Quick Settings',
-                onPress: () => {
-                  Alert.alert(
-                    'Quick Settings',
-                    'Pull down from the top of your screen to access Quick Settings, then tap the Bluetooth icon to turn it on.'
-                  );
-                },
-              },
-              { text: 'Cancel', style: 'cancel' },
-            ]
-          );
-          return;
-        }
-
-        if (state === 'Unauthorized') {
-          Alert.alert(
-            'Bluetooth Permission Required',
-            'The app needs Bluetooth permission to scan for devices. Please grant Bluetooth permission in app settings.',
-            [
-              {
-                text: 'Open App Settings',
-                onPress: () => {
-                  Alert.alert(
-                    'App Settings',
-                    'Go to Settings > Apps > [This App] > Permissions and enable Bluetooth permission.'
-                  );
-                },
-              },
-              { text: 'Cancel', style: 'cancel' },
-            ]
-          );
-          return;
-        }
-
-        // Bluetooth is ready
-        Alert.alert('Success', 'Bluetooth is enabled and ready to use!');
-
-      } else {
-        // Fallback for Expo Go - provide helpful instructions
-        Alert.alert(
-          'Development Build Required',
-          'Bluetooth printing requires a development build for full functionality.\n\nFor now, you can:\n\n1. Enable Bluetooth manually in Settings\n2. Create a development build for full BLE support\n3. Test basic app functionality',
-          [
-            {
-              text: 'Create Dev Build',
-              onPress: () => {
-                Alert.alert('Development Build', 'Run: npx expo run:android --device');
-              },
-            },
-            {
-              text: 'Enable Bluetooth',
-              onPress: () => {
-                Alert.alert('Manual Setup', 'Go to Settings > Bluetooth and turn Bluetooth on');
-              },
-            },
-            { text: 'OK', style: 'default' },
-          ]
-        );
-      }
-
-    } catch (error) {
-      console.error('Failed to enable Bluetooth:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-      Alert.alert(
-        'Bluetooth Setup Required',
-        `Please ensure Bluetooth is enabled in your device settings.\n\nError: ${errorMessage}`,
-        [
-          { text: 'OK' }
-        ]
-      );
-    }
-  };
-
-  const scanForDevices = async () => {
-    let scanSubscription: any = null;
-    try {
-      if (!bleManager) {
-        throw new Error('BLE module not available. Use a development build for Bluetooth scanning.');
-      }
-      setIsScanning(true);
-      setDevices([]); // Clear previous devices
-      
-      const foundDevices: any[] = [];
-      scanSubscription = bleManager.startDeviceScan(null, null, (error: any, device: any) => {
-        if (error) {
-          console.error('Scan error:', error);
-          setIsScanning(false);
-          // Don't try to remove subscription here as it may not be valid
-          return;
-        }
-        
-        console.log('🔍 Discovered device:', {
-          id: device.id,
-          name: device.name,
-          localName: device.localName,
-          manufacturerData: device.manufacturerData,
-          serviceUUIDs: device.serviceUUIDs,
-          isConnectable: device.isConnectable
-        });
-        
-        // Add device if not already in list
-        if (!foundDevices.some(d => d.id === device.id)) {
-          foundDevices.push(device);
-          setDevices([...foundDevices]);
-          console.log(`📱 Added device ${device.id} to list. Total devices: ${foundDevices.length}`);
-        }
-      });
-      
-      // Stop scan after 10 seconds
-      setTimeout(() => {
-        if (bleManager) {
-          bleManager.stopDeviceScan();
-        }
-        setIsScanning(false);
-        if (scanSubscription && typeof scanSubscription.remove === 'function') {
-          scanSubscription.remove();
-        }
-        console.log(`🔍 Scan completed, found ${foundDevices.length} devices:`);
-        foundDevices.forEach((device, index) => {
-          console.log(`  ${index + 1}. ${device.id} - ${device.name || device.localName || 'No name'}`);
-        });
-      }, 10000);
-      
-    } catch (error) {
-      console.error('Failed to scan for devices:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
-      if (errorMessage.includes('module not available')) {
-        Alert.alert(
-          'BLE Scanning Not Available',
-          'Device scanning requires a development build.\n\nPlease create a development build to scan for Bluetooth devices.',
-          [
-            { text: 'OK' }
-          ]
-        );
-      } else {
-        Alert.alert('Error', `Failed to scan for devices: ${errorMessage}`);
-      }
+      const bonded = await RNBluetoothClassic.getBondedDevices();
+      console.log(`🔍 Found ${bonded.length} bonded devices`);
+      setDevices(bonded);
+    } catch (e: any) {
+      console.error('Failed to get bonded devices:', e?.message);
+      Alert.alert('Error', `Failed to list paired devices: ${e?.message}`);
+    } finally {
       setIsScanning(false);
-      if (scanSubscription && typeof scanSubscription.remove === 'function') {
-        scanSubscription.remove();
-      }
     }
   };
 
   const connectToDevice = async (device: any) => {
+    if (!RNBluetoothClassic) {
+      Alert.alert('Error', 'Bluetooth Classic module not available.');
+      return;
+    }
+
+    setIsConnecting(true);
     try {
-      if (!bleManager) {
-        throw new Error('BLE module not available. Use a development build for Bluetooth connections.');
-      }
-      setIsConnecting(true);
-      console.log('Connecting to device:', device.id);
-      
-      // Add timeout to connection (10 seconds)
-      const connectionPromise = bleManager.connectToDevice(device.id, {
-        timeout: 10000,
-      });
-      
-      const connectedDevice = await Promise.race([
-        connectionPromise,
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Connection timeout')), 10000)
-        )
-      ]);
-      
-      console.log('Connected, discovering services...');
-      
-      // Faster service discovery with timeout
-      const discoveryPromise = connectedDevice.discoverAllServicesAndCharacteristics();
-      await Promise.race([
-        discoveryPromise,
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Service discovery timeout')), 5000)
-        )
-      ]);
-      
-      setConnectedDevice(connectedDevice);
-      await saveDevice(connectedDevice);
-      Alert.alert('Success', `Connected to ${connectedDevice.name || 'Device'}`);
-    } catch (error) {
-      console.error('Failed to connect to device:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
-      if (errorMessage.includes('module not available')) {
-        Alert.alert(
-          'BLE Connection Not Available',
-          'Device connection requires a development build.\n\nPlease create a development build to connect to Bluetooth devices.',
-          [{ text: 'OK' }]
-        );
-      } else if (errorMessage.includes('timeout')) {
-        Alert.alert('Connection Timeout', 'Device took too long to respond. Please try again and ensure the printer is nearby.');
+      const address = device.address || device.id;
+      console.log(`🔌 Connecting to ${device.name || address} via Classic BT SPP...`);
+
+      // Check if already connected
+      const alreadyConnected = await RNBluetoothClassic.isDeviceConnected(address);
+      let connected;
+      if (alreadyConnected) {
+        console.log('✅ Already connected');
+        connected = await RNBluetoothClassic.getConnectedDevice(address);
       } else {
-        Alert.alert('Error', `Failed to connect to device: ${errorMessage}`);
+        connected = await RNBluetoothClassic.connectToDevice(address, {});
       }
+
+      setConnectedDevice(connected);
+      await saveDeviceAddress(address);
+      console.log('✅ Connected to', connected.name || address);
+      Alert.alert('Success', `Connected to ${connected.name || 'Printer'}`);
+    } catch (e: any) {
+      console.error('❌ Connection failed:', e?.message);
+      Alert.alert('Connection Failed', `Could not connect: ${e?.message}\n\nMake sure the printer is ON and paired in Android Bluetooth settings.`);
     } finally {
       setIsConnecting(false);
     }
   };
 
   const disconnectDevice = async () => {
-    if (!connectedDevice) return;
+    if (!connectedDevice || !RNBluetoothClassic) return;
     try {
-      if (!bleManager) {
-        throw new Error('BLE module not available. Use a development build for Bluetooth disconnection.');
-      }
-      await bleManager.cancelDeviceConnection(connectedDevice.id);
+      const address = connectedDevice.address || connectedDevice.id;
+      await RNBluetoothClassic.disconnectFromDevice(address);
       setConnectedDevice(null);
-      Alert.alert('Disconnected');
-    } catch (error) {
-      console.error('Disconnect error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
-      if (errorMessage.includes('module not available')) {
-        Alert.alert(
-          'BLE Disconnection Not Available',
-          'Device disconnection requires a development build.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Error', `Failed to disconnect: ${errorMessage}`);
+      console.log('🔌 Disconnected');
+      Alert.alert('Disconnected', 'Printer disconnected.');
+    } catch (e: any) {
+      console.error('Disconnect error:', e?.message);
+      setConnectedDevice(null);
+    }
+  };
+
+  // -------------------- INIT --------------------
+  useEffect(() => {
+    let cancelled = false;
+
+    const init = async () => {
+      // Wait for BT Classic module
+      if (!RNBluetoothClassic) {
+        for (let i = 0; i < 20; i++) {
+          await new Promise(r => setTimeout(r, 300));
+          if (RNBluetoothClassic) break;
+        }
       }
+      if (cancelled || !RNBluetoothClassic) return;
+
+      try {
+        // Check if BT is enabled by trying to get bonded devices
+        await RNBluetoothClassic.getBondedDevices();
+        setBtEnabled(true);
+
+        // Load saved device and auto-connect
+        const savedAddr = await AsyncStorage.getItem(SAVED_DEVICE_KEY);
+        if (cancelled || !savedAddr) return;
+        setSavedDeviceAddr(savedAddr);
+
+        // Try auto-connect
+        setIsConnecting(true);
+        try {
+          const isConn = await RNBluetoothClassic.isDeviceConnected(savedAddr);
+          let device;
+          if (isConn) {
+            device = await RNBluetoothClassic.getConnectedDevice(savedAddr);
+          } else {
+            device = await RNBluetoothClassic.connectToDevice(savedAddr, {});
+          }
+          if (!cancelled) {
+            setConnectedDevice(device);
+            console.log('✅ Auto-connected to', device.name || savedAddr);
+          }
+        } catch (e: any) {
+          console.log('⚠️ Auto-connect failed:', e?.message);
+        } finally {
+          if (!cancelled) setIsConnecting(false);
+        }
+      } catch (e) {
+        console.error('Init error:', e);
+      }
+    };
+
+    init();
+    return () => { cancelled = true; };
+  }, []);
+
+  const enableBluetooth = async () => {
+    if (!RNBluetoothClassic) {
+      Alert.alert('Error', 'Bluetooth Classic module not available. Use a development build.');
+      return;
+    }
+    try {
+      await RNBluetoothClassic.requestBluetoothEnabled();
+      setBtEnabled(true);
+      Alert.alert('Success', 'Bluetooth is enabled!');
+    } catch (e: any) {
+      Alert.alert('Bluetooth', `Please enable Bluetooth in Android Settings.\n\n${e?.message || ''}`);
     }
   };
 
-  // -------------------- PRINTING --------------------
-  // Helper function to convert ArrayBuffer to base64
-  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  };
-
-  const refreshConnection = async ({
-    showSpinner = false,
-    reason,
-  }: {
-    showSpinner?: boolean;
-    reason?: string;
-  } = {}) => {
-    if (!connectedDevice) {
-      throw new Error('No printer connected');
-    }
-    if (!bleManager) {
-      throw new Error('BLE module not available or not initialized yet.');
-    }
-
-    if (reason) {
-      console.log(`🔄 Refreshing device connection (${reason})`);
-    } else {
-      console.log('🔄 Refreshing device connection...');
-    }
-
-    if (showSpinner) {
-      setIsConnecting(true);
-    }
+  // -------------------- TEST PRINT --------------------
+  // Simplest possible raw test — just ASCII bytes, no PrinterCommands helper
+  const testRawPrint = async () => {
+    if (!connectedDevice || !RNBluetoothClassic) return Alert.alert('Error', 'No printer connected');
 
     try {
+      // Raw ESC/POS: init + "Hello\n" + feed 3 lines
+      const raw: number[] = [
+        0x1B, 0x40,                                             // ESC @ — initialize
+        0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x57, 0x6F,       // "Hello Wo"
+        0x72, 0x6C, 0x64, 0x21, 0x0A,                          // "rld!\n"
+        0x54, 0x65, 0x73, 0x74, 0x0A,                          // "Test\n"
+        0x1B, 0x64, 0x04,                                      // ESC d 4 — feed 4 lines
+      ];
+
+      console.log('🔬 RAW TEST: sending', raw.length, 'bytes directly');
+
+      const address = connectedDevice.address;
+
+      // Method 1: Direct native module call
+      const b64 = bytesToBase64(raw);
+      console.log('🔬 RAW b64:', b64);
       try {
-        await bleManager.cancelDeviceConnection(connectedDevice.id);
-      } catch (cancelError) {
-        console.warn('⚠️ Cancel connection warning:', cancelError);
+        await RNBluetoothClassic._nativeModule.writeToDevice(address, b64);
+        console.log('🔬 RAW: native module write OK');
+      } catch (e1: any) {
+        console.error('🔬 RAW: native write failed:', e1?.message);
       }
 
-      // Reduce delay from 1000ms to 300ms for faster reconnection
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Method 2: Plain text write (no encoding param)
+      try {
+        await connectedDevice.write('Hello from method2\n');
+        console.log('🔬 RAW: plain text write OK');
+      } catch (e2: any) {
+        console.error('🔬 RAW: plain text write failed:', e2?.message);
+      }
 
-      const reconnectedDevice = await Promise.race([
-        bleManager.connectToDevice(connectedDevice.id, {
-          timeout: 5000, // Shorter timeout for reconnection
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Reconnection timeout')), 5000)
-        )
-      ]);
-      
-      await reconnectedDevice.discoverAllServicesAndCharacteristics();
-      setConnectedDevice(reconnectedDevice);
-      await saveDevice(reconnectedDevice);
-      console.log('✅ Device reconnected successfully');
-      return reconnectedDevice;
-    } catch (error) {
-      console.error('❌ Reconnection attempt failed:', error);
-      if (showSpinner) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        Alert.alert('Reconnection Failed', `Could not reconnect to device: ${errorMessage}`);
-      }
-      throw error;
-    } finally {
-      if (showSpinner) {
-        setIsConnecting(false);
-      }
+      Alert.alert('Raw Test', 'Check printer and terminal logs');
+    } catch (e: any) {
+      Alert.alert('Raw Test Failed', e?.message || 'Unknown error');
     }
   };
 
-  const encodeUTF8 = (text: string): number[] => {
+  const testSimplePrint = async () => {
+    if (!connectedDevice) return Alert.alert('Error', 'No printer connected');
+
+    try {
+      const cmd: number[] = [];
+      cmd.push(0x1b, 0x40); // ESC @ init
+      cmd.push(0x1b, 0x61, 0x01); // center
+      cmd.push(0x1b, 0x45, 0x01); // bold on
+      cmd.push(...textToUtf8Bytes('Hello World!\n'));
+      cmd.push(0x1b, 0x45, 0x00); // bold off
+      cmd.push(...textToUtf8Bytes('================================\n'));
+      cmd.push(...textToUtf8Bytes('Classic BT SPP Test\n'));
+      cmd.push(...textToUtf8Bytes('================================\n'));
+      cmd.push(0x1b, 0x64, 0x04); // feed 4 lines
+      cmd.push(0x1d, 0x56, 0x00); // cut
+
+      await sendEscPosCommands(cmd);
+      Alert.alert('Success', 'Test print sent! Check the printer.');
+    } catch (e: any) {
+      Alert.alert('Print Failed', e?.message || 'Unknown error');
+    }
+  };
+
+  // -------------------- UTF-8 TEXT HELPERS --------------------
+  // Convert a JS string to UTF-8 byte array — works for Arabic, English, any Unicode
+  const textToUtf8Bytes = (text: string): number[] => {
     const bytes: number[] = [];
     for (let i = 0; i < text.length; i++) {
       let code = text.charCodeAt(i);
+      // Handle surrogate pairs
       if (code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length) {
-        const next = text.charCodeAt(i + 1);
-        if (next >= 0xDC00 && next <= 0xDFFF) {
-          code = ((code - 0xD800) << 10) + (next - 0xDC00) + 0x10000;
+        const low = text.charCodeAt(i + 1);
+        if (low >= 0xDC00 && low <= 0xDFFF) {
+          code = ((code - 0xD800) << 10) + (low - 0xDC00) + 0x10000;
           i++;
         }
       }
-      if (code <= 0x7F) { bytes.push(code); }
-      else if (code <= 0x7FF) { bytes.push(0xC0 | (code >> 6), 0x80 | (code & 0x3F)); }
-      else if (code <= 0xFFFF) { bytes.push(0xE0 | (code >> 12), 0x80 | ((code >> 6) & 0x3F), 0x80 | (code & 0x3F)); }
-      else { bytes.push(0xF0 | (code >> 18), 0x80 | ((code >> 12) & 0x3F), 0x80 | ((code >> 6) & 0x3F), 0x80 | (code & 0x3F)); }
+      if (code < 0x80) {
+        bytes.push(code);
+      } else if (code < 0x800) {
+        bytes.push(0xC0 | (code >> 6), 0x80 | (code & 0x3F));
+      } else if (code < 0x10000) {
+        bytes.push(0xE0 | (code >> 12), 0x80 | ((code >> 6) & 0x3F), 0x80 | (code & 0x3F));
+      } else {
+        bytes.push(0xF0 | (code >> 18), 0x80 | ((code >> 12) & 0x3F), 0x80 | ((code >> 6) & 0x3F), 0x80 | (code & 0x3F));
+      }
     }
     return bytes;
   };
 
-  const printTextWithCodePage = async ({
-    header,
-    bodyLines,
-    footer,
-  }: {
-    header?: string[];
-    bodyLines: string[];
-    footer?: string[];
-    codePage?: number;
-  }) => {
-    const commands: number[] = [];
-    commands.push(0x1b, 0x40); // ESC @ - Reset
-
-    const appendLine = (text: string) => {
-      commands.push(...encodeUTF8(text));
-      commands.push(0x0a);
-    };
-
-    if (header && header.length > 0) {
-      commands.push(0x1b, 0x61, 0x01); // Center
-      header.forEach((ln) => appendLine(ln));
-      commands.push(0x0a);
-    }
-
-    commands.push(0x1b, 0x61, 0x00); // Left
-    bodyLines.forEach((ln) => appendLine(ln));
-
-    if (footer && footer.length > 0) {
-      commands.push(0x0a);
-      commands.push(0x1b, 0x61, 0x01); // Center
-      footer.forEach((ln) => appendLine(ln));
-    }
-
-    commands.push(0x0a);
-    commands.push(0x1b, 0x64, 0x03); // Feed 3 lines
-    commands.push(0x1d, 0x56, 0x42, 0x00); // Cut
-
-    await sendEscPosCommands(commands);
-  };
-
-  const printArabicAsImage = async (text: string) => {
-    console.log('🖨️ Starting image-based Arabic printing...');
-    if (!connectedDevice) throw new Error('No printer connected');
-    if (!receiptViewRef.current) throw new Error('Receipt view not ready');
+  const testArabicPrint = async () => {
+    if (!connectedDevice) return Alert.alert('Error', 'No printer connected');
 
     try {
-      // Try a different bitmap approach using GS * command (more compatible)
-      const commands: number[] = [];
-      commands.push(0x1b, 0x40); // Initialize printer
-      commands.push(0x1b, 0x61, 0x01); // Center alignment
-      
-      // Create a smaller, simpler test pattern
-      const width = 32; // 256 pixels / 8 pixels per byte
-      const height = 50;
-      
-      // GS v 0 - Print bitmap (mode 0 = normal density)
-      commands.push(0x1d, 0x76, 0x30, 0x00); // GS v 0
-      commands.push(width & 0xff); // xL
-      commands.push((width >> 8) & 0xff); // xH  
-      commands.push(height & 0xff); // yL
-      commands.push((height >> 8) & 0xff); // yH
-      
-      // Create a simple solid black rectangle (easier to debug)
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          commands.push(0xff); // Solid black (11111111)
-        }
-      }
-      
-      commands.push(0x0a, 0x0a, 0x0a, 0x0a, 0x0a); // Feed paper
-      commands.push(0x1d, 0x56, 0x01); // Cut
-      
-      await sendEscPosCommands(commands);
-      
-      console.log('✅ Image-based printing completed');
-      Alert.alert('Success', 'Test bitmap printed! Check for checkerboard pattern.');
-    } catch (error) {
-      console.error('❌ Image print error:', error);
-      throw error;
+      const testData: PrintableReceiptData = {
+        invoiceNumber: 'TEST-001',
+        customerName: 'عميل تجريبي',
+        items: [
+          { name: 'قهوة عربية', quantity: 2, unitPrice: 15.00, total: 30.00 },
+          { name: 'شاي أخضر', quantity: 1, unitPrice: 10.00, total: 10.00 },
+          { name: 'ماء معدني', quantity: 3, unitPrice: 5.00, total: 15.00 },
+        ],
+        subtotal: 55.00,
+        discount: 0,
+        tax: 0,
+        total: 55.00,
+        paidAmount: 55.00,
+        date: new Date().toLocaleDateString('ar-SA'),
+        cashierName: 'كاشير',
+        storeName: 'متجر تجريبي',
+      };
+      await printReceiptData(testData);
+      Alert.alert('Success', 'Arabic receipt sent!');
+    } catch (e: any) {
+      Alert.alert('Print Failed', e?.message || 'Unknown error');
     }
   };
 
-  const printArabicTextDirect = async (text: string) => {
-    console.log('🖨️ Starting direct Arabic text printing (fallback mode)...');
-    if (!connectedDevice) throw new Error('No printer connected');
+  // -------------------- STRUCTURED RECEIPT PRINTING (BITMAP via ESC *) --------------------
+  // Printer doesn't support UTF-8 Arabic or GS v 0 raster.
+  // Use ESC * (bit image) line-by-line — universally supported on all ESC/POS printers.
+  // Each line: ESC * m nL nH [data] where m=0 (8-dot single density) or m=33 (24-dot double density)
+  const PRINTER_WIDTH = 384; // 58mm = 384 dots
 
-    console.log('📱 Connected device:', connectedDevice.name || 'Unknown', connectedDevice.id);
-
-    try {
-      const isConnected = await connectedDevice.isConnected();
-      console.log('🔗 Device connection state:', isConnected);
-      if (!isConnected) {
-        throw new Error('Device is not connected. Please reconnect to the printer.');
-      }
-    } catch (connectionError) {
-      console.error('❌ Failed to check device connection:', connectionError);
-      throw new Error('Cannot verify device connection. Please reconnect to the printer.');
-    }
-
-    const header = ['========', 'إيصال تجريبي', '========'];
-    const bodyLines = text.split('\n');
-    const footer = ['========', 'شكراً لك'];
-
-    try {
-      await printTextWithCodePage({
-        header,
-        bodyLines,
-        footer,
-      });
-      console.log('✅ Direct text printing completed via BLE');
-    } catch (e) {
-      console.error('❌ Direct print error:', e);
-      console.error('❌ Error type:', typeof e);
-      console.error('❌ Error properties:', e && typeof e === 'object' ? Object.keys(e as object) : 'N/A');
-      if (e && typeof e === 'object') {
-        console.error('❌ Error reason:', (e as any).reason);
-        console.error('❌ Error errorCode:', (e as any).errorCode);
-        console.error('❌ Error message:', (e as any).message);
-        console.error('❌ Full error object:', JSON.stringify(e, null, 2));
-      }
-      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-
-      if (errorMessage.includes('discover device services')) {
-        throw new Error('Device connection is unstable. Please disconnect and reconnect to the printer before trying to print again.');
-      } else if (errorMessage.includes('module not available')) {
-        Alert.alert(
-          'BLE Printing Not Available',
-          'Printing requires a development build.\n\nPlease create a development build to print to Bluetooth devices.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        throw e;
-      }
-    }
-  };
-
-  const printArabicText = async (text: string) => {
-    console.log('🖨️ Starting Arabic text printing...');
-    if (!connectedDevice) throw new Error('No printer connected');
-
-    console.log('📱 Connected device:', connectedDevice.name || 'Unknown', connectedDevice.id);
-
-    // Use direct text printing as primary method (image printing has compatibility issues)
-    console.log('🔤 Using direct text printing for Arabic text...');
-    await printArabicTextDirect(text);
-  };
-
-  const testArabicPrinting = async () => {
-    console.log('🖨️ Starting print test...');
-    if (!connectedDevice) {
-      console.log('❌ No device connected');
-      return Alert.alert('Error', 'No device connected');
-    }
-
-    console.log('✅ Device connected, proceeding with print test');
-    try {
-      const sample = 'فاتورة تجريبية\nالمنتج: اسم المنتج\nالسعر: 100 ريال';
-      console.log('📝 Test text:', sample);
-      await printArabicAsImage(sample);
-      console.log('✅ Print test completed successfully');
-      Alert.alert('Success', 'Arabic receipt printed successfully as image!');
-    } catch (error) {
-      console.error('❌ Print test failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('❌ Error details:', errorMessage);
-
-      // Provide helpful error messages based on error type
-      let userMessage = 'Printing failed';
-      let suggestion = '';
-
-      if (errorMessage.includes('discover device services')) {
-        userMessage = 'Device connection unstable';
-        suggestion = 'Try disconnecting and reconnecting to the printer before printing again.';
-      } else if (errorMessage.includes('Image creation failed')) {
-        userMessage = 'Image printing failed';
-        suggestion = 'Try using "Print Text Only" button instead.';
-      } else if (errorMessage.includes('Print service not found')) {
-        userMessage = 'Printer service not found';
-        suggestion = 'This printer may not be compatible with BLE printing.';
-      } else if (errorMessage.includes('No writable characteristic')) {
-        userMessage = 'Printer communication failed';
-        suggestion = 'Try reconnecting to the printer.';
-      } else if (errorMessage.includes('Unknown error')) {
-        userMessage = 'BLE communication error';
-        suggestion = 'Try restarting Bluetooth or reconnecting the device.';
-      }
-
-      Alert.alert(
-        'Print Failed',
-        `${userMessage}\n\n${suggestion}\n\nError: ${errorMessage}`
-      );
-    }
-  };
-
-  const reconnectDevice = async () => {
-    try {
-      await refreshConnection({ showSpinner: true, reason: 'Manual reconnection' });
-      Alert.alert('Success', 'Device reconnected successfully!');
-    } catch (error) {
-      console.error('❌ Manual reconnection failed:', error);
-      // Alert already shown in helper when showSpinner = true
-    }
-  };
-
-  const testDeviceConnection = async () => {
-    console.log('🔧 Testing device connection and services...');
-    if (!connectedDevice) {
-      console.log('❌ No device connected');
-      return Alert.alert('Error', 'No device connected');
-    }
-
-    try {
-      // Check connection state
-      const isConnected = await connectedDevice.isConnected();
-      console.log('🔗 Connection state:', isConnected);
-
-      if (!isConnected) {
-        throw new Error('Device is not connected');
-      }
-
-      // Try to discover services
-      const services = await connectedDevice.services();
-      console.log('📋 Services discovered:', services.length);
-      services.forEach((service: any, index: number) => {
-        console.log(`  ${index + 1}. ${service.uuid} (primary: ${service.isPrimary})`);
-      });
-
-      // Try to get characteristics for the first service
-      if (services.length > 0) {
-        const firstService = services[0];
-        const characteristics = await firstService.characteristics();
-        console.log(`🔍 Characteristics for ${firstService.uuid}:`, characteristics.length);
-        characteristics.forEach((char: any, index: number) => {
-          console.log(`  ${index + 1}. ${char.uuid} (writable: ${char.isWritableWithoutResponse || char.isWritableWithResponse})`);
-        });
-      }
-
-      Alert.alert('Success', `Device connected! Found ${services.length} services.`);
-    } catch (error) {
-      console.error('❌ Connection test failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-      // Provide specific guidance for different error types
-      let userMessage = 'Connection test failed';
-      let suggestion = '';
-
-      if (errorMessage.includes('discover device services')) {
-        userMessage = 'Device connection unstable';
-        suggestion = 'Try disconnecting and reconnecting to the printer. The device may need to be rediscovered.';
-      } else if (errorMessage.includes('Unknown error')) {
-        userMessage = 'BLE communication error';
-        suggestion = 'Try restarting Bluetooth or reconnecting the device. Some printers may have compatibility issues.';
-      }
-
-      Alert.alert(
-        'Connection Test Failed',
-        `${userMessage}\n\n${suggestion}\n\nError: ${errorMessage}`
-      );
-    }
-  };
-
-  const printArabicReceiptLocally = async () => {
-    console.log('🖨️ Starting local Arabic receipt printing...');
-    if (!connectedDevice) {
-      Alert.alert('Error', 'No printer connected');
-      return;
-    }
-
-    const receiptData: ReceiptData = {
-      header: 'إيصال تجريبي',
-      items: [
-        { name: 'قهوة عربية', price: '15 ريال', quantity: '2' },
-        { name: 'شاي أخضر', price: '10 ريال' },
-        { name: 'ماء معدني', price: '5 ريال', quantity: '3' },
-      ],
-      total: '70 ريال',
-      footer: 'شكراً لزيارتكم\nمرحباً بكم دائماً',
-    };
-
-    try {
-      await printArabicReceiptUtil(receiptData, { current: { printReceipt: async (text: string) => await printArabicText(text) } });
-      Alert.alert('Success', 'Arabic receipt printed successfully!');
-    } catch (error) {
-      console.error('Print error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      Alert.alert('Print Failed', `Could not print receipt: ${errorMessage}`);
-    }
-  };
-
-  // -------------------- STRUCTURED RECEIPT PRINTING --------------------
   const printReceiptData = async (data: PrintableReceiptData) => {
-    console.log('🖨️ Printing structured receipt data...');
+    console.log('🖨️ printReceiptData (ESC * bitmap):', data.invoiceNumber);
+
     if (!connectedDevice) {
       throw new Error('No printer connected');
     }
 
     try {
-      const escPosCommands = generateReceiptEscPos(data);
-      console.log(`📤 Sending ${escPosCommands.length} bytes of receipt data...`);
-      await sendEscPosCommands(escPosCommands);
-      console.log('✅ Structured receipt printed successfully');
+      // 1. Render the receipt view
+      setReceiptData(data);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      if (!receiptViewRef.current) {
+        throw new Error('Receipt view ref not ready');
+      }
+
+      // 2. Capture as PNG
+      console.log('📸 Capturing...');
+      const tmpUri = await captureRef(receiptViewRef.current, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+        width: PRINTER_WIDTH,
+      });
+      console.log('📸 Captured:', tmpUri);
+
+      // 3. Read as base64
+      const b64 = await FileSystem.readAsStringAsync(tmpUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      console.log('📄 Base64 length:', b64.length);
+
+      // 4. Decode PNG to RGBA pixels
+      const png = decodePNG(b64);
+      if (!png) throw new Error('PNG decode failed');
+      const { width: imgW, height: imgH, pixels } = png;
+      console.log(`📷 Image: ${imgW}x${imgH}`);
+
+      // 5. Convert to 1-bit monochrome at PRINTER_WIDTH
+      const outW = PRINTER_WIDTH;
+      const scaleX = imgW / outW;
+      const scaleY = scaleX;
+      const outH = Math.round(imgH / scaleY);
+      console.log(`🔄 Output: ${outW}x${outH}, scale=${scaleX.toFixed(2)}`);
+
+      // Build monochrome bitmap: 1 bit per pixel, 1=black 0=white
+      // Organized as rows of (outW / 8) bytes
+      const bytesPerRow = outW / 8; // 48 for 384px
+      const mono = new Uint8Array(outH * bytesPerRow);
+      let darkCount = 0;
+
+      for (let y = 0; y < outH; y++) {
+        for (let byteIdx = 0; byteIdx < bytesPerRow; byteIdx++) {
+          let byte = 0;
+          for (let bit = 0; bit < 8; bit++) {
+            const outX = byteIdx * 8 + bit;
+            const sx0 = Math.floor(outX * scaleX);
+            const sx1 = Math.min(Math.ceil((outX + 1) * scaleX), imgW);
+            const sy0 = Math.floor(y * scaleY);
+            const sy1 = Math.min(Math.ceil((y + 1) * scaleY), imgH);
+
+            let isDark = false;
+            for (let sy = sy0; sy < sy1 && !isDark; sy++) {
+              for (let sx = sx0; sx < sx1 && !isDark; sx++) {
+                const idx = (sy * imgW + sx) * 4;
+                const r = pixels[idx];
+                const g = pixels[idx + 1];
+                const bv = pixels[idx + 2];
+                const a = pixels[idx + 3];
+                const gray = 0.299 * r + 0.587 * g + 0.114 * bv;
+                if (a > 128 && gray < 128) isDark = true;
+              }
+            }
+            if (isDark) {
+              byte |= (0x80 >> bit);
+              darkCount++;
+            }
+          }
+          mono[y * bytesPerRow + byteIdx] = byte;
+        }
+      }
+
+      console.log(`🔍 Dark dots: ${darkCount}, mono size: ${mono.length}`);
+
+      // 6. Send using ESC * line-by-line (24 dots high per stripe)
+      // ESC * 33 nL nH [data]  — 24-dot double-density
+      // nL nH = number of columns (low/high byte) = PRINTER_WIDTH
+      // data = 3 bytes per column (24 bits = 24 dots vertically)
+      // After each stripe: ESC J n to feed 24 dots
+
+      const nL = outW & 0xff;
+      const nH = (outW >> 8) & 0xff;
+      const STRIPE_HEIGHT = 24; // 24 dots per ESC * stripe
+      const stripes = Math.ceil(outH / STRIPE_HEIGHT);
+
+      console.log(`📤 Sending ${stripes} stripes of ${STRIPE_HEIGHT}px...`);
+
+      // ESC @ init + center alignment + set line spacing
+      const initCmd: number[] = [0x1b, 0x40]; // ESC @ — initialize
+      initCmd.push(0x1b, 0x61, 0x01);         // ESC a 1 — center alignment
+      initCmd.push(0x1b, 0x33, STRIPE_HEIGHT); // ESC 3 n — line spacing = stripe height
+      await sendEscPosCommands(initCmd);
+
+      for (let stripe = 0; stripe < stripes; stripe++) {
+        const cmd: number[] = [];
+        // ESC * 33 nL nH
+        cmd.push(0x1b, 0x2a, 33, nL, nH);
+
+        // For each column (x), send 3 bytes (24 vertical dots)
+        for (let x = 0; x < outW; x++) {
+          for (let k = 0; k < 3; k++) {
+            let colByte = 0;
+            for (let bit = 0; bit < 8; bit++) {
+              const y = stripe * STRIPE_HEIGHT + k * 8 + bit;
+              if (y < outH) {
+                const byteIdx = Math.floor(x / 8);
+                const bitIdx = 7 - (x % 8);
+                if (mono[y * bytesPerRow + byteIdx] & (1 << bitIdx)) {
+                  colByte |= (0x80 >> bit);
+                }
+              }
+            }
+            cmd.push(colByte);
+          }
+        }
+
+        // Newline to print the stripe
+        cmd.push(0x0a);
+
+        await sendEscPosCommands(cmd);
+        // Small delay between stripes
+        await new Promise(r => setTimeout(r, 50));
+      }
+
+      // Reset line spacing, alignment, and finish
+      const endCmd: number[] = [];
+      endCmd.push(0x1b, 0x32);       // ESC 2 — reset to default line spacing
+      endCmd.push(0x1b, 0x61, 0x00); // ESC a 0 — left alignment (reset)
+      endCmd.push(0x1b, 0x64, 0x03); // feed 3 lines
+      endCmd.push(0x1d, 0x56, 0x00); // cut
+      await sendEscPosCommands(endCmd);
+
+      console.log('✅ Bitmap receipt sent!');
+
+      // Cleanup
+      setReceiptData(null);
+      FileSystem.deleteAsync(tmpUri, { idempotent: true }).catch(() => {});
     } catch (error) {
-      console.error('❌ Structured receipt print error:', error);
+      console.error('❌ printReceiptData error:', error);
+      setReceiptData(null);
       throw error;
     }
   };
 
   // -------------------- REF EXPOSE --------------------
   useImperativeHandle(ref, () => ({
-    printReceipt: printArabicReceiptLocally,
+    printReceipt: testArabicPrint,
     printReceiptData,
     getConnectedDevice: () => connectedDevice,
     isConnected: () => !!connectedDevice,
   }));
 
   // -------------------- UI --------------------
+  const bitmapView = (
+    <View collapsable={false} style={{ position: 'absolute', top: -9999, left: 0 }}>
+      <ReceiptBitmapView ref={receiptViewRef} data={receiptData} />
+    </View>
+  );
+
+  if (hideUI) {
+    return bitmapView;
+  }
+
+  const deviceAddress = connectedDevice?.address || connectedDevice?.id || '';
+
   return (
-    <ScrollView
-      className="flex-1 bg-gray-50"
-      showsVerticalScrollIndicator
-      contentContainerStyle={{ paddingBottom: 50 }}
-    >
+    <>
+    {bitmapView}
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#fff' }}>
+        {onClose && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+            <TouchableOpacity onPress={onClose} style={{ marginRight: 12 }}>
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#111827' }}>Printer</Text>
+          </View>
+        )}
+        <ScrollView
+          className="flex-1 bg-gray-50"
+          showsVerticalScrollIndicator
+          contentContainerStyle={{ paddingBottom: 50 }}
+        >
       <View className="p-6">
         <View className="mb-8 items-center">
           <View className="mb-4 h-16 w-16 items-center justify-center rounded-2xl bg-blue-100">
@@ -998,97 +616,34 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
           </View>
           <Text className="mb-2 text-2xl font-bold text-gray-900">Bluetooth Printer</Text>
           <Text className="text-center text-gray-600">
-            Connect and print with Bluetooth thermal printers
+            Connect via Classic Bluetooth (SPP) to thermal printer
           </Text>
         </View>
 
-        {/* PAIRED DEVICES SECTION */}
-        <View className="mb-6">
-          <Text className="mb-3 text-lg font-bold text-gray-900">Paired Devices</Text>
-          {(() => {
-            console.log('🔄 Rendering paired devices section, savedDevice exists:', !!savedDevice);
-            if (savedDevice) {
-              console.log('📱 Paired device details:', {
-                name: savedDevice.name,
-                id: savedDevice.id,
-                displayName: savedDevice.name || 'Unnamed Device'
-              });
-            }
-            return savedDevice ? (
-            <TouchableOpacity
-              onPress={() => connectToDevice(savedDevice)}
-              disabled={isConnecting}
-              className="mb-3 rounded-2xl border border-purple-200 bg-purple-50 p-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
-            >
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center">
-                  <View className="mr-3 h-12 w-12 items-center justify-center rounded-xl bg-purple-100">
-                    <Ionicons name="bookmark" size={24} color="#7C3AED" />
-                  </View>
-                  <View>
-                    <Text className="text-base font-semibold text-purple-900">
-                      {savedDevice.name || 'Unnamed Device'}
-                    </Text>
-                    <Text className="text-sm text-purple-600">{savedDevice.id}</Text>
-                    <Text className="text-xs text-purple-500 mt-1">Paired Device</Text>
-                  </View>
-                </View>
-                <View className="flex-row items-center">
-                  <TouchableOpacity
-                    onPress={clearSavedDevice}
-                    className="mr-2 rounded-lg bg-red-100 px-2 py-1"
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#DC2626" />
-                  </TouchableOpacity>
-                  {isConnecting ? (
-                    <ActivityIndicator color="#7C3AED" size="small" />
-                  ) : (
-                    <Ionicons name="chevron-forward" size={20} color="#7C3AED" />
-                  )}
-                </View>
-              </View>
-            </TouchableOpacity>
-            ) : (
-            <View className="items-center justify-center rounded-2xl border border-gray-200 bg-gray-50 p-8">
-              <Ionicons name="bookmark-outline" size={48} color="#9CA3AF" />
-              <Text className="mt-4 text-center text-gray-500">
-                No paired devices. Connect to a printer to save it here.
-              </Text>
-              {(() => { console.log('📭 Showing "No paired devices" message'); return null; })()}
-            </View>
-          );
-          })()}
-        </View>
-
+        {/* BLUETOOTH STATUS */}
         <View className="mb-6 rounded-2xl border border-gray-100 bg-white p-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center">
               <Ionicons name="bluetooth-outline" size={24} color="#3B82F6" />
               <View className="ml-3">
-                <Text className="font-semibold text-gray-900">Bluetooth Status</Text>
-                <Text className={`text-sm ${bluetoothState === 'PoweredOn' ? 'text-green-600' : bluetoothState === 'PoweredOff' ? 'text-red-600' : 'text-gray-500'}`}>
-                  {bluetoothState === 'PoweredOn' ? 'Enabled' : 
-                   bluetoothState === 'PoweredOff' ? 'Disabled' : 
-                   bluetoothState === 'Unauthorized' ? 'Permission Required' : 
-                   'Checking...'}
+                <Text className="font-semibold text-gray-900">Bluetooth</Text>
+                <Text className={`text-sm ${btEnabled ? 'text-green-600' : 'text-red-600'}`}>
+                  {btEnabled ? 'Enabled' : 'Disabled'}
                 </Text>
               </View>
             </View>
             <TouchableOpacity
               onPress={enableBluetooth}
-              className={`rounded-xl px-4 py-2 ${
-                bluetoothState === 'PoweredOn' 
-                  ? 'bg-green-600' 
-                  : 'bg-blue-600'
-              }`}
+              className={`rounded-xl px-4 py-2 ${btEnabled ? 'bg-green-600' : 'bg-blue-600'}`}
             >
               <Text className="font-semibold text-white">
-                {bluetoothState === 'PoweredOn' ? 'Ready' : 'Enable'}
+                {btEnabled ? 'Ready' : 'Enable'}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
+        {/* CONNECTED DEVICE */}
         {connectedDevice && (
           <View className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4">
             <View className="mb-3 flex-row items-center justify-between">
@@ -1096,32 +651,23 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
                 <Ionicons name="checkmark-circle" size={24} color="#10B981" />
                 <Text className="ml-2 font-semibold text-green-900">Connected</Text>
               </View>
-              <View className="flex-row">
-                <TouchableOpacity
-                  onPress={reconnectDevice}
-                  disabled={isConnecting}
-                  className="mr-2 rounded-lg bg-yellow-100 px-3 py-1.5"
-                >
-                  <Text className="text-sm font-semibold text-yellow-600">Reconnect</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={disconnectDevice}
-                  className="rounded-lg bg-red-100 px-3 py-1.5"
-                >
-                  <Text className="text-sm font-semibold text-red-600">Disconnect</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                onPress={disconnectDevice}
+                className="rounded-lg bg-red-100 px-3 py-1.5"
+              >
+                <Text className="text-sm font-semibold text-red-600">Disconnect</Text>
+              </TouchableOpacity>
             </View>
-            <Text className="font-medium text-green-800">{connectedDevice.name || 'Unnamed Device'}</Text>
-            <Text className="text-sm text-green-600">{connectedDevice.id}</Text>
+            <Text className="font-medium text-green-800">{connectedDevice.name || 'Printer'}</Text>
+            <Text className="text-sm text-green-600">{deviceAddress}</Text>
 
             <TouchableOpacity
-              onPress={testDeviceConnection}
-              className="mt-2 rounded-xl bg-orange-600 py-3"
+              onPress={testRawPrint}
+              className="mt-3 rounded-xl bg-orange-600 py-3"
             >
               <View className="flex-row items-center justify-center">
-                <Ionicons name="hardware-chip" size={20} color="white" />
-                <Text className="ml-2 font-semibold text-white">Test Connection</Text>
+                <Ionicons name="bug" size={20} color="white" />
+                <Text className="ml-2 font-semibold text-white">Raw Byte Test (Debug)</Text>
               </View>
             </TouchableOpacity>
 
@@ -1131,153 +677,104 @@ const PrinterDemo = forwardRef(function PrinterDemo(_: any, ref: any): React.Rea
             >
               <View className="flex-row items-center justify-center">
                 <Ionicons name="flash" size={20} color="white" />
-                <Text className="ml-2 font-semibold text-white">Simple Print Test</Text>
+                <Text className="ml-2 font-semibold text-white">Test Print (English)</Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={testArabicPrinting}
+              onPress={testArabicPrint}
               className="mt-2 rounded-xl bg-green-600 py-3"
             >
               <View className="flex-row items-center justify-center">
                 <Ionicons name="print" size={20} color="white" />
-                <Text className="ml-2 font-semibold text-white">Print Arabic Receipt</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => printArabicTextDirect('فاتورة تجريبية\nالمنتج: اسم المنتج\nالسعر: 100 ريال')}
-              className="mt-2 rounded-xl bg-blue-600 py-3"
-            >
-              <View className="flex-row items-center justify-center">
-                <Ionicons name="text" size={20} color="white" />
-                <Text className="ml-2 font-semibold text-white">Print Text Only</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={printArabicReceiptLocally}
-              className="mt-2 rounded-xl bg-teal-600 py-3"
-            >
-              <View className="flex-row items-center justify-center">
-                <Ionicons name="receipt" size={20} color="white" />
-                <Text className="ml-2 font-semibold text-white">Print Formatted Receipt</Text>
+                <Text className="ml-2 font-semibold text-white">Test Print (Arabic)</Text>
               </View>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* SCANNED DEVICES SECTION */}
+        {/* PAIRED DEVICES FROM ANDROID */}
         <View className="mb-4">
           <View className="mb-4 flex-row items-center justify-between">
-            <Text className="text-lg font-bold text-gray-900">
-              {savedDevice ? 'Available Devices' : 'Devices'}
-            </Text>
+            <Text className="text-lg font-bold text-gray-900">Paired Devices</Text>
             <TouchableOpacity
-              onPress={scanForDevices}
+              onPress={loadBondedDevices}
               disabled={isScanning}
-              className="rounded-lg bg-gray-100 px-3 py-1.5"
+              className="flex-row items-center rounded-lg bg-blue-100 px-3 py-1.5"
             >
               {isScanning ? (
-                <ActivityIndicator size="small" color="#6B7280" />
+                <ActivityIndicator size="small" color="#3B82F6" />
               ) : (
-                <Ionicons name="refresh" size={16} color="#6B7280" />
+                <>
+                  <Ionicons name="refresh" size={16} color="#3B82F6" />
+                  <Text className="ml-1 text-sm font-semibold text-blue-600">Load</Text>
+                </>
               )}
             </TouchableOpacity>
           </View>
 
+          <Text className="mb-3 text-sm text-gray-500">
+            Pair your printer in Android Settings → Bluetooth first, then tap Load.
+          </Text>
+
           {devices.length > 0 ? (
-            devices.map((item) => (
+            devices.map((item) => {
+              const addr = item.address || item.id;
+              const isSaved = savedDeviceAddr === addr;
+              return (
               <TouchableOpacity
-                key={item.id}
+                key={addr}
                 onPress={() => connectToDevice(item)}
                 disabled={isConnecting}
-                className="mb-3 rounded-2xl border border-gray-100 bg-white p-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
+                className={`mb-3 rounded-2xl border p-4 ${isSaved ? 'border-purple-200 bg-purple-50' : 'border-gray-100 bg-white'}`}
+                style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
               >
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center">
-                    <View className="mr-3 h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
-                      <Ionicons name="print-outline" size={24} color="#3B82F6" />
+                    <View className={`mr-3 h-12 w-12 items-center justify-center rounded-xl ${isSaved ? 'bg-purple-100' : 'bg-blue-100'}`}>
+                      <Ionicons name={isSaved ? 'bookmark' : 'print-outline'} size={24} color={isSaved ? '#7C3AED' : '#3B82F6'} />
                     </View>
                     <View>
                       <Text className="text-base font-semibold text-gray-900">
-                        {(() => {
-                          const deviceName = item.name || item.localName;
-                          if (deviceName) return deviceName;
-                          
-                          // Try to extract name from manufacturer data or service UUIDs
-                          if (item.serviceUUIDs && item.serviceUUIDs.length > 0) {
-                            // Find the print service (try common UUIDs)
-                            // serviceUUIDs are strings, not objects
-                            const printService = item.serviceUUIDs.find((s: any) => typeof s === 'string' && s.toLowerCase() === '49535343-fe7d-4ae5-8fa9-9fafd205e455') ||
-                                             item.serviceUUIDs.find((s: any) => typeof s === 'string' && s.toLowerCase() === '000018f0-0000-1000-8000-00805f9b34fb') ||
-                                             item.serviceUUIDs.find((s: any) => typeof s === 'string' && s.toLowerCase().includes('18f0')) ||
-                                             item.serviceUUIDs.find((s: any) => typeof s === 'string' && s.toLowerCase().includes('print'));
-                            if (printService) return 'Thermal Printer';
-                          }
-                          
-                          // Fallback with partial MAC address
-                          const shortId = item.id.substring(item.id.length - 6).toUpperCase();
-                          return `BLE Device (${shortId})`;
-                        })()}
+                        {item.name || 'Bluetooth Device'}
                       </Text>
-                      <Text className="text-sm text-gray-500">{item.id}</Text>
-                      <Text className="text-xs text-blue-500 mt-1">Discovered</Text>
+                      <Text className="text-sm text-gray-500">{addr}</Text>
+                      {isSaved && <Text className="text-xs text-purple-500 mt-1">Saved Printer</Text>}
                     </View>
                   </View>
-                  {isConnecting ? (
-                    <ActivityIndicator color="#3B82F6" size="small" />
-                  ) : (
-                    <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-                  )}
+                  <View className="flex-row items-center">
+                    {isSaved && (
+                      <TouchableOpacity
+                        onPress={clearSavedDevice}
+                        className="mr-2 rounded-lg bg-red-100 px-2 py-1"
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                      </TouchableOpacity>
+                    )}
+                    {isConnecting ? (
+                      <ActivityIndicator color="#3B82F6" size="small" />
+                    ) : (
+                      <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                    )}
+                  </View>
                 </View>
               </TouchableOpacity>
-            ))
+              );
+            })
           ) : (
             <View className="items-center justify-center rounded-2xl border border-gray-100 bg-white p-8">
               <Ionicons name="print-outline" size={48} color="#D1D5DB" />
               <Text className="mt-4 text-center text-gray-500">
-                {isScanning ? 'Scanning for devices...' : 'No devices found. Tap scan to search for BLE devices.'}
+                Tap &quot;Load&quot; to show Bluetooth paired devices.
               </Text>
             </View>
           )}
         </View>
       </View>
-
-      {/* Hidden receipt view for image capture */}
-      <View
-        ref={receiptViewRef}
-        style={{
-          position: 'absolute',
-          left: -9999,
-          width: 384, // 48mm thermal printer width in pixels
-          backgroundColor: 'white',
-          padding: 16,
-        }}
-      >
-        <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>
-          إيصال تجريبي
-        </Text>
-        <Text style={{ fontSize: 16, textAlign: 'center', marginBottom: 16 }}>
-          ========
-        </Text>
-        <Text style={{ fontSize: 14, marginBottom: 4 }}>
-          فاتورة تجريبية
-        </Text>
-        <Text style={{ fontSize: 14, marginBottom: 4 }}>
-          المنتج: اسم المنتج
-        </Text>
-        <Text style={{ fontSize: 14, marginBottom: 16 }}>
-          السعر: 100 ريال
-        </Text>
-        <Text style={{ fontSize: 16, textAlign: 'center', marginTop: 8 }}>
-          ========
-        </Text>
-        <Text style={{ fontSize: 14, textAlign: 'center', marginTop: 8 }}>
-          شكراً لك
-        </Text>
-      </View>
-    </ScrollView>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+    </>
   );
 });
 

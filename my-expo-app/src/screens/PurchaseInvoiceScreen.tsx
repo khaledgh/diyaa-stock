@@ -33,6 +33,9 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
     const [vendorSearchQuery, setVendorSearchQuery] = useState('');
     const [selectedLocationId, setSelectedLocationId] = useState<number | null>(user?.location_id || null);
     const [locations, setLocations] = useState<any[]>([]);
+    const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
+    const [tempQty, setTempQty] = useState('1');
+    const [tempPrice, setTempPrice] = useState('');
     const isAdmin = user?.role === 'admin';
 
     const loadInitialData = useCallback(async () => {
@@ -81,20 +84,39 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
         loadInitialData();
     }, [loadInitialData]);
 
-    const addToCart = (product: StockItem) => {
-        const existingItem = cart.find(item => item.product.id === product.id);
+    const openProductSubModal = (product: StockItem) => {
+        setSelectedProduct(product);
+        setTempQty('1');
+        setTempPrice(product.unit_price.toString());
+    };
+
+    const confirmAddToCart = () => {
+        if (!selectedProduct) return;
+        const qty = parseInt(tempQty) || 1;
+        const price = parseFloat(tempPrice) || selectedProduct.unit_price;
+        const existingItem = cart.find(item => item.product.id === selectedProduct.id);
         if (existingItem) {
-            updateCartQuantity(product.id, existingItem.quantity + 1);
+            setCart(cart.map(item => {
+                if (item.product.id === selectedProduct.id) {
+                    const newQty = item.quantity + qty;
+                    return { ...item, quantity: newQty, unit_price: price, total: newQty * price };
+                }
+                return item;
+            }));
         } else {
             setCart([...cart, {
-                product,
-                quantity: 1,
-                unit_price: product.unit_price,
+                product: selectedProduct,
+                quantity: qty,
+                unit_price: price,
                 discount_percent: 0,
-                total: product.unit_price,
+                total: qty * price,
             }]);
         }
-        setShowItemModal(false);
+        setSelectedProduct(null);
+    };
+
+    const addToCart = (product: StockItem) => {
+        openProductSubModal(product);
     };
 
     const updateCartQuantity = (productId: number, quantity: number) => {
@@ -197,7 +219,11 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
             const res = await apiService.createPurchaseInvoice(invoiceData);
             if (res.ok || res.success) {
                 Alert.alert('Success', 'Purchase invoice created successfully');
-                navigation.goBack();
+                // Reset form
+                setCart([]);
+                setSelectedVendor(null);
+                // Try going back if pushed onto stack, otherwise just stay on reset form
+                try { navigation.goBack(); } catch (_e) { /* tab mode — form already reset */ }
             } else {
                 Alert.alert('Error', res.message || 'Submission failed');
             }
@@ -228,9 +254,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                         <Ionicons name="arrow-back" size={24} color="#374151" />
                     </TouchableOpacity>
                     <Text className="text-xl font-bold text-gray-900">New Purchase</Text>
-                    <TouchableOpacity onPress={handleAIScan}>
-                        <Ionicons name="scan-circle" size={32} color="#2563EB" />
-                    </TouchableOpacity>
+                    <View style={{ width: 32 }} />
                 </View>
             </SafeAreaView>
 
@@ -320,66 +344,74 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
             </ScrollView>
 
             {/* Footer / Summary */}
-            <View className="bg-white border-t border-gray-100 p-6 rounded-t-3xl" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10 }}>
-                <View className="flex-row justify-between items-center mb-4">
-                    <View>
-                        <Text className="text-gray-500 text-sm">Grand Total</Text>
-                        <Text className="text-2xl font-black text-blue-600">${calculateTotal().toFixed(2)}</Text>
+            <SafeAreaView edges={['bottom']} className="bg-white border-t border-gray-100 rounded-t-3xl" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10 }}>
+                <View className="p-6">
+                    <View className="flex-row justify-between items-center mb-4">
+                        <View>
+                            <Text className="text-gray-500 text-sm">Grand Total</Text>
+                            <Text className="text-2xl font-black text-blue-600">${calculateTotal().toFixed(2)}</Text>
+                        </View>
+                        <View className="items-end">
+                            <Text className="text-gray-400 text-xs">ITEMS: {cart.length}</Text>
+                        </View>
                     </View>
-                    <View className="items-end">
-                        <Text className="text-gray-400 text-xs">ITEMS: {cart.length}</Text>
-                    </View>
+
+                    <TouchableOpacity
+                        onPress={handleSubmit}
+                        disabled={isSubmitting}
+                        className={`flex-row items-center justify-center h-14 rounded-2xl ${isSubmitting || cart.length === 0 ? 'bg-gray-300' : 'bg-blue-600'}`}
+                        style={{ elevation: 4 }}
+                    >
+                        {isSubmitting ? (
+                            <ActivityIndicator color="white" />
+                        ) : (
+                            <>
+                                <Ionicons name="checkmark-done" size={22} color="white" />
+                                <Text className="text-white font-bold text-lg ml-2">Submit Invoice</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
                 </View>
+            </SafeAreaView>
 
-                <TouchableOpacity
-                    onPress={handleSubmit}
-                    disabled={isSubmitting}
-                    className={`flex-row items-center justify-center h-14 rounded-2xl ${isSubmitting || cart.length === 0 ? 'bg-gray-300' : 'bg-blue-600'}`}
-                    style={{ elevation: 4 }}
+            {/* Vendor Selection Modal — bottom drawer */}
+            <Modal visible={showVendorModal} animationType="slide" transparent onRequestClose={() => setShowVendorModal(false)}>
+                <TouchableOpacity activeOpacity={1} onPress={() => setShowVendorModal(false)} className="flex-1" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }} />
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '70%' }}
                 >
-                    {isSubmitting ? (
-                        <ActivityIndicator color="white" />
-                    ) : (
-                        <>
-                            <Ionicons name="checkmark-done" size={22} color="white" />
-                            <Text className="text-white font-bold text-lg ml-2">Submit Invoice</Text>
-                        </>
-                    )}
-                </TouchableOpacity>
-            </View>
-
-            {/* Vendor Selection Modal */}
-            <Modal visible={showVendorModal} animationType="slide" transparent>
-                <KeyboardAvoidingView 
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    className="flex-1 justify-end" 
-                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
-                >
-                    <View className="bg-white rounded-t-3xl p-6" style={{ maxHeight: '80%' }}>
-                        <View className="flex-row justify-between items-center mb-4">
-                            <Text className="text-xl font-bold text-gray-900">Select Vendor</Text>
-                            <TouchableOpacity onPress={() => setShowVendorModal(false)}>
-                                <Ionicons name="close" size={24} color="#9CA3AF" />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Search Input */}
-                        <View className="bg-gray-100 rounded-xl px-4 py-2 flex-row items-center mb-4">
-                            <Ionicons name="search" size={20} color="#9CA3AF" />
-                            <TextInput
-                                placeholder="Search vendors by name, company, or phone..."
-                                className="flex-1 ml-2 text-gray-900"
-                                value={vendorSearchQuery}
-                                onChangeText={setVendorSearchQuery}
-                            />
-                            {vendorSearchQuery.length > 0 && (
-                                <TouchableOpacity onPress={() => setVendorSearchQuery('')}>
-                                    <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                    <SafeAreaView edges={['bottom']}>
+                        <View className="p-6">
+                            {/* Drag handle */}
+                            <View className="items-center mb-4">
+                                <View className="w-10 h-1 bg-gray-300 rounded-full" />
+                            </View>
+                            <View className="flex-row justify-between items-center mb-4">
+                                <Text className="text-xl font-bold text-gray-900">Select Vendor</Text>
+                                <TouchableOpacity onPress={() => setShowVendorModal(false)}>
+                                    <Ionicons name="close" size={24} color="#9CA3AF" />
                                 </TouchableOpacity>
-                            )}
+                            </View>
+
+                            {/* Search Input */}
+                            <View className="bg-gray-100 rounded-xl px-4 py-2 flex-row items-center mb-4">
+                                <Ionicons name="search" size={20} color="#9CA3AF" />
+                                <TextInput
+                                    placeholder="Search vendors..."
+                                    className="flex-1 ml-2 text-gray-900"
+                                    value={vendorSearchQuery}
+                                    onChangeText={setVendorSearchQuery}
+                                />
+                                {vendorSearchQuery.length > 0 && (
+                                    <TouchableOpacity onPress={() => setVendorSearchQuery('')}>
+                                        <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
                         </View>
 
-                        <ScrollView showsVerticalScrollIndicator={false}>
+                        <ScrollView showsVerticalScrollIndicator={false} className="px-6" style={{ maxHeight: 400 }}>
                             {(() => {
                                 const filteredVendors = vendors.filter(v => {
                                     const query = vendorSearchQuery.toLowerCase();
@@ -405,7 +437,6 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                         <View className="py-10 items-center">
                                             <Ionicons name="search-outline" size={48} color="#D1D5DB" />
                                             <Text className="text-gray-400 mt-4 text-center">No vendors found</Text>
-                                            <Text className="text-gray-400 text-sm text-center mt-2">Try a different search term</Text>
                                         </View>
                                     );
                                 }
@@ -441,17 +472,17 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                 ));
                             })()}
                         </ScrollView>
-                    </View>
+                    </SafeAreaView>
                 </KeyboardAvoidingView>
             </Modal>
 
             {/* Item Picker Modal */}
-            <Modal visible={showItemModal} animationType="fade" transparent>
+            <Modal visible={showItemModal} animationType="fade" transparent onRequestClose={() => { setSelectedProduct(null); setShowItemModal(false); }}>
                 <View className="flex-1 justify-center p-6" style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}>
                     <View className="bg-white rounded-3xl p-6 h-3/4">
                         <View className="flex-row justify-between items-center mb-4">
                             <Text className="text-xl font-bold text-gray-900">Add Product</Text>
-                            <TouchableOpacity onPress={() => setShowItemModal(false)}>
+                            <TouchableOpacity onPress={() => { setSelectedProduct(null); setShowItemModal(false); }}>
                                 <Ionicons name="close" size={24} color="#9CA3AF" />
                             </TouchableOpacity>
                         </View>
@@ -469,20 +500,87 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                         <FlatList
                             data={stockItems.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.sku?.toLowerCase().includes(searchQuery.toLowerCase()))}
                             keyExtractor={item => item.id.toString()}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity
-                                    onPress={() => addToCart(item)}
-                                    className="py-3 border-b border-gray-50 flex-row justify-between items-center"
-                                >
-                                    <View>
-                                        <Text className="text-gray-900 font-bold">{item.name}</Text>
-                                        <Text className="text-xs text-gray-500">SKU: {item.sku} | Price: ${item.unit_price}</Text>
-                                    </View>
-                                    <Ionicons name="add-circle" size={28} color="#3B82F6" />
-                                </TouchableOpacity>
-                            )}
+                            renderItem={({ item }) => {
+                                const inCart = cart.find(c => c.product.id === item.id);
+                                return (
+                                    <TouchableOpacity
+                                        onPress={() => addToCart(item)}
+                                        className="py-3 border-b border-gray-50 flex-row justify-between items-center"
+                                    >
+                                        <View className="flex-1">
+                                            <Text className="text-gray-900 font-bold">{item.name}</Text>
+                                            <Text className="text-xs text-gray-500">SKU: {item.sku} | Price: ${item.unit_price}</Text>
+                                        </View>
+                                        {inCart ? (
+                                            <View className="bg-green-100 rounded-full px-3 py-1 mr-2">
+                                                <Text className="text-green-700 text-xs font-bold">×{inCart.quantity}</Text>
+                                            </View>
+                                        ) : null}
+                                        <Ionicons name="add-circle" size={28} color="#3B82F6" />
+                                    </TouchableOpacity>
+                                );
+                            }}
                         />
                     </View>
+
+                    {/* Qty/Price Sub-Modal */}
+                    {selectedProduct && (
+                        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+                            <View className="bg-white rounded-3xl p-6 w-full" style={{ maxWidth: 340 }}>
+                                <Text className="text-lg font-bold text-gray-900 mb-1">{selectedProduct.name}</Text>
+                                <Text className="text-xs text-gray-500 mb-4">SKU: {selectedProduct.sku}</Text>
+
+                                <View className="mb-4">
+                                    <Text className="text-xs text-gray-400 font-bold mb-1">QUANTITY</Text>
+                                    <View className="flex-row items-center">
+                                        <TouchableOpacity
+                                            onPress={() => setTempQty(String(Math.max(1, (parseInt(tempQty) || 1) - 1)))}
+                                            className="w-12 h-12 items-center justify-center bg-gray-100 rounded-xl"
+                                        >
+                                            <Ionicons name="remove" size={22} color="#374151" />
+                                        </TouchableOpacity>
+                                        <TextInput
+                                            className="flex-1 text-center text-xl font-bold text-gray-900 mx-3 border border-gray-200 rounded-xl py-2"
+                                            keyboardType="numeric"
+                                            value={tempQty}
+                                            onChangeText={setTempQty}
+                                        />
+                                        <TouchableOpacity
+                                            onPress={() => setTempQty(String((parseInt(tempQty) || 0) + 1))}
+                                            className="w-12 h-12 items-center justify-center bg-gray-100 rounded-xl"
+                                        >
+                                            <Ionicons name="add" size={22} color="#374151" />
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+
+                                <View className="mb-5">
+                                    <Text className="text-xs text-gray-400 font-bold mb-1">UNIT PRICE ($)</Text>
+                                    <TextInput
+                                        className="border border-gray-200 rounded-xl px-4 py-3 text-lg font-bold text-gray-900"
+                                        keyboardType="numeric"
+                                        value={tempPrice}
+                                        onChangeText={setTempPrice}
+                                    />
+                                </View>
+
+                                <View className="flex-row gap-3">
+                                    <TouchableOpacity
+                                        onPress={() => setSelectedProduct(null)}
+                                        className="flex-1 h-12 items-center justify-center bg-gray-100 rounded-xl"
+                                    >
+                                        <Text className="text-gray-700 font-bold">Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={confirmAddToCart}
+                                        className="flex-1 h-12 items-center justify-center bg-blue-600 rounded-xl"
+                                    >
+                                        <Text className="text-white font-bold">Add to Cart</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </View>
+                    )}
                 </View>
             </Modal>
         </KeyboardAvoidingView>

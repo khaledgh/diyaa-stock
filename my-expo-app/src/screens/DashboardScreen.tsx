@@ -33,9 +33,10 @@ export default function DashboardScreen({ navigation }: any) {
 
   const loadDashboardData = useCallback(async () => {
     try {
-      console.log('Loading dashboard data for location_id:', user?.location_id);
+      const locationForQuery = isAdmin ? selectedLocationId : user?.location_id;
+      console.log('Loading dashboard data for location_id:', locationForQuery);
 
-      if (user?.role !== 'admin' && !user?.location_id) {
+      if (!isAdmin && !user?.location_id) {
         console.warn('No location_id found for non-admin user. User data:', user);
         setIsLoading(false);
         return;
@@ -44,12 +45,13 @@ export default function DashboardScreen({ navigation }: any) {
       // Load invoices for stats
       const invoiceParams: any = {
         invoice_type: 'sales',
-        limit: 100,
+        limit: 500,
         offset: 0,
       };
 
-      if (user?.role !== 'admin') {
-        invoiceParams.location_id = user?.location_id;
+      // Filter by location: for admins use selectedLocationId (null = all), for sales use their assigned location
+      if (locationForQuery) {
+        invoiceParams.location_id = locationForQuery;
       }
 
       const invoicesResponse = await apiService.getInvoices(invoiceParams);
@@ -117,7 +119,7 @@ export default function DashboardScreen({ navigation }: any) {
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, isAdmin, selectedLocationId]);
 
   const loadLocations = useCallback(async () => {
     if (!isAdmin) return;
@@ -199,7 +201,11 @@ export default function DashboardScreen({ navigation }: any) {
       <View className="px-4 py-3 bg-white border-b border-gray-100">
         <Text className="text-gray-900 text-xl font-bold">Dashboard</Text>
         <Text className="text-gray-500 text-sm mt-0.5">
-          {isAdmin ? 'Global Overview' : `Location ${user?.location_id || 'Overview'}`}
+          {isAdmin
+            ? (selectedLocationId
+              ? locations.find((l: any) => l.id === selectedLocationId)?.name || 'Selected Location'
+              : 'All Locations')
+            : `Location ${user?.location_id || 'Overview'}`}
         </Text>
         {isAdmin && locations.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-2">
