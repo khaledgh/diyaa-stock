@@ -19,6 +19,12 @@ import apiService from '../services/api.service';
 import { StockItem, Vendor, CartItem } from '../types';
 import * as ImagePicker from 'expo-image-picker';
 
+// Parse decimal input (comma or dot)
+const parseDecimal = (text: string): number => {
+    const normalized = text.replace(',', '.');
+    return parseFloat(normalized) || 0;
+};
+
 export default function PurchaseInvoiceScreen({ navigation }: any) {
     const { user } = useAuth();
     const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -31,8 +37,10 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
     const [showVendorModal, setShowVendorModal] = useState(false);
     const [showItemModal, setShowItemModal] = useState(false);
     const [vendorSearchQuery, setVendorSearchQuery] = useState('');
-    const [selectedLocationId, setSelectedLocationId] = useState<number | null>(user?.location_id || null);
+    const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
     const [locations, setLocations] = useState<any[]>([]);
+    const [todaySession, setTodaySession] = useState<any>(null);
+    const [locationMode, setLocationMode] = useState<'automatic' | 'manual'>('automatic');
     const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
     const [tempQty, setTempQty] = useState('1');
     const [tempPrice, setTempPrice] = useState('');
@@ -114,6 +122,13 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
     };
 
     const addToCart = (product: StockItem) => {
+        if (!selectedVendor) {
+            Alert.alert('Vendor Required', 'Please select a vendor before adding products.', [
+                { text: 'Select Vendor', onPress: () => setShowVendorModal(true) },
+                { text: 'Cancel', style: 'cancel' }
+            ]);
+            return;
+        }
         openProductSubModal(product);
     };
 
@@ -231,10 +246,46 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
         }
     };
 
+    const loadSessionInfo = useCallback(async () => {
+        if (isAdmin) return;
+        try {
+            const [modeResp, sessionResp] = await Promise.all([
+                apiService.getLocationMode(),
+                apiService.getTodaySession(),
+            ]);
+            setLocationMode(modeResp.mode || 'automatic');
+            setTodaySession(sessionResp.data || null);
+            if (sessionResp.data?.location_id) {
+                setSelectedLocationId(sessionResp.data.location_id);
+            }
+        } catch { /* fail silently */ }
+    }, [isAdmin]);
+
+    useEffect(() => {
+        loadSessionInfo();
+    }, [loadSessionInfo]);
+
     if (isLoading) {
         return (
             <View className="flex-1 justify-center items-center bg-white">
-                <ActivityIndicator size="large" color="#3B82F6" />
+                <ActivityIndicator size="large" color="#4F46E5" />
+            </View>
+        );
+    }
+
+    if (!isAdmin && !todaySession && locationMode === 'manual') {
+        return (
+            <View className="flex-1 bg-gray-50 items-center justify-center p-10">
+                <View className="w-20 h-20 bg-orange-100 rounded-full items-center justify-center mb-6">
+                    <Ionicons name="lock-closed" size={40} color="#F97316" />
+                </View>
+                <Text className="text-xl font-bold text-gray-900 text-center">Location Not Assigned</Text>
+                <Text className="text-gray-500 text-center mt-3 leading-6">
+                    Your operating location for today must be set by an Administrator.
+                </Text>
+                <TouchableOpacity onPress={loadSessionInfo} className="mt-8 bg-white border border-gray-200 px-6 py-3 rounded-full">
+                    <Text className="text-gray-600 font-bold">Check Again</Text>
+                </TouchableOpacity>
             </View>
         );
     }
@@ -259,27 +310,30 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 100 }}
             >
-                {/* Vendor Section */}
-                <TouchableOpacity
-                    onPress={() => setShowVendorModal(true)}
-                    className="bg-white rounded-2xl p-4 mb-4 border border-blue-50"
-                    style={{ elevation: 2 }}
-                >
-                    <View className="flex-row items-center justify-between">
-                        <View className="flex-row items-center">
-                            <View className="bg-blue-100 p-2 rounded-xl mr-3">
-                                <Ionicons name="business" size={24} color="#2563EB" />
+                {/* Vendor Section (Step 1) */}
+                <View className="mb-4">
+                    <TouchableOpacity
+                        onPress={() => setShowVendorModal(true)}
+                        className={`flex-row items-center justify-between rounded-[25px] px-6 py-5 border-2 ${selectedVendor ? 'border-emerald-500 bg-emerald-50' : 'border-indigo-600 bg-indigo-50 shadow-lg shadow-indigo-100'}`}
+                        activeOpacity={0.8}>
+                        <View className="flex-1 flex-row items-center">
+                            <View className={`w-12 h-12 rounded-2xl items-center justify-center mr-4 ${selectedVendor ? 'bg-emerald-100' : 'bg-indigo-600'}`}>
+                                <Ionicons name="business" size={24} color={selectedVendor ? '#10B981' : '#FFFFFF'} />
                             </View>
                             <View>
-                                <Text className="text-xs text-gray-500 font-medium">VENDOR</Text>
-                                <Text className="text-base font-bold text-gray-900">
-                                    {selectedVendor ? selectedVendor.name : 'Select Vendor'}
+                                <Text className={`text-[10px] font-black uppercase tracking-[1px] ${selectedVendor ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                                    {selectedVendor ? 'Selected Vendor' : 'Step 1: Choose Vendor'}
+                                </Text>
+                                <Text className="text-lg font-black text-slate-900 tracking-tight">
+                                    {selectedVendor ? selectedVendor.name : 'Select a Vendor'}
                                 </Text>
                             </View>
                         </View>
-                        <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
-                    </View>
-                </TouchableOpacity>
+                        <View className={`w-10 h-10 rounded-full items-center justify-center ${selectedVendor ? 'bg-emerald-100' : 'bg-indigo-100'}`}>
+                            <Ionicons name={selectedVendor ? "checkmark-circle" : "chevron-forward"} size={22} color={selectedVendor ? '#10B981' : '#4F46E5'} />
+                        </View>
+                    </TouchableOpacity>
+                </View>
 
                 {/* Items Section Header */}
                 <View className="flex-row items-center justify-between mb-3 px-1">
@@ -561,23 +615,29 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                     <Text className="text-xs text-gray-400 font-bold mb-1">QUANTITY</Text>
                                     <View className="flex-row items-center">
                                         <TouchableOpacity
-                                            onPress={() => setTempQty(String(Math.max(0, (parseFloat(tempQty.replace(',', '.')) || 0) - 1)))}
-                                            className="w-12 h-12 items-center justify-center bg-gray-100 rounded-xl"
+                                            onPress={() => {
+                                                const current = parseDecimal(tempQty);
+                                                setTempQty((Math.max(0, current - 1)).toString().replace('.', ','));
+                                            }}
+                                            className="w-14 h-14 items-center justify-center bg-gray-100 rounded-2xl"
                                         >
-                                            <Ionicons name="remove" size={22} color="#374151" />
+                                            <Ionicons name="remove" size={28} color="#374151" />
                                         </TouchableOpacity>
                                         <TextInput
-                                            className="flex-1 text-center text-xl font-bold text-gray-900 mx-3 border border-gray-200 rounded-xl py-2"
+                                            className="flex-1 text-center text-3xl font-black text-gray-900 mx-3 border-2 border-indigo-100 rounded-2xl py-3 focus:border-indigo-500"
                                             keyboardType="decimal-pad"
                                             value={tempQty}
                                             onChangeText={(val) => setTempQty(val)}
                                             selectTextOnFocus
                                         />
                                         <TouchableOpacity
-                                            onPress={() => setTempQty(String((parseFloat(tempQty.replace(',', '.')) || 0) + 1))}
-                                            className="w-12 h-12 items-center justify-center bg-gray-100 rounded-xl"
+                                            onPress={() => {
+                                                const current = parseDecimal(tempQty);
+                                                setTempQty((current + 1).toString().replace('.', ','));
+                                            }}
+                                            className="w-14 h-14 items-center justify-center bg-indigo-600 rounded-2xl"
                                         >
-                                            <Ionicons name="add" size={22} color="#374151" />
+                                            <Ionicons name="add" size={28} color="#FFF" />
                                         </TouchableOpacity>
                                     </View>
                                 </View>

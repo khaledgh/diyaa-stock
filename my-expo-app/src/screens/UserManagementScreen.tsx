@@ -131,6 +131,7 @@ export default function UserManagementScreen({ navigation }: any) {
         full_name: locationEditingUser.full_name,
         role: locationEditingUser.role,
         location_id: locationId,
+        location_mode: locationEditingUser.location_mode // preserve current mode or handle it
       });
       if (res.ok || res.success) {
         Alert.alert('Success', 'Location updated successfully');
@@ -403,7 +404,24 @@ export default function UserManagementScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
             
-            <ScrollView className="p-4">
+            <View className="px-6 py-4 border-b border-gray-100">
+               <Text className="text-xs font-bold text-gray-400 uppercase mb-3">Login Strategy</Text>
+               <View className="flex-row bg-gray-100 p-1 rounded-2xl">
+                  <TouchableOpacity 
+                    onPress={() => setLocationEditingUser(prev => prev ? {...prev, location_mode: 'automatic'} : null)}
+                    className={`flex-1 py-3 rounded-xl items-center ${locationEditingUser?.location_mode === 'automatic' ? 'bg-white shadow-sm' : ''}`}>
+                    <Text className={`font-bold ${locationEditingUser?.location_mode === 'automatic' ? 'text-indigo-600' : 'text-gray-500'}`}>Fixed</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => setLocationEditingUser(prev => prev ? {...prev, location_mode: 'manual'} : null)}
+                    className={`flex-1 py-3 rounded-xl items-center ${locationEditingUser?.location_mode === 'manual' ? 'bg-white shadow-sm' : ''}`}>
+                    <Text className={`font-bold ${locationEditingUser?.location_mode === 'manual' ? 'text-indigo-600' : 'text-gray-500'}`}>Manual Choice</Text>
+                  </TouchableOpacity>
+               </View>
+            </View>
+            
+            <ScrollView className="p-4" contentContainerStyle={{ paddingBottom: 40 }}>
+               <Text className="text-xs font-bold text-gray-400 uppercase mb-3 px-2">Assigned Location</Text>
               <TouchableOpacity
                 onPress={() => handleUpdateLocation(null)}
                 className={`p-4 rounded-2xl mb-3 flex-row justify-between items-center ${locationEditingUser?.location_id === null ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-100'}`}

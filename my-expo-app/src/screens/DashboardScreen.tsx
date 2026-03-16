@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -186,139 +187,178 @@ export default function DashboardScreen({ navigation }: any) {
   }
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-gray-50">
+    <SafeAreaView edges={['top']} className="flex-1 bg-[#F8FAFC]">
+      <StatusBar barStyle="light-content" />
       <ScrollView
         className="flex-1"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} tintColor="#4F46E5" />}
+        showsVerticalScrollIndicator={false}
       >
-        <LinearGradient colors={['#4F46E5', '#3730A3']} className="px-6 pt-8 pb-10 rounded-b-[40px]">
-          <View className="flex-row justify-between items-center mb-6">
+        <LinearGradient 
+          colors={['#1E1B4B', '#312E81', '#4338CA']} 
+          start={{ x: 0, y: 0 }} 
+          end={{ x: 1, y: 1 }}
+          className="px-6 pt-10 pb-16 rounded-b-[50px] shadow-2xl shadow-indigo-300"
+        >
+          <View className="flex-row justify-between items-center mb-8">
             <View>
-              <Text className="text-white/70 text-sm font-medium">Welcome back,</Text>
-              <Text className="text-white text-2xl font-bold">{user?.full_name || 'Merchant'}</Text>
+              <Text className="text-indigo-200 text-xs font-black uppercase tracking-[2px] mb-1">Business Overview</Text>
+              <Text className="text-white text-3xl font-black tracking-tighter">
+                Hi, {user?.full_name?.split(' ')[0] || 'Merchant'} 👋
+              </Text>
             </View>
-            <TouchableOpacity className="w-12 h-12 bg-white/20 rounded-2xl items-center justify-center backdrop-blur-md">
-              <Ionicons name="notifications" size={24} color="white" />
+            <TouchableOpacity className="w-12 h-12 bg-white/10 rounded-2xl items-center justify-center border border-white/20">
+              <Ionicons name="notifications" size={22} color="white" />
+              <View className="absolute top-2 right-2 w-3 h-3 bg-rose-500 rounded-full border-2 border-[#1E1B4B]" />
             </TouchableOpacity>
           </View>
 
           {isAdmin && locations.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
-              <View className="flex-row gap-2">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-8" contentContainerStyle={{ paddingRight: 20 }}>
+              <View className="flex-row gap-3">
                 <TouchableOpacity
                   onPress={() => setSelectedLocationId(null)}
-                  className={`px-4 py-2 rounded-xl backdrop-blur-md border ${!selectedLocationId ? 'bg-white border-white' : 'bg-white/10 border-white/20'}`}
+                  className={`px-5 py-2.5 rounded-2xl border ${!selectedLocationId ? 'bg-white border-white' : 'bg-white/10 border-white/10'}`}
                 >
-                  <Text className={`font-bold text-xs ${!selectedLocationId ? 'text-indigo-600' : 'text-white'}`}>All Branches</Text>
+                  <Text className={`font-black text-xs uppercase tracking-tight ${!selectedLocationId ? 'text-indigo-900' : 'text-white/60'}`}>All Branches</Text>
                 </TouchableOpacity>
                 {locations.map((loc: any) => (
                   <TouchableOpacity
                     key={loc.id}
                     onPress={() => setSelectedLocationId(loc.id)}
-                    className={`px-4 py-2 rounded-xl backdrop-blur-md border ${selectedLocationId === loc.id ? 'bg-white border-white' : 'bg-white/10 border-white/20'}`}
+                    className={`px-5 py-2.5 rounded-2xl border ${selectedLocationId === loc.id ? 'bg-white border-white' : 'bg-white/10 border-white/10'}`}
                   >
-                    <Text className={`font-bold text-xs ${selectedLocationId === loc.id ? 'text-indigo-600' : 'text-white'}`}>{loc.name}</Text>
+                    <Text className={`font-black text-xs uppercase tracking-tight ${selectedLocationId === loc.id ? 'text-indigo-900' : 'text-white/60'}`}>{loc.name}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </ScrollView>
           )}
 
-          <View className="bg-white/10 p-6 rounded-3xl backdrop-blur-xl border border-white/20">
-            <Text className="text-white/80 text-xs font-bold uppercase tracking-widest mb-1">Today's Revenue</Text>
-            <View className="flex-row items-baseline">
-              <Text className="text-white text-4xl font-black">${stats.todaySales.toFixed(2)}</Text>
-              <View className="ml-3 bg-emerald-400/20 px-2 py-1 rounded-lg">
-                <Text className="text-emerald-300 text-[10px] font-bold">+12.5%</Text>
+          <View className="bg-white/10 p-7 rounded-[35px] border border-white/20 relative overflow-hidden">
+            <View className="absolute -right-10 -top-10 w-40 h-40 bg-white/5 rounded-full" />
+            <Text className="text-indigo-100/60 text-[10px] font-black uppercase tracking-[3px] mb-2">Total Revenue Today</Text>
+            <View className="flex-row items-end justify-between">
+              <View className="flex-row items-baseline">
+                <Text className="text-white text-5xl font-black tracking-tighter">${stats.todaySales.toFixed(0)}</Text>
+                <Text className="text-white/60 text-lg font-bold ml-1">.{(stats.todaySales % 1).toFixed(2).substring(2)}</Text>
+              </View>
+              <View className="bg-emerald-500 px-3 py-1.5 rounded-full flex-row items-center">
+                <Ionicons name="trending-up" size={14} color="white" />
+                <Text className="text-white text-[10px] font-black ml-1">+12.5%</Text>
               </View>
             </View>
-            <View className="mt-4 flex-row justify-between items-center">
+
+            <View className="mt-8 pt-6 border-t border-white/10 flex-row justify-between items-center">
               <View>
-                <Text className="text-white/60 text-[10px] uppercase font-bold">Week Profit</Text>
-                <Text className="text-white font-bold">${stats.weekProfit.toFixed(1)}</Text>
+                <Text className="text-white/40 text-[9px] uppercase font-black tracking-widest mb-1">Weekly Profit</Text>
+                <Text className="text-white text-lg font-black">${stats.weekProfit.toFixed(0)}</Text>
               </View>
-              <View className="w-px h-8 bg-white/10" />
+              <View className="w-[1px] h-10 bg-white/10" />
               <View>
-                <Text className="text-white/60 text-[10px] uppercase font-bold">Month Invoices</Text>
-                <Text className="text-white font-bold">{stats.totalInvoices}</Text>
+                <Text className="text-white/40 text-[9px] uppercase font-black tracking-widest mb-1">Invoices</Text>
+                <Text className="text-white text-lg font-black">{stats.totalInvoices}</Text>
               </View>
-              <View className="w-px h-8 bg-white/10" />
+              <View className="w-[1px] h-10 bg-white/10" />
               <View>
-                <Text className="text-white/60 text-[10px] uppercase font-bold">Pending</Text>
-                <Text className="text-white font-bold">${stats.pendingAmount.toFixed(0)}</Text>
+                <Text className="text-white/40 text-[9px] uppercase font-black tracking-widest mb-1">Receivables</Text>
+                <Text className="text-rose-300 text-lg font-black">${stats.pendingAmount.toFixed(0)}</Text>
               </View>
             </View>
           </View>
         </LinearGradient>
 
-        <View className="px-6 -mt-8 pb-10">
-          <View className="flex-row gap-4 mb-6">
+        <View className="px-6 -mt-10 pb-12">
+          {/* Main Actions */}
+          <View className="flex-row gap-4 mb-8">
             <TouchableOpacity 
               onPress={() => navigation.navigate('Sales')}
-              className="flex-1 bg-white p-5 rounded-3xl shadow-sm border border-gray-100"
+              activeOpacity={0.8}
+              className="flex-1 bg-white p-6 rounded-[35px] shadow-xl shadow-indigo-100 border border-slate-50"
             >
-              <View className="w-10 h-10 bg-indigo-50 rounded-xl items-center justify-center mb-3">
-                <Ionicons name="cart" size={20} color="#4F46E5" />
-              </View>
-              <Text className="text-gray-900 font-bold">New Sale</Text>
-              <Text className="text-gray-400 text-[10px] mt-1">Open POS Screen</Text>
+              <LinearGradient colors={['#EEF2FF', '#E0E7FF']} className="w-14 h-14 rounded-2xl items-center justify-center mb-4">
+                <Ionicons name="cart" size={28} color="#4F46E5" />
+              </LinearGradient>
+              <Text className="text-slate-900 text-lg font-black tracking-tight">POS</Text>
+              <Text className="text-slate-400 text-xs font-semibold mt-1">Terminal</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
               onPress={() => navigation.navigate('Purchase')}
-              className="flex-1 bg-white p-5 rounded-3xl shadow-sm border border-gray-100"
+              activeOpacity={0.8}
+              className="flex-1 bg-white p-6 rounded-[35px] shadow-xl shadow-indigo-100 border border-slate-50"
             >
-              <View className="w-10 h-10 bg-emerald-50 rounded-xl items-center justify-center mb-3">
-                <Ionicons name="cube" size={20} color="#10B981" />
-              </View>
-              <Text className="text-gray-900 font-bold">Stock Hub</Text>
-              <Text className="text-gray-400 text-[10px] mt-1">Manage Products</Text>
+              <LinearGradient colors={['#ECFDF5', '#D1FAE5']} className="w-14 h-14 rounded-2xl items-center justify-center mb-4">
+                <Ionicons name="cube" size={28} color="#10B981" />
+              </LinearGradient>
+              <Text className="text-slate-900 text-lg font-black tracking-tight">Stock</Text>
+              <Text className="text-slate-400 text-xs font-semibold mt-1">Inventory</Text>
             </TouchableOpacity>
           </View>
 
-          <Text className="text-gray-900 text-lg font-bold mb-4">Quick Statistics</Text>
+          {/* Quick Stats Grid */}
+          <View className="flex-row items-center justify-between mb-5">
+            <Text className="text-slate-900 text-xl font-black tracking-tight">Insights</Text>
+            <TouchableOpacity>
+              <Text className="text-indigo-600 font-bold text-sm">See Trends &rarr;</Text>
+            </TouchableOpacity>
+          </View>
+
           <View className="space-y-4">
-            <View className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex-row items-center justify-between">
+            <View className="bg-white p-5 rounded-[30px] border border-slate-50 shadow-sm flex-row items-center justify-between">
               <View className="flex-row items-center">
-                <View className="w-12 h-12 bg-blue-50 rounded-2xl items-center justify-center mr-4">
-                  <Ionicons name="trending-up" size={24} color="#3B82F6" />
+                <View className="w-14 h-14 bg-blue-50 rounded-2xl items-center justify-center mr-4">
+                  <Ionicons name="analytics" size={26} color="#3B82F6" />
                 </View>
                 <View>
-                  <Text className="text-gray-400 text-xs font-medium">Growth Rate</Text>
-                  <Text className="text-gray-900 font-bold text-lg">+24%</Text>
+                  <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Growth Index</Text>
+                  <View className="flex-row items-center">
+                    <Text className="text-slate-900 font-black text-xl">+32.4%</Text>
+                    <View className="ml-2 bg-blue-100 px-2 py-0.5 rounded-md">
+                      <Text className="text-blue-700 text-[10px] font-bold">ALPHA</Text>
+                    </View>
+                  </View>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+              <View className="w-10 h-10 rounded-full bg-slate-50 items-center justify-center">
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </View>
             </View>
 
-            <View className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex-row items-center justify-between">
+            <View className="bg-white p-5 rounded-[30px] border border-slate-50 shadow-sm flex-row items-center justify-between">
               <View className="flex-row items-center">
-                <View className="w-12 h-12 bg-purple-50 rounded-2xl items-center justify-center mr-4">
-                  <Ionicons name="people" size={24} color="#8B5CF6" />
+                <View className="w-14 h-14 bg-rose-50 rounded-2xl items-center justify-center mr-4">
+                  <Ionicons name="wallet-outline" size={26} color="#F43F5E" />
                 </View>
                 <View>
-                  <Text className="text-gray-400 text-xs font-medium">Active Customers</Text>
-                  <Text className="text-gray-900 font-bold text-lg">1,280</Text>
+                  <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Cash On Hand</Text>
+                  <Text className="text-slate-900 font-black text-xl">$14,200</Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+              <View className="w-10 h-10 rounded-full bg-slate-50 items-center justify-center">
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </View>
             </View>
             
             {isAdmin && (
               <TouchableOpacity
                 onPress={() => openCommissionReport('week')}
-                className="bg-indigo-600 p-5 rounded-3xl flex-row items-center justify-between shadow-lg shadow-indigo-200"
+                activeOpacity={0.9}
+                className="mt-4 bg-indigo-600 p-7 rounded-[40px] flex-row items-center justify-between shadow-2xl shadow-indigo-200 overflow-hidden"
               >
+                <View className="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full" />
                 <View className="flex-row items-center">
-                  <View className="w-12 h-12 bg-white/20 rounded-2xl items-center justify-center mr-4">
-                    <Ionicons name="document-text" size={24} color="white" />
+                  <View className="w-14 h-14 bg-white/20 rounded-2xl items-center justify-center mr-5">
+                    <Ionicons name="document-text" size={28} color="white" />
                   </View>
                   <View>
-                    <Text className="text-indigo-100 text-xs font-medium uppercase tracking-widest">Reporting</Text>
-                    <Text className="text-white font-bold text-lg">Commissions</Text>
+                    <Text className="text-indigo-200 text-[9px] font-black uppercase tracking-[2px] mb-1">Advanced Analytics</Text>
+                    <Text className="text-white font-black text-2xl tracking-tight">Commissions</Text>
                   </View>
                 </View>
-                <Ionicons name="arrow-forward" size={24} color="white" />
+                <LinearGradient colors={['#818CF8', '#4F46E5']} className="w-12 h-12 rounded-full items-center justify-center">
+                  <Ionicons name="arrow-forward" size={24} color="white" />
+                </LinearGradient>
               </TouchableOpacity>
             )}
           </View>
@@ -327,50 +367,63 @@ export default function DashboardScreen({ navigation }: any) {
 
       {/* Commission Report Modal */}
       <Modal visible={showCommissionReport} animationType="slide" transparent>
-        <View className="flex-1 bg-black/50 justify-end">
+        <View className="flex-1 bg-black/60 justify-end">
           <TouchableOpacity className="flex-1" onPress={() => setShowCommissionReport(false)} />
-          <View className="bg-white rounded-t-[40px] p-8" style={{ maxHeight: '80%' }}>
-            <View className="items-center mb-6">
-              <View className="w-12 h-1.5 bg-gray-200 rounded-full" />
+          <View className="bg-white rounded-t-[50px] p-8 pb-12" style={{ maxHeight: '85%' }}>
+            <View className="items-center mb-8">
+              <View className="w-16 h-1.5 bg-slate-100 rounded-full" />
             </View>
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-2xl font-black text-gray-900">Commission Report</Text>
-              <TouchableOpacity onPress={() => setShowCommissionReport(false)} className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center">
-                <Ionicons name="close" size={20} color="#374151" />
+            <View className="flex-row justify-between items-center mb-8">
+              <View>
+                <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Performance Report</Text>
+                <Text className="text-3xl font-black text-slate-900 tracking-tighter">Commissions</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowCommissionReport(false)} className="w-12 h-12 bg-slate-50 rounded-full items-center justify-center border border-slate-100">
+                <Ionicons name="close" size={24} color="#1E293B" />
               </TouchableOpacity>
             </View>
             
-            <View className="flex-row gap-2 mb-8">
+            <View className="flex-row gap-2 mb-8 bg-slate-50 p-2 rounded-[25px] border border-slate-100">
               {(['week', 'month', 'custom'] as const).map(p => (
                 <TouchableOpacity
                   key={p}
                   onPress={() => { setCommissionPeriod(p); if (p !== 'custom') loadCommissionReport(p); }}
-                  className={`flex-1 py-3 rounded-2xl items-center ${commissionPeriod === p ? 'bg-indigo-600' : 'bg-gray-100'}`}
+                  className={`flex-1 py-4 rounded-[20px] items-center ${commissionPeriod === p ? 'bg-indigo-600 shadow-lg shadow-indigo-100' : 'bg-transparent'}`}
                 >
-                  <Text className={`font-bold capitalize ${commissionPeriod === p ? 'text-white' : 'text-gray-500'}`}>{p}</Text>
+                  <Text className={`font-black uppercase text-[10px] tracking-widest ${commissionPeriod === p ? 'text-white' : 'text-slate-500'}`}>{p}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {reportLoading ? (
-              <ActivityIndicator color="#4F46E5" size="large" className="py-20" />
+              <View className="py-20">
+                <ActivityIndicator color="#4F46E5" size="large" />
+              </View>
             ) : (
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
                 {reportData.map((rep: any) => (
-                  <View key={rep.user_id} className="bg-gray-50 p-4 rounded-2xl mb-3 flex-row items-center justify-between">
+                  <View key={rep.user_id} className="bg-white border border-slate-50 p-5 rounded-[30px] mb-4 flex-row items-center justify-between shadow-sm">
                     <View className="flex-row items-center flex-1">
-                      <View className="w-10 h-10 bg-indigo-100 rounded-full items-center justify-center mr-3">
-                        <Text className="text-indigo-700 font-bold">{(rep.name || 'U').charAt(0)}</Text>
-                      </View>
+                      <LinearGradient colors={['#EEF2FF', '#E0E7FF']} className="w-12 h-12 rounded-2xl items-center justify-center mr-4">
+                        <Text className="text-indigo-700 font-black text-lg">{(rep.name || 'U').charAt(0)}</Text>
+                      </LinearGradient>
                       <View className="flex-1">
-                        <Text className="text-gray-900 font-bold">{rep.name || 'User'}</Text>
-                        <Text className="text-gray-400 text-xs">${(rep.total_sales || 0).toFixed(0)} sales</Text>
+                        <Text className="text-slate-900 font-black text-base">{rep.name || 'User'}</Text>
+                        <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-tight">${(rep.total_sales || 0).toFixed(0)} Volume</Text>
                       </View>
                     </View>
-                    <Text className="text-indigo-600 font-black text-lg">${(rep.commission_owed || 0).toFixed(2)}</Text>
+                    <View className="items-end">
+                      <Text className="text-indigo-600 font-black text-xl">${(rep.commission_owed || 0).toFixed(2)}</Text>
+                      <Text className="text-slate-300 text-[8px] font-black uppercase">Earned</Text>
+                    </View>
                   </View>
                 ))}
-                {reportData.length === 0 && <Text className="text-center text-gray-400 py-10">No records found</Text>}
+                {reportData.length === 0 && (
+                  <View className="items-center py-20">
+                    <Ionicons name="file-tray-outline" size={48} color="#D1D5DB" />
+                    <Text className="text-slate-400 font-bold mt-4">No data available for this range</Text>
+                  </View>
+                )}
               </ScrollView>
             )}
           </View>

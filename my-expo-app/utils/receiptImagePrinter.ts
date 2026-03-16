@@ -26,6 +26,7 @@ export interface PrintableReceiptData {
   date: string;
   cashierName?: string;
   storeName?: string;
+  locationName?: string;
 }
 
 /**

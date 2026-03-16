@@ -7,6 +7,7 @@ export interface User {
   location_name?: string;
   location_ids?: number[];
   locations?: Location[];
+  location_mode?: 'automatic' | 'manual';
   is_active: boolean;
   commission_rate?: number;
   phone?: string;

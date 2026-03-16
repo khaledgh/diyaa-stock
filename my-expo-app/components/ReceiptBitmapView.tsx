@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Image } from 'react-native';
 import { PrintableReceiptData } from '../utils/receiptImagePrinter';
 
 interface Template {
@@ -33,8 +33,8 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
   }
 
   // Determine width based on paper size
-  const paperSize = template?.layout?.paper_size || 'thermal';
-  const width = paperSize === 'thermal_80' ? 576 : 384;
+  const paperSize = template?.layout?.paper_size || 'thermal_80'; // Default to 80mm for bigger look
+  const width = paperSize === 'thermal' ? 384 : 576; // 384 for 58mm, 576 for 80mm
   
   const separator = '─'.repeat(paperSize === 'thermal_80' ? 48 : 32);
   const doubleSeparator = '═'.repeat(paperSize === 'thermal_80' ? 48 : 32);
@@ -56,9 +56,17 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
       style={{
         width: width,
         backgroundColor: '#FFFFFF',
-        padding: 0, // REMOVED PADDING per user request "full paper without padding"
+        padding: 2, // Even less padding to use full width
+        margin: 0,
       }}
     >
+      {/* Logo */}
+      <View style={{ alignItems: 'center', marginTop: 2, marginBottom: 5 }}>
+        <Image 
+          source={require('../assets/logo.png')} 
+          style={{ width: width * 0.8, height: 120, resizeMode: 'contain' }} 
+        />
+      </View>
       {/* Store Name */}
       {showField('company_name') && (
         <Text
@@ -67,9 +75,8 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
             fontWeight: '900',
             textAlign: headerStyle,
             color: primaryColor,
-            marginBottom: 8,
-            marginTop: 10,
-            paddingHorizontal: 8,
+            marginBottom: 4,
+            marginTop: 4,
           }}
         >
           {data.storeName || 'DaftarStock'}
@@ -83,11 +90,10 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
           fontWeight: 'bold',
           textAlign: headerStyle,
           color: '#000',
-          marginBottom: 8,
+          marginBottom: 4,
           writingDirection: 'rtl',
-          paddingHorizontal: 8,
         }}
-      >
+>
         {template?.custom_texts?.title || 'إيصال'}
       </Text>
 
@@ -98,7 +104,7 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
 
       {/* Invoice info */}
       {data.invoiceNumber && showField('invoice_number') && (
-        <Text style={{ fontSize: 20, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 8, fontWeight: '600' }}>
+        <Text style={{ fontSize: 20, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 4, fontWeight: '600' }}>
           رقم الفاتورة: {data.invoiceNumber}
         </Text>
       )}
@@ -116,8 +122,14 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
       )}
 
       {data.cashierName && (
-        <Text style={{ fontSize: 18, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 6 }}>
+        <Text style={{ fontSize: 22, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 4 }}>
           الكاشير: {data.cashierName}
+        </Text>
+      )}
+
+      {data.locationName && (
+        <Text style={{ fontSize: 20, color: '#444', textAlign: 'right', writingDirection: 'rtl', marginTop: 2 }}>
+          الموقع: {data.locationName}
         </Text>
       )}
 
@@ -129,35 +141,19 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
       {/* Items Table */}
       {showField('items_table') && (
         <>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, marginBottom: 6 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'left' }}>المجموع</Text>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'center' }}>الكمية × السعر</Text>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl' }}>الصنف</Text>
+          <View style={{ flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: '#000', paddingVertical: 4 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#000', width: '25%', textAlign: 'left' }}>المجموع</Text>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#000', width: '15%', textAlign: 'center' }}>الكمية</Text>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#000', width: '20%', textAlign: 'center' }}>السعر</Text>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl' }}>الصنف</Text>
           </View>
 
-          <Text style={{ fontSize: 16, textAlign: 'center', color: '#000', fontFamily: 'monospace' }}>
-            {separator}
-          </Text>
-
           {data.items.map((item, index) => (
-            <View key={index} style={{ marginTop: 8 }}>
-              <Text
-                style={{
-                  fontSize: 20,
-                  color: '#000',
-                  textAlign: 'right',
-                  writingDirection: 'rtl',
-                  fontWeight: '800',
-                }}
-              >
-                {item.name}
-              </Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                <Text style={{ fontSize: 18, color: '#000', fontWeight: '700' }}>{item.total.toFixed(2)}</Text>
-                <Text style={{ fontSize: 18, color: '#000' }}>
-                  {item.quantity} × {item.unitPrice.toFixed(2)}
-                </Text>
-              </View>
+            <View key={index} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#DDD' }}>
+              <Text style={{ fontSize: 20, color: '#000', width: '25%', textAlign: 'left', fontWeight: 'bold' }}>{item.total.toFixed(2)}</Text>
+              <Text style={{ fontSize: 20, color: '#000', width: '15%', textAlign: 'center' }}>{item.quantity}</Text>
+              <Text style={{ fontSize: 20, color: '#000', width: '20%', textAlign: 'center' }}>{item.unitPrice.toFixed(2)}</Text>
+              <Text style={{ fontSize: 22, color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl', fontWeight: '900' }}>{item.name}</Text>
             </View>
           ))}
         </>
@@ -207,7 +203,6 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
             color: primaryColor,
             marginTop: 8,
             writingDirection: 'rtl',
-            paddingHorizontal: 8,
           }}
         >
           الإجمالي: {data.total.toFixed(2)}
@@ -241,7 +236,6 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
             marginTop: 6,
             fontWeight: 'bold',
             writingDirection: 'rtl',
-            paddingHorizontal: 8,
           }}
         >
           مدفوع بالكامل
@@ -262,7 +256,6 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
           marginTop: 12,
           fontWeight: '700',
           writingDirection: 'rtl',
-          paddingHorizontal: 8,
         }}
       >
         {template?.custom_texts?.footer || 'شكراً لكم'}

@@ -59,12 +59,16 @@ export default function POSScreenNew({ navigation }: any) {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(user?.location_id || null);
   const [paymentType, setPaymentType] = useState<'paid' | 'partial'>('paid');
   const [partialAmount, setPartialAmount] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
+  const [tempQty, setTempQty] = useState('1');
+  const [tempPrice, setTempPrice] = useState('');
   const [isPrinting, setIsPrinting] = useState(false);
   const [locationMode, setLocationMode] = useState<'automatic' | 'manual'>('automatic');
   const [userLocations, setUserLocations] = useState<any[]>([]);
@@ -250,6 +254,13 @@ export default function POSScreenNew({ navigation }: any) {
   };
 
   const setCartQty = (item: StockItem, qty: number) => {
+    if (!selectedCustomer && qty > 0) {
+      Alert.alert('Customer Required', 'Please select a customer before adding items.', [
+        { text: 'Select Customer', onPress: () => setShowCustomerModal(true) },
+        { text: 'Cancel', style: 'cancel' }
+      ]);
+      return;
+    }
     if (qty <= 0) {
       setCart((prev) => prev.filter((c) => c.product.id !== item.id));
       return;
@@ -292,6 +303,40 @@ export default function POSScreenNew({ navigation }: any) {
           : c
       )
     );
+  };
+
+  const openItemEditModal = (item: CartItem) => {
+    setSelectedProduct(item.product);
+    setTempQty(item.quantity.toString().replace('.', ','));
+    setTempPrice(item.unit_price.toString().replace('.', ','));
+  };
+
+  const confirmItemEdit = () => {
+    if (!selectedProduct) return;
+    const qty = parseDecimal(tempQty);
+    const price = parseDecimal(tempPrice);
+    
+    if (qty <= 0) {
+      removeFromCart(selectedProduct.id);
+    } else {
+      setCart((prev) => {
+        const itemInCart = prev.find((c) => c.product.id === selectedProduct.id);
+        if (itemInCart) {
+          return prev.map((c) =>
+            c.product.id === selectedProduct.id
+              ? {
+                  ...c,
+                  quantity: qty,
+                  unit_price: price,
+                  total: qty * price * (1 - c.discount_percent / 100),
+                }
+              : c
+          );
+        }
+        return prev;
+      });
+    }
+    setSelectedProduct(null);
   };
 
   const removeFromCart = (productId: number) => {
@@ -366,7 +411,8 @@ export default function POSScreenNew({ navigation }: any) {
                           paidAmount,
                           date: new Date().toLocaleString(),
                           cashierName: user?.full_name,
-                          storeName: user?.location_name || 'DaftarStock', // Use location name
+                          storeName: 'DaftarStock', // Explicit store name
+                          locationName: user?.location_name, // Pass location separately
                         });
                       } catch (err: any) {
                         Alert.alert('Print Error', err?.message || 'Failed to print');
@@ -570,21 +616,28 @@ export default function POSScreenNew({ navigation }: any) {
     return (
       <View
         key={item.id}
-        className={`flex-row items-center px-4 py-3 bg-white mb-2 mx-4 rounded-2xl ${outOfStock ? 'opacity-50' : ''}`}
+        className={`flex-row items-center px-3 py-2.5 bg-white mb-1.5 mx-3 rounded-2xl ${outOfStock ? 'opacity-40' : ''}`}
         style={{ elevation: outOfStock ? 0 : 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4 }}>
-        {/* Product icon circle */}
-        <View className="w-14 h-14 rounded-full bg-blue-50 items-center justify-center mr-3">
-          <Ionicons name="cube-outline" size={26} color="#3B82F6" />
+        {/* Product icon with cart badge */}
+        <View className="relative mr-3">
+          <View className="w-12 h-12 rounded-2xl bg-blue-50 items-center justify-center">
+            <Ionicons name="cube-outline" size={22} color="#3B82F6" />
+          </View>
+          {qty > 0 && (
+            <View className="absolute -top-1.5 -right-1.5 bg-blue-600 min-w-[20px] h-[20px] rounded-full items-center justify-center px-1">
+              <Text className="text-white text-[9px] font-black">{qty}</Text>
+            </View>
+          )}
         </View>
 
         {/* Product info */}
         <View className="flex-1 mr-2">
           <Text className="text-sm font-bold text-gray-900" numberOfLines={2}>{item.name}</Text>
-          <Text className="text-base font-extrabold text-blue-600 mt-0.5">${item.unit_price.toFixed(2)}</Text>
           <View className="flex-row items-center mt-0.5">
-            <View className={`rounded-full px-2 py-0.5 ${outOfStock ? 'bg-red-100' : 'bg-green-100'}`}>
-              <Text className={`text-[10px] font-bold ${outOfStock ? 'text-red-600' : 'text-green-700'}`}>
-                {outOfStock ? 'Out of stock' : `Stock: ${item.quantity}`}
+            <Text className="text-base font-black text-blue-600">${item.unit_price.toFixed(2)}</Text>
+            <View className={`rounded-full px-1.5 py-0.5 ml-2 ${outOfStock ? 'bg-red-100' : 'bg-green-50'}`}>
+              <Text className={`text-[9px] font-bold ${outOfStock ? 'text-red-600' : 'text-green-600'}`}>
+                {outOfStock ? 'Out' : `${item.quantity}`}
               </Text>
             </View>
           </View>
@@ -597,11 +650,11 @@ export default function POSScreenNew({ navigation }: any) {
               <>
                 <TouchableOpacity
                   onPress={() => setCartQty(item, qty - 1)}
-                  className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center">
-                  <Ionicons name="remove" size={20} color="#374151" />
+                  className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
+                  <Ionicons name="remove" size={18} color="#374151" />
                 </TouchableOpacity>
                 <TextInput
-                  className="w-10 text-center text-base font-bold text-gray-900 mx-1"
+                  className="w-10 text-center text-sm font-bold text-gray-900 mx-0.5"
                   value={qty.toString()}
                   onChangeText={(t) => {
                     const val = parseDecimal(t);
@@ -615,7 +668,6 @@ export default function POSScreenNew({ navigation }: any) {
             <TouchableOpacity
               onPress={() => {
                 if (!selectedCustomer) {
-                  // Prompt to select customer first as requested
                   setShowCustomerModal(true);
                   showToast("Please select a customer first");
                   return;
@@ -623,9 +675,9 @@ export default function POSScreenNew({ navigation }: any) {
                 setCartQty(item, qty + 1);
                 if (qty === 0) showToast(`${item.name} added`);
               }}
-              className={`w-10 h-10 rounded-full items-center justify-center ${selectedCustomer ? 'bg-blue-600' : 'bg-blue-300'}`}
-              style={{ elevation: 3 }}>
-              <Ionicons name="add" size={20} color="#FFF" />
+              className={`w-12 h-12 rounded-2xl items-center justify-center ${selectedCustomer ? 'bg-blue-600' : 'bg-blue-300'}`}
+              style={{ elevation: 4 }}>
+              <Ionicons name="add" size={24} color="#FFF" />
             </TouchableOpacity>
           </View>
         )}
@@ -637,43 +689,49 @@ export default function POSScreenNew({ navigation }: any) {
   // RENDER
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <View className="flex-1 bg-gray-100">
+    <View className="flex-1 bg-slate-50">
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFF' }}>
-        <View className="bg-white px-4 pt-3 pb-2" style={{ elevation: 2 }}>
+        <View className="bg-white px-4 pt-2 pb-1" style={{ elevation: 2 }}>
           {/* Top row: title + actions */}
-          <View className="flex-row items-center justify-between mb-3">
-            <View className="flex-1">
-              <Text className="text-xl font-bold text-gray-900">Menu</Text>
+          <View className="flex-row items-center justify-between mb-2">
+            <View className="flex-row items-center">
+              <Text className="text-lg font-black text-gray-900">Sales</Text>
+              {/* View toggle */}
+              <TouchableOpacity 
+                onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
+                className="ml-3 bg-slate-100 p-1.5 rounded-lg">
+                <Ionicons name={viewMode === 'list' ? "grid-outline" : "list-outline"} size={16} color="#475569" />
+              </TouchableOpacity>
             </View>
-            <View className="flex-row items-center gap-2">
+            <View className="flex-row items-center gap-1.5">
               {/* Search button */}
               <TouchableOpacity
                 onPress={() => setShowSearchModal(true)}
-                className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center">
-                <Ionicons name="search" size={20} color="#374151" />
+                className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
+                <Ionicons name="search" size={18} color="#374151" />
               </TouchableOpacity>
               {/* Logout */}
               <TouchableOpacity
                 onPress={logout}
-                className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center">
-                <Ionicons name="log-out-outline" size={20} color="#374151" />
+                className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
+                <Ionicons name="log-out-outline" size={18} color="#374151" />
               </TouchableOpacity>
             </View>
           </View>
 
           {/* Admin location pills */}
           {isAdmin && locations.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
-              <View className="flex-row gap-2 pr-4">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-1">
+              <View className="flex-row gap-1.5 pr-4">
                 {locations.map((loc) => (
                   <TouchableOpacity
                     key={loc.id}
                     onPress={() => setSelectedLocationId(loc.id)}
-                    className={`rounded-full px-4 py-2 border ${selectedLocationId === loc.id ? 'border-blue-600 bg-blue-600' : 'border-gray-200 bg-white'}`}>
-                    <Text className={`text-xs font-semibold ${selectedLocationId === loc.id ? 'text-white' : 'text-gray-600'}`}>
+                    className={`rounded-full px-3 py-1.5 border ${selectedLocationId === loc.id ? 'border-blue-600 bg-blue-600' : 'border-gray-200 bg-white'}`}>
+                    <Text className={`text-[11px] font-semibold ${selectedLocationId === loc.id ? 'text-white' : 'text-gray-600'}`}>
                       {loc.name}
                     </Text>
                   </TouchableOpacity>
@@ -684,11 +742,11 @@ export default function POSScreenNew({ navigation }: any) {
 
           {/* Category pills */}
           <ScrollView ref={categoryListRef} horizontal showsHorizontalScrollIndicator={false}>
-            <View className="flex-row gap-2 pb-1">
+            <View className="flex-row gap-1.5 pb-1">
               <TouchableOpacity
                 onPress={() => setSelectedCategory(ALL_CATEGORY)}
-                className={`rounded-full px-4 py-2 border ${selectedCategory === ALL_CATEGORY ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}`}>
-                <Text className={`text-xs font-semibold ${selectedCategory === ALL_CATEGORY ? 'text-blue-700' : 'text-gray-600'}`}>
+                className={`rounded-full px-3 py-1.5 border ${selectedCategory === ALL_CATEGORY ? 'border-blue-600 bg-blue-600' : 'border-gray-200 bg-white'}`}>
+                <Text className={`text-[11px] font-bold ${selectedCategory === ALL_CATEGORY ? 'text-white' : 'text-gray-600'}`}>
                   All
                 </Text>
               </TouchableOpacity>
@@ -696,8 +754,8 @@ export default function POSScreenNew({ navigation }: any) {
                 <TouchableOpacity
                   key={name}
                   onPress={() => setSelectedCategory(name)}
-                  className={`rounded-full px-4 py-2 border ${selectedCategory === name ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}`}>
-                  <Text className={`text-xs font-semibold ${selectedCategory === name ? 'text-blue-700' : 'text-gray-600'}`}>
+                  className={`rounded-full px-3 py-1.5 border ${selectedCategory === name ? 'border-blue-600 bg-blue-600' : 'border-gray-200 bg-white'}`}>
+                  <Text className={`text-[11px] font-bold ${selectedCategory === name ? 'text-white' : 'text-gray-600'}`}>
                     {name}
                   </Text>
                 </TouchableOpacity>
@@ -705,223 +763,346 @@ export default function POSScreenNew({ navigation }: any) {
             </View>
           </ScrollView>
 
-          {/* Customer Selection Bar (Prioritized per user request) */}
-          <View className="mb-2">
+          {/* Customer Selection Bar (compact) */}
+          <View className="mt-1 mb-1">
             <TouchableOpacity
               onPress={() => setShowCustomerModal(true)}
-              className={`flex-row items-center justify-between rounded-xl px-4 py-4 border ${selectedCustomer ? 'border-green-300 bg-green-50' : 'border-blue-300 bg-blue-50'}`}
-              style={{ elevation: 2 }}>
+              className={`flex-row items-center justify-between rounded-2xl px-3 py-2.5 border ${selectedCustomer ? 'border-emerald-400 bg-emerald-50' : 'border-indigo-400 bg-indigo-50'}`}
+              activeOpacity={0.8}>
               <View className="flex-1 flex-row items-center">
-                <View className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${selectedCustomer ? 'bg-green-100' : 'bg-blue-100'}`}>
-                  <Ionicons name="person" size={20} color={selectedCustomer ? '#10B981' : '#2563EB'} />
+                <View className={`w-8 h-8 rounded-xl items-center justify-center mr-2.5 ${selectedCustomer ? 'bg-emerald-100' : 'bg-indigo-600'}`}>
+                  <Ionicons name="person" size={16} color={selectedCustomer ? '#10B981' : '#FFFFFF'} />
                 </View>
                 <View>
-                  <Text className={`text-[10px] font-bold uppercase ${selectedCustomer ? 'text-green-600' : 'text-blue-600'}`}>
-                    {selectedCustomer ? 'Customer Info' : 'Required'}
+                  <Text className={`text-[9px] font-bold uppercase tracking-[0.5px] ${selectedCustomer ? 'text-emerald-600' : 'text-indigo-500'}`}>
+                    {selectedCustomer ? 'Customer' : 'Select Customer'}
                   </Text>
-                  <Text className="text-base font-bold text-gray-900">
-                    {selectedCustomer ? selectedCustomer.name : 'Select Customer'}
+                  <Text className="text-sm font-black text-slate-900">
+                    {selectedCustomer ? selectedCustomer.name : 'Tap to choose'}
                   </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={selectedCustomer ? '#10B981' : '#2563EB'} />
+              <View className={`w-7 h-7 rounded-full items-center justify-center ${selectedCustomer ? 'bg-emerald-100' : 'bg-indigo-100'}`}>
+                <Ionicons name={selectedCustomer ? "checkmark-circle" : "chevron-forward"} size={16} color={selectedCustomer ? '#10B981' : '#4F46E5'} />
+              </View>
             </TouchableOpacity>
           </View>
         </View>
       </SafeAreaView>
 
+      {/* ── Item Edit Modal (Qty/Price/Comma Support) ───────────────── */}
+      <Modal visible={!!selectedProduct} animationType="fade" transparent onRequestClose={() => setSelectedProduct(null)}>
+        <View className="flex-1 justify-center bg-black/60 p-6">
+          <View className="bg-white rounded-3xl p-6 shadow-2xl">
+            <View className="flex-row justify-between items-center mb-4">
+               <View>
+                  <Text className="text-lg font-black text-slate-900">{selectedProduct?.name}</Text>
+                  <Text className="text-xs text-slate-400">Update quantity and unit price</Text>
+               </View>
+               <TouchableOpacity onPress={() => setSelectedProduct(null)} className="bg-slate-100 p-2 rounded-full">
+                  <Ionicons name="close" size={20} color="#64748b" />
+               </TouchableOpacity>
+            </View>
+
+            <View className="mb-6">
+               <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Quantity</Text>
+               <View className="flex-row items-center">
+                  <TouchableOpacity
+                    onPress={() => setTempQty(prev => (Math.max(0, parseDecimal(prev) - 1)).toString().replace('.', ','))}
+                    className="w-14 h-14 bg-slate-100 rounded-2xl items-center justify-center">
+                    <Ionicons name="remove" size={24} color="#475569" />
+                  </TouchableOpacity>
+                  <TextInput
+                    className="flex-1 text-center text-3xl font-black text-slate-900 mx-3 border-2 border-indigo-50 rounded-2xl py-3 focus:border-indigo-600"
+                    keyboardType="decimal-pad"
+                    value={tempQty}
+                    onChangeText={setTempQty}
+                    selectTextOnFocus
+                  />
+                  <TouchableOpacity
+                    onPress={() => setTempQty(prev => (parseDecimal(prev) + 1).toString().replace('.', ','))}
+                    className="w-14 h-14 bg-indigo-600 rounded-2xl items-center justify-center">
+                    <Ionicons name="add" size={24} color="#FFF" />
+                  </TouchableOpacity>
+               </View>
+            </View>
+
+            <View className="mb-8">
+               <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Unit Price ($)</Text>
+               <TextInput
+                 className="w-full text-center text-2xl font-black text-indigo-600 border-2 border-indigo-50 rounded-2xl py-4 focus:border-indigo-600"
+                 keyboardType="decimal-pad"
+                 value={tempPrice}
+                 onChangeText={setTempPrice}
+                 selectTextOnFocus
+               />
+            </View>
+
+            <View className="flex-row gap-3">
+               <TouchableOpacity
+                 onPress={() => setSelectedProduct(null)}
+                 className="flex-1 py-4 bg-slate-100 rounded-2xl">
+                 <Text className="text-center font-bold text-slate-600">Cancel</Text>
+               </TouchableOpacity>
+               <TouchableOpacity
+                 onPress={confirmItemEdit}
+                 className="flex-2 py-4 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200">
+                 <Text className="text-center font-bold text-white px-8">Confirm</Text>
+               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* ── Item List (grouped by category) ────────────────────────────── */}
+
       <FlatList
         data={sections}
         keyExtractor={(section) => section.title}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />}
-        contentContainerStyle={{ paddingTop: 8, paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} />}
+        contentContainerStyle={{ paddingBottom: 120, paddingTop: 4 }}
         renderItem={({ item: section }) => (
-          <View>
-            <View className="flex-row items-center px-5 pt-4 pb-2">
-              <View className="w-1 h-4 bg-blue-600 rounded-full mr-2" />
-              <Text className="text-sm font-extrabold text-gray-800 uppercase tracking-widest">
-                {section.title}
-              </Text>
+          <View className="mb-3">
+            <View className="px-5 mb-2">
+               <Text className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{section.title}</Text>
             </View>
-            {section.data.map((item) => renderItemCard(item))}
+            <View className={viewMode === 'grid' ? "flex-row flex-wrap px-2" : ""}>
+              {section.data.map((item) => {
+                const cartQty = getCartQty(item.id);
+                const outOfStock = item.quantity <= 0;
+                return viewMode === 'grid' ? (
+                  <TouchableOpacity
+                    key={item.id}
+                    onPress={() => {
+                      if (!selectedCustomer) {
+                        setShowCustomerModal(true);
+                        showToast('Please select a customer first');
+                        return;
+                      }
+                      setCartQty(item, cartQty + 1);
+                      if (cartQty === 0) showToast(`${item.name} added`);
+                    }}
+                    disabled={outOfStock}
+                    className="w-1/3 p-1.5"
+                  >
+                    <View className={`bg-white rounded-2xl p-3 border border-slate-100 ${outOfStock ? 'opacity-40' : ''}`} style={{ elevation: outOfStock ? 0 : 2 }}>
+                       <View className="flex-row items-center justify-between mb-2">
+                         <View className="w-9 h-9 rounded-xl bg-blue-50 items-center justify-center">
+                           <Ionicons name="cube-outline" size={18} color="#3B82F6" />
+                         </View>
+                         {cartQty > 0 && (
+                           <View className="bg-blue-600 min-w-[22px] h-[22px] rounded-full items-center justify-center px-1">
+                              <Text className="text-white text-[10px] font-black">{cartQty}</Text>
+                           </View>
+                         )}
+                       </View>
+                       <Text className="text-xs font-bold text-slate-900 mb-1" numberOfLines={2}>{item.name}</Text>
+                       <Text className="text-sm font-black text-blue-600">${item.unit_price.toFixed(2)}</Text>
+                       <View className={`rounded-full px-1.5 py-0.5 mt-1 self-start ${outOfStock ? 'bg-red-100' : 'bg-green-50'}`}>
+                         <Text className={`text-[8px] font-bold ${outOfStock ? 'text-red-600' : 'text-green-600'}`}>
+                           {outOfStock ? 'Out' : `${item.quantity}`}
+                         </Text>
+                       </View>
+                    </View>
+                  </TouchableOpacity>
+                ) : renderItemCard(item);
+              })}
+            </View>
           </View>
         )}
         ListEmptyComponent={
           <View className="items-center p-16">
             <Ionicons name="cube-outline" size={64} color="#D1D5DB" />
             <Text className="text-lg font-bold text-gray-400 mt-4">No Products Found</Text>
-            <Text className="text-gray-400 text-center mt-1">Try another category or refresh</Text>
           </View>
         }
       />
 
-      {/* ── Floating Cart Bar ──────────────────────────────────────────── */}
+      {/* ── Floating Cart Bar (pinned to absolute bottom) ──────────── */}
       {cart.length > 0 && (
-        <SafeAreaView edges={['bottom']} style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-          <TouchableOpacity
-            onPress={() => setShowCartModal(true)}
-            className="mx-4 mb-2 flex-row items-center justify-between bg-blue-600 rounded-2xl px-5 py-4"
-            style={{ elevation: 8, shadowColor: '#2563EB', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12 }}
-            activeOpacity={0.9}>
-            <View className="flex-row items-center">
-              <View className="w-8 h-8 rounded-full bg-white/20 items-center justify-center mr-3">
-                <Ionicons name="cart" size={18} color="#FFF" />
+        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+          <View style={{ backgroundColor: 'transparent', paddingBottom: 0 }}>
+            <TouchableOpacity
+              onPress={() => setShowCartModal(true)}
+              className="mx-3 mb-1 flex-row items-center justify-between rounded-2xl px-4 py-3"
+              style={{ elevation: 12, shadowColor: '#1D4ED8', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.5, shadowRadius: 16, backgroundColor: '#1D4ED8' }}
+              activeOpacity={0.9}>
+              <View className="flex-row items-center">
+                <View className="w-9 h-9 rounded-xl bg-white/20 items-center justify-center mr-2.5">
+                  <Ionicons name="cart" size={18} color="#FFF" />
+                </View>
+                <View>
+                  <Text className="text-white/70 text-[10px] font-bold">{totalItems} ITEMS</Text>
+                  <Text className="text-white font-black text-lg leading-tight">${calculateTotal().toFixed(2)}</Text>
+                </View>
               </View>
-              <Text className="text-white font-bold text-base">{totalItems} items</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-white font-extrabold text-lg mr-2">${calculateTotal().toFixed(2)}</Text>
-              <View className="bg-white rounded-full px-4 py-2">
-                <Text className="text-blue-600 font-bold text-sm">View Cart</Text>
+              <View className="bg-white rounded-xl px-5 py-2.5" style={{ elevation: 2 }}>
+                <Text className="text-blue-700 font-black text-sm">View Cart</Text>
               </View>
-            </View>
-          </TouchableOpacity>
-        </SafeAreaView>
+            </TouchableOpacity>
+          </View>
+          <SafeAreaView edges={['bottom']} style={{ backgroundColor: 'transparent' }} />
+        </View>
       )}
 
-      {/* ── Search Modal ───────────────────────────────────────────────── */}
+      {/* ── Search Modal (modern) ────────────────────────────────────── */}
       <Modal visible={showSearchModal} animationType="slide" onRequestClose={() => setShowSearchModal(false)}>
-        <SafeAreaView className="flex-1 bg-white">
-          <View className="flex-row items-center px-4 py-3 border-b border-gray-100">
-            <TouchableOpacity onPress={() => { setShowSearchModal(false); setSearchQuery(''); }} className="mr-3">
-              <Ionicons name="arrow-back" size={24} color="#374151" />
-            </TouchableOpacity>
-            <View className="flex-1 flex-row items-center bg-gray-100 rounded-xl px-4 py-2.5">
-              <Ionicons name="search" size={18} color="#9CA3AF" />
-              <TextInput
-                className="flex-1 ml-2 text-base text-gray-900"
-                placeholder="Search items by name, SKU, barcode..."
-                placeholderTextColor="#9CA3AF"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={18} color="#9CA3AF" />
-                </TouchableOpacity>
-              )}
+        <SafeAreaView className="flex-1 bg-slate-50">
+          {/* Search header */}
+          <View className="bg-white px-4 pt-3 pb-3" style={{ elevation: 3 }}>
+            <View className="flex-row items-center">
+              <TouchableOpacity onPress={() => { setShowSearchModal(false); setSearchQuery(''); }} className="w-10 h-10 rounded-xl bg-slate-100 items-center justify-center mr-3">
+                <Ionicons name="arrow-back" size={20} color="#374151" />
+              </TouchableOpacity>
+              <View className="flex-1 flex-row items-center bg-slate-100 rounded-2xl px-4 py-3" style={{ borderWidth: 2, borderColor: searchQuery.trim() ? '#3B82F6' : '#F1F5F9' }}>
+                <Ionicons name="search" size={20} color={searchQuery.trim() ? '#3B82F6' : '#94A3B8'} />
+                <TextInput
+                  className="flex-1 ml-2.5 text-base font-semibold text-gray-900"
+                  placeholder="Search products..."
+                  placeholderTextColor="#94A3B8"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoFocus
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')} className="bg-slate-200 w-7 h-7 rounded-full items-center justify-center">
+                    <Ionicons name="close" size={14} color="#64748B" />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
+            {searchQuery.trim() && searchResults.length > 0 && (
+              <Text className="text-xs font-bold text-slate-400 mt-2 ml-14">
+                {searchResults.length} product{searchResults.length !== 1 ? 's' : ''} found
+              </Text>
+            )}
           </View>
 
           <FlatList
             data={searchResults}
             keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={{ paddingBottom: 100 }}
+            contentContainerStyle={{ paddingBottom: 120, paddingTop: 8 }}
             renderItem={({ item }) => renderItemCard(item)}
             ListEmptyComponent={
-              <View className="items-center p-16">
-                <Ionicons name="search" size={48} color="#D1D5DB" />
-                <Text className="text-gray-400 mt-4">
-                  {searchQuery.trim() ? 'No results found' : 'Start typing to search'}
+              <View className="items-center pt-20">
+                <View className="w-20 h-20 rounded-full bg-slate-100 items-center justify-center mb-4">
+                  <Ionicons name={searchQuery.trim() ? "search-outline" : "sparkles-outline"} size={36} color="#CBD5E1" />
+                </View>
+                <Text className="text-slate-400 font-bold text-base">
+                  {searchQuery.trim() ? 'No results found' : 'Search for products'}
+                </Text>
+                <Text className="text-slate-300 text-sm mt-1">
+                  {searchQuery.trim() ? 'Try different keywords' : 'Type a name, SKU, or barcode'}
                 </Text>
               </View>
             }
           />
 
-          {/* Floating cart in search too */}
+          {/* Floating cart in search */}
           {cart.length > 0 && (
             <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-              <SafeAreaView edges={['bottom']}>
-                <TouchableOpacity
-                  onPress={() => { setShowSearchModal(false); setSearchQuery(''); setShowCartModal(true); }}
-                  className="mx-4 mb-2 flex-row items-center justify-between bg-blue-600 rounded-2xl px-5 py-4"
-                  style={{ elevation: 8 }}>
-                  <View className="flex-row items-center">
-                    <Ionicons name="cart" size={18} color="#FFF" />
-                    <Text className="text-white font-bold ml-2">{totalItems} items</Text>
-                  </View>
-                  <Text className="text-white font-extrabold text-lg">${calculateTotal().toFixed(2)}</Text>
-                </TouchableOpacity>
-              </SafeAreaView>
+              <TouchableOpacity
+                onPress={() => { setShowSearchModal(false); setSearchQuery(''); setShowCartModal(true); }}
+                className="mx-3 mb-1 flex-row items-center justify-between rounded-2xl px-4 py-3"
+                style={{ elevation: 12, backgroundColor: '#1D4ED8' }}>
+                <View className="flex-row items-center">
+                  <Ionicons name="cart" size={18} color="#FFF" />
+                  <Text className="text-white font-bold ml-2">{totalItems} items</Text>
+                </View>
+                <Text className="text-white font-black text-lg">${calculateTotal().toFixed(2)}</Text>
+              </TouchableOpacity>
+              <SafeAreaView edges={['bottom']} />
             </View>
           )}
         </SafeAreaView>
       </Modal>
 
-      {/* ── Cart Modal ─────────────────────────────────────────────────── */}
+      {/* ── Cart Modal (modern) ─────────────────────────────────────── */}
       <Modal visible={showCartModal} animationType="slide" onRequestClose={() => setShowCartModal(false)}>
-        <SafeAreaView className="flex-1 bg-gray-50">
+        <SafeAreaView className="flex-1 bg-slate-50">
           {/* Cart Header */}
-          <View className="bg-white flex-row items-center justify-between px-5 py-4 border-b border-gray-100" style={{ elevation: 2 }}>
-            <View className="flex-row items-center">
-              <TouchableOpacity onPress={() => setShowCartModal(false)} className="mr-3">
-                <Ionicons name="arrow-back" size={24} color="#374151" />
-              </TouchableOpacity>
-              <View>
-                <Text className="text-xl font-bold text-gray-900">Cart</Text>
-                <Text className="text-xs text-gray-500">{cart.length} items</Text>
+          <View className="bg-white px-4 py-3" style={{ elevation: 3 }}>
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center">
+                <TouchableOpacity onPress={() => setShowCartModal(false)} className="w-10 h-10 rounded-xl bg-slate-100 items-center justify-center mr-3">
+                  <Ionicons name="arrow-back" size={20} color="#374151" />
+                </TouchableOpacity>
+                <View>
+                  <Text className="text-lg font-black text-gray-900">Your Cart</Text>
+                  <Text className="text-[11px] text-slate-400 font-semibold">{cart.length} item{cart.length !== 1 ? 's' : ''} • {totalItems} units</Text>
+                </View>
               </View>
+              {cart.length > 0 && (
+                <TouchableOpacity onPress={clearCart} className="flex-row items-center bg-red-50 border border-red-100 px-3 py-2 rounded-xl">
+                  <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                  <Text className="text-[11px] font-bold text-red-500 ml-1">Clear</Text>
+                </TouchableOpacity>
+              )}
             </View>
-            {cart.length > 0 && (
-              <TouchableOpacity onPress={clearCart} className="rounded-lg bg-red-50 px-3 py-2">
-                <Text className="text-xs font-semibold text-red-500">Clear All</Text>
-              </TouchableOpacity>
-            )}
           </View>
 
-          {/* Customer Selection */}
-          <View className="bg-white mx-4 mt-3 rounded-2xl p-4" style={{ elevation: 2 }}>
-            <Text className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Customer</Text>
-            <TouchableOpacity
-              onPress={() => setShowCustomerModal(true)}
-              className="flex-row items-center justify-between rounded-xl bg-gray-50 px-4 py-3 border border-gray-200">
-              <View className="flex-1 flex-row items-center">
-                <View className="w-9 h-9 rounded-full bg-blue-100 items-center justify-center mr-3">
-                  <Ionicons name="person" size={18} color="#2563EB" />
-                </View>
-                <View>
-                  <Text className="font-semibold text-gray-900">
-                    {selectedCustomer ? selectedCustomer.name : 'Walk-in Customer'}
-                  </Text>
-                  {selectedCustomer?.phone && (
-                    <Text className="text-xs text-gray-500">{selectedCustomer.phone}</Text>
-                  )}
-                </View>
+          {/* Customer Selection (compact) */}
+          <TouchableOpacity
+            onPress={() => setShowCustomerModal(true)}
+            className="bg-white mx-3 mt-2 rounded-2xl px-4 py-3 flex-row items-center justify-between" style={{ elevation: 2 }}>
+            <View className="flex-row items-center">
+              <View className={`w-9 h-9 rounded-xl items-center justify-center mr-3 ${selectedCustomer ? 'bg-emerald-100' : 'bg-blue-100'}`}>
+                <Ionicons name="person" size={16} color={selectedCustomer ? '#10B981' : '#2563EB'} />
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-            </TouchableOpacity>
-            {selectedCustomer && (
-              <TouchableOpacity onPress={() => setSelectedCustomer(null)} className="mt-2">
-                <Text className="text-xs font-medium text-red-500">✕ Clear Customer</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+              <View>
+                <Text className="text-[9px] font-bold text-slate-400 uppercase">Customer</Text>
+                <Text className="font-bold text-slate-900 text-sm">
+                  {selectedCustomer ? selectedCustomer.name : 'Walk-in Customer'}
+                </Text>
+              </View>
+            </View>
+            <View className="flex-row items-center">
+              {selectedCustomer && (
+                <TouchableOpacity onPress={() => setSelectedCustomer(null)} className="mr-2 bg-red-50 w-7 h-7 rounded-full items-center justify-center">
+                  <Ionicons name="close" size={12} color="#EF4444" />
+                </TouchableOpacity>
+              )}
+              <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+            </View>
+          </TouchableOpacity>
 
           {/* Cart Items */}
           {cart.length === 0 ? (
             <View className="flex-1 items-center justify-center p-8">
-              <Ionicons name="cart-outline" size={64} color="#D1D5DB" />
-              <Text className="text-lg text-gray-400 mt-4">Cart is empty</Text>
+              <View className="w-24 h-24 rounded-full bg-slate-100 items-center justify-center mb-4">
+                <Ionicons name="cart-outline" size={48} color="#CBD5E1" />
+              </View>
+              <Text className="text-lg font-bold text-slate-400">Cart is empty</Text>
+              <Text className="text-sm text-slate-300 mt-1">Add products to get started</Text>
             </View>
           ) : (
             <FlatList
               data={cart}
               keyExtractor={(item) => item.product.id.toString()}
-              contentContainerStyle={{ padding: 16, paddingBottom: 16 }}
+              contentContainerStyle={{ padding: 12, paddingBottom: 16 }}
               renderItem={({ item }) => (
-                <View className="bg-white rounded-2xl p-4 mb-3" style={{ elevation: 2 }}>
-                  <View className="flex-row items-start justify-between mb-2">
-                    <View className="flex-1 mr-2">
-                      <Text className="font-bold text-gray-900">{item.product.name}</Text>
-                      <Text className="text-xs text-gray-500 mt-0.5">@ ${item.unit_price.toFixed(2)}</Text>
+                <View className="bg-white rounded-2xl mb-2 overflow-hidden" style={{ elevation: 2 }}>
+                  {/* Item header row */}
+                  <View className="flex-row items-center px-4 pt-3 pb-2">
+                    <View className="w-10 h-10 rounded-xl bg-blue-50 items-center justify-center mr-3">
+                      <Ionicons name="cube-outline" size={18} color="#3B82F6" />
                     </View>
-                    <TouchableOpacity onPress={() => removeFromCart(item.product.id)}>
-                      <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                    </TouchableOpacity>
+                    <View className="flex-1">
+                      <Text className="font-bold text-slate-900 text-sm" numberOfLines={1}>{item.product.name}</Text>
+                      <Text className="text-[11px] text-slate-400 font-semibold">@ ${item.unit_price.toFixed(2)} each</Text>
+                    </View>
+                    <Text className="text-lg font-black text-slate-900">${item.total.toFixed(2)}</Text>
                   </View>
-
-                  <View className="flex-row items-center justify-between">
-                    {/* Qty stepper */}
+                  {/* Actions row */}
+                  <View className="flex-row items-center justify-between px-4 pb-3 pt-1">
                     <View className="flex-row items-center">
                       <TouchableOpacity
                         onPress={() => setCartQty(item.product, item.quantity - 1)}
-                        className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
-                        <Ionicons name="remove" size={18} color="#374151" />
+                        className="w-8 h-8 rounded-lg bg-slate-100 items-center justify-center">
+                        <Ionicons name="remove" size={16} color="#64748B" />
                       </TouchableOpacity>
                       <TextInput
-                        className="w-16 text-center text-base font-bold text-gray-900 mx-1 border border-gray-200 rounded-lg py-1"
+                        className="w-12 text-center text-sm font-black text-slate-900 mx-1"
                         value={item.quantity.toString()}
                         onChangeText={(t) => {
                           const val = parseDecimal(t);
@@ -932,25 +1113,30 @@ export default function POSScreenNew({ navigation }: any) {
                       />
                       <TouchableOpacity
                         onPress={() => setCartQty(item.product, item.quantity + 1)}
-                        className="w-9 h-9 rounded-full bg-blue-600 items-center justify-center">
-                        <Ionicons name="add" size={18} color="#FFF" />
+                        className="w-8 h-8 rounded-lg bg-blue-600 items-center justify-center">
+                        <Ionicons name="add" size={16} color="#FFF" />
                       </TouchableOpacity>
                     </View>
-
-                    {/* Discount + Total */}
-                    <View className="items-end">
-                      <View className="flex-row items-center mb-1">
-                        <Text className="text-xs text-gray-500 mr-1">Disc:</Text>
+                    <View className="flex-row items-center gap-2">
+                      <TouchableOpacity 
+                        onPress={() => openItemEditModal(item)}
+                        className="bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-100">
+                        <Text className="text-[9px] font-black text-indigo-600">EDIT</Text>
+                      </TouchableOpacity>
+                      <View className="flex-row items-center bg-slate-50 rounded-lg px-2 py-1">
+                        <Text className="text-[10px] text-slate-400 mr-0.5">Disc</Text>
                         <TextInput
-                          className="w-14 text-center text-xs border border-gray-200 rounded px-1 py-0.5"
+                          className="w-8 text-center text-[10px] font-bold text-slate-700"
                           value={item.discount_percent.toString()}
                           onChangeText={(t) => updateCartDiscount(item.product.id, parseDecimal(t))}
                           keyboardType="decimal-pad"
                           selectTextOnFocus
                         />
-                        <Text className="text-xs text-gray-500 ml-0.5">%</Text>
+                        <Text className="text-[10px] text-slate-400">%</Text>
                       </View>
-                      <Text className="text-base font-extrabold text-gray-900">${item.total.toFixed(2)}</Text>
+                      <TouchableOpacity onPress={() => removeFromCart(item.product.id)} className="w-8 h-8 rounded-lg bg-red-50 items-center justify-center">
+                        <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                      </TouchableOpacity>
                     </View>
                   </View>
                 </View>
@@ -958,42 +1144,42 @@ export default function POSScreenNew({ navigation }: any) {
             />
           )}
 
-          {/* Cart Footer */}
+          {/* Cart Footer / Checkout */}
           {cart.length > 0 && (
-            <View className="bg-white border-t border-gray-100 px-5 py-4" style={{ elevation: 4 }}>
+            <View className="bg-white border-t border-slate-100 px-4 pt-3 pb-2" style={{ elevation: 8 }}>
               {/* Total */}
-              <View className="flex-row items-center justify-between mb-3">
-                <Text className="text-base font-bold text-gray-700">Total</Text>
-                <Text className="text-2xl font-extrabold text-gray-900">${calculateTotal().toFixed(2)}</Text>
+              <View className="flex-row items-center justify-between mb-2">
+                <Text className="text-sm font-bold text-slate-500">Total</Text>
+                <Text className="text-2xl font-black text-slate-900">${calculateTotal().toFixed(2)}</Text>
               </View>
 
               {/* Payment toggle */}
-              <View className="flex-row rounded-xl bg-gray-100 p-1 mb-3">
+              <View className="flex-row rounded-xl bg-slate-100 p-1 mb-2">
                 <TouchableOpacity
                   onPress={() => setPaymentType('paid')}
-                  className={`flex-1 items-center rounded-lg py-2.5 ${paymentType === 'paid' ? 'bg-white' : ''}`}
-                  style={paymentType === 'paid' ? { elevation: 1 } : {}}>
-                  <Text className={`text-sm font-semibold ${paymentType === 'paid' ? 'text-green-600' : 'text-gray-500'}`}>
-                    Fully Paid
+                  className={`flex-1 items-center rounded-lg py-2 ${paymentType === 'paid' ? 'bg-white' : ''}`}
+                  style={paymentType === 'paid' ? { elevation: 2 } : {}}>
+                  <Text className={`text-xs font-black ${paymentType === 'paid' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    ✓ Fully Paid
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setPaymentType('partial')}
-                  className={`flex-1 items-center rounded-lg py-2.5 ${paymentType === 'partial' ? 'bg-white' : ''}`}
-                  style={paymentType === 'partial' ? { elevation: 1 } : {}}>
-                  <Text className={`text-sm font-semibold ${paymentType === 'partial' ? 'text-orange-600' : 'text-gray-500'}`}>
-                    Partial
+                  className={`flex-1 items-center rounded-lg py-2 ${paymentType === 'partial' ? 'bg-white' : ''}`}
+                  style={paymentType === 'partial' ? { elevation: 2 } : {}}>
+                  <Text className={`text-xs font-black ${paymentType === 'partial' ? 'text-orange-500' : 'text-slate-400'}`}>
+                    ◐ Partial
                   </Text>
                 </TouchableOpacity>
               </View>
 
               {paymentType === 'partial' && (
-                <View className="flex-row items-center rounded-xl border border-gray-200 bg-white px-4 py-3 mb-3">
-                  <Text className="mr-2 text-sm text-gray-500">$</Text>
+                <View className="flex-row items-center rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 mb-2">
+                  <Text className="mr-2 text-base font-black text-slate-300">$</Text>
                   <TextInput
-                    className="flex-1 text-base font-semibold text-gray-900"
+                    className="flex-1 text-base font-bold text-slate-900"
                     placeholder="Amount paid..."
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="#CBD5E1"
                     value={partialAmount}
                     onChangeText={setPartialAmount}
                     keyboardType="decimal-pad"
@@ -1005,43 +1191,53 @@ export default function POSScreenNew({ navigation }: any) {
               <TouchableOpacity
                 onPress={handleCheckout}
                 disabled={isLoading}
-                className={`rounded-2xl py-4 ${isLoading ? 'bg-gray-300' : 'bg-blue-600'}`}
-                style={!isLoading ? { elevation: 6, shadowColor: '#2563EB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8 } : {}}
+                className={`rounded-2xl py-4 ${isLoading ? 'bg-slate-200' : ''}`}
+                style={!isLoading ? { elevation: 8, backgroundColor: '#1D4ED8', shadowColor: '#1D4ED8', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12 } : {}}
                 activeOpacity={0.85}>
                 {isLoading ? (
-                  <ActivityIndicator color="white" />
+                  <ActivityIndicator color="#94A3B8" />
                 ) : (
                   <View className="flex-row items-center justify-center">
                     <Ionicons name="checkmark-circle" size={22} color="#FFF" />
-                    <Text className="ml-2 text-white font-bold text-base">Complete Sale</Text>
+                    <Text className="ml-2 text-white font-black text-base">Complete Sale</Text>
                   </View>
                 )}
               </TouchableOpacity>
+              <SafeAreaView edges={['bottom']} />
             </View>
           )}
         </SafeAreaView>
       </Modal>
-
-      {/* ── Customer Modal ─────────────────────────────────────────────── */}
+      {/* ── Customer Modal (modern bottom sheet) ────────────────── */}
       <Modal visible={showCustomerModal} animationType="slide" transparent onRequestClose={() => setShowCustomerModal(false)}>
-        <View className="flex-1 justify-end bg-black/40">
+        <View className="flex-1 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <TouchableOpacity className="flex-1" activeOpacity={1} onPress={() => setShowCustomerModal(false)} />
-          <View className="rounded-t-3xl bg-white" style={{ maxHeight: height * 0.7 }}>
+          <View className="rounded-t-[28px] bg-white" style={{ maxHeight: height * 0.75 }}>
             <SafeAreaView>
-              <View className="flex-row items-center justify-between border-b border-gray-100 p-5">
-                <Text className="text-xl font-bold text-gray-900">Select Customer</Text>
-                <TouchableOpacity onPress={() => { setShowCustomerModal(false); setCustomerSearchQuery(''); }} className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center">
-                  <Ionicons name="close" size={24} color="#6B7280" />
+              {/* Drag handle */}
+              <View className="items-center pt-3 pb-1">
+                <View className="w-10 h-1 bg-slate-200 rounded-full" />
+              </View>
+
+              {/* Title row */}
+              <View className="flex-row items-center justify-between px-5 pb-3">
+                <View>
+                  <Text className="text-lg font-black text-slate-900">Select Customer</Text>
+                  <Text className="text-[11px] text-slate-400 font-semibold">{customers.length} customers available</Text>
+                </View>
+                <TouchableOpacity onPress={() => { setShowCustomerModal(false); setCustomerSearchQuery(''); }} className="w-9 h-9 rounded-xl bg-slate-100 items-center justify-center">
+                  <Ionicons name="close" size={18} color="#64748B" />
                 </TouchableOpacity>
               </View>
 
-              <View className="px-5 py-3 border-b border-gray-100">
-                <View className="flex-row items-center rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5">
-                  <Ionicons name="search" size={18} color="#9CA3AF" />
+              {/* Search */}
+              <View className="px-5 pb-3">
+                <View className="flex-row items-center rounded-2xl bg-slate-100 px-4 py-3" style={{ borderWidth: 2, borderColor: customerSearchQuery.trim() ? '#3B82F6' : '#F1F5F9' }}>
+                  <Ionicons name="search" size={18} color={customerSearchQuery.trim() ? '#3B82F6' : '#94A3B8'} />
                   <TextInput
-                    className="flex-1 ml-2 text-base text-gray-900"
+                    className="flex-1 ml-2.5 text-sm font-semibold text-gray-900"
                     placeholder="Search by name or phone..."
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="#94A3B8"
                     value={customerSearchQuery}
                     onChangeText={handleCustomerSearch}
                   />
@@ -1049,43 +1245,44 @@ export default function POSScreenNew({ navigation }: any) {
                 </View>
               </View>
 
-              <ScrollView className="p-4" showsVerticalScrollIndicator={false}>
+              <ScrollView className="px-4 pb-4" showsVerticalScrollIndicator={false}>
                 {/* Walk-in */}
                 <TouchableOpacity
                   onPress={() => { setSelectedCustomer(null); setShowCustomerModal(false); setCustomerSearchQuery(''); }}
-                  className={`mb-3 rounded-2xl p-4 ${!selectedCustomer ? 'border-2 border-green-400 bg-green-50' : 'border border-gray-200 bg-white'}`}>
-                  <View className="flex-row items-center">
-                    <View className="mr-3 w-10 h-10 rounded-full bg-gray-200 items-center justify-center">
-                      <Ionicons name="person-outline" size={20} color="#6B7280" />
-                    </View>
-                    <Text className="text-base font-bold text-gray-900 flex-1">Walk-in Customer</Text>
-                    {!selectedCustomer && <Ionicons name="checkmark-circle" size={22} color="#10B981" />}
+                  className={`mb-2 rounded-2xl p-3 flex-row items-center ${!selectedCustomer ? 'bg-emerald-50 border border-emerald-200' : 'bg-white border border-slate-100'}`}
+                  style={{ elevation: !selectedCustomer ? 0 : 1 }}>
+                  <View className={`mr-3 w-10 h-10 rounded-xl items-center justify-center ${!selectedCustomer ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+                    <Ionicons name="walk-outline" size={18} color={!selectedCustomer ? '#10B981' : '#64748B'} />
                   </View>
+                  <Text className={`text-sm font-bold flex-1 ${!selectedCustomer ? 'text-emerald-700' : 'text-slate-700'}`}>Walk-in Customer</Text>
+                  {!selectedCustomer && <Ionicons name="checkmark-circle" size={20} color="#10B981" />}
                 </TouchableOpacity>
 
                 {displayedCustomers.map((customer) => (
                   <TouchableOpacity
                     key={customer.id}
                     onPress={() => { setSelectedCustomer(customer); setShowCustomerModal(false); }}
-                    className="mb-3 rounded-2xl border border-gray-200 bg-white p-4"
+                    className={`mb-2 rounded-2xl p-3 flex-row items-center ${selectedCustomer?.id === customer.id ? 'bg-blue-50 border border-blue-200' : 'bg-white border border-slate-100'}`}
                     style={{ elevation: 1 }}>
-                    <View className="flex-row items-center">
-                      <View className="mr-3 w-10 h-10 rounded-full bg-blue-100 items-center justify-center">
-                        <Text className="text-base font-bold text-blue-600">{customer.name.charAt(0)}</Text>
-                      </View>
-                      <View className="flex-1">
-                        <Text className="text-base font-bold text-gray-900">{customer.name}</Text>
-                        {customer.phone && <Text className="text-xs text-gray-500 mt-0.5">{customer.phone}</Text>}
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                    <View className={`mr-3 w-10 h-10 rounded-xl items-center justify-center ${selectedCustomer?.id === customer.id ? 'bg-blue-100' : 'bg-indigo-50'}`}>
+                      <Text className={`text-sm font-black ${selectedCustomer?.id === customer.id ? 'text-blue-600' : 'text-indigo-500'}`}>
+                        {customer.name.charAt(0).toUpperCase()}
+                      </Text>
                     </View>
+                    <View className="flex-1">
+                      <Text className="text-sm font-bold text-slate-900">{customer.name}</Text>
+                      {customer.phone && <Text className="text-[11px] text-slate-400 mt-0.5">{customer.phone}</Text>}
+                    </View>
+                    {selectedCustomer?.id === customer.id && <Ionicons name="checkmark-circle" size={20} color="#3B82F6" />}
                   </TouchableOpacity>
                 ))}
 
                 {displayedCustomers.length === 0 && (
-                  <View className="items-center p-8">
-                    <Ionicons name="people-outline" size={48} color="#D1D5DB" />
-                    <Text className="text-gray-400 mt-3">No customers found</Text>
+                  <View className="items-center py-10">
+                    <View className="w-16 h-16 rounded-full bg-slate-100 items-center justify-center mb-3">
+                      <Ionicons name="people-outline" size={32} color="#CBD5E1" />
+                    </View>
+                    <Text className="text-slate-400 font-bold">No customers found</Text>
                   </View>
                 )}
               </ScrollView>
@@ -1096,11 +1293,13 @@ export default function POSScreenNew({ navigation }: any) {
 
       {/* ── Printing Overlay ───────────────────────────────────────────── */}
       {isPrinting && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <View className="bg-white rounded-3xl p-8 items-center" style={{ minWidth: 200 }}>
-            <ActivityIndicator size="large" color="#3B82F6" />
-            <Text className="text-gray-900 font-bold text-lg mt-4">Printing...</Text>
-            <Text className="text-gray-500 text-sm mt-1">Please wait</Text>
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.7)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <View className="bg-white rounded-3xl p-10 items-center" style={{ minWidth: 220, elevation: 20 }}>
+            <View className="w-16 h-16 rounded-full bg-blue-50 items-center justify-center mb-4">
+              <ActivityIndicator size="large" color="#1D4ED8" />
+            </View>
+            <Text className="text-slate-900 font-black text-lg">Printing Receipt</Text>
+            <Text className="text-slate-400 text-sm mt-1 font-medium">Please wait...</Text>
           </View>
         </View>
       )}
