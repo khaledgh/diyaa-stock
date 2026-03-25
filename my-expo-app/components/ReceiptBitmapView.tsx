@@ -36,8 +36,8 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
   const paperSize = template?.layout?.paper_size || 'thermal_80'; // Default to 80mm for bigger look
   const width = paperSize === 'thermal' ? 384 : 576; // 384 for 58mm, 576 for 80mm
   
-  const separator = '─'.repeat(paperSize === 'thermal_80' ? 48 : 32);
-  const doubleSeparator = '═'.repeat(paperSize === 'thermal_80' ? 48 : 32);
+  const separator = '─'.repeat(paperSize === 'thermal_80' ? 48 : 36);
+  const doubleSeparator = '═'.repeat(paperSize === 'thermal_80' ? 48 : 36);
 
   const remaining = data.total - data.paidAmount;
 
@@ -56,7 +56,7 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
       style={{
         width: width,
         backgroundColor: '#FFFFFF',
-        padding: 2, // Even less padding to use full width
+        padding: 0,
         margin: 0,
       }}
     >
@@ -67,11 +67,11 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
           style={{ width: width * 0.8, height: 120, resizeMode: 'contain' }} 
         />
       </View>
-      {/* Store Name */}
-      {showField('company_name') && (
+      {/* Store Name - skip DaftarStock default */}
+      {showField('company_name') && data.storeName && data.storeName !== 'DaftarStock' && (
         <Text
           style={{
-            fontSize: 36,
+            fontSize: 38,
             fontWeight: '900',
             textAlign: headerStyle,
             color: primaryColor,
@@ -79,21 +79,21 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
             marginTop: 4,
           }}
         >
-          {data.storeName || 'DaftarStock'}
+          {data.storeName}
         </Text>
       )}
 
       {/* Document Title */}
       <Text
         style={{
-          fontSize: 28,
+          fontSize: 32,
           fontWeight: 'bold',
           textAlign: headerStyle,
           color: '#000',
           marginBottom: 4,
           writingDirection: 'rtl',
         }}
->
+      >
         {template?.custom_texts?.title || 'إيصال'}
       </Text>
 
@@ -104,19 +104,19 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
 
       {/* Invoice info */}
       {data.invoiceNumber && showField('invoice_number') && (
-        <Text style={{ fontSize: 20, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 4, fontWeight: '600' }}>
+        <Text style={{ fontSize: 24, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 4, fontWeight: '600' }}>
           رقم الفاتورة: {data.invoiceNumber}
         </Text>
       )}
 
       {data.date && showField('invoice_date') && (
-        <Text style={{ fontSize: 18, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 6 }}>
+        <Text style={{ fontSize: 22, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 6 }}>
           التاريخ: {data.date}
         </Text>
       )}
 
       {data.customerName && showField('customer_details') && (
-        <Text style={{ fontSize: 18, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 6, fontWeight: '600' }}>
+        <Text style={{ fontSize: 24, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 6, fontWeight: '700' }}>
           العميل: {data.customerName}
         </Text>
       )}
@@ -128,7 +128,7 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
       )}
 
       {data.locationName && (
-        <Text style={{ fontSize: 20, color: '#444', textAlign: 'right', writingDirection: 'rtl', marginTop: 2 }}>
+        <Text style={{ fontSize: 22, color: '#444', textAlign: 'right', writingDirection: 'rtl', marginTop: 2 }}>
           الموقع: {data.locationName}
         </Text>
       )}
@@ -141,19 +141,19 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
       {/* Items Table */}
       {showField('items_table') && (
         <>
-          <View style={{ flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: '#000', paddingVertical: 4 }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#000', width: '25%', textAlign: 'left' }}>المجموع</Text>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#000', width: '15%', textAlign: 'center' }}>الكمية</Text>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#000', width: '20%', textAlign: 'center' }}>السعر</Text>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl' }}>الصنف</Text>
+          <View style={{ flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: '#000', paddingVertical: 4, paddingHorizontal: 2 }}>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#000', width: '25%', textAlign: 'left' }}>المجموع</Text>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#000', width: '15%', textAlign: 'center' }}>الكمية</Text>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#000', width: '20%', textAlign: 'center' }}>السعر</Text>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl' }}>الصنف</Text>
           </View>
 
           {data.items.map((item, index) => (
-            <View key={index} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#DDD' }}>
-              <Text style={{ fontSize: 20, color: '#000', width: '25%', textAlign: 'left', fontWeight: 'bold' }}>{item.total.toFixed(2)}</Text>
-              <Text style={{ fontSize: 20, color: '#000', width: '15%', textAlign: 'center' }}>{item.quantity}</Text>
-              <Text style={{ fontSize: 20, color: '#000', width: '20%', textAlign: 'center' }}>{item.unitPrice.toFixed(2)}</Text>
-              <Text style={{ fontSize: 22, color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl', fontWeight: '900' }}>{item.name}</Text>
+            <View key={index} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: '#DDD' }}>
+              <Text style={{ fontSize: 22, color: '#000', width: '25%', textAlign: 'left', fontWeight: 'bold' }}>{item.total.toFixed(2)}</Text>
+              <Text style={{ fontSize: 22, color: '#000', width: '15%', textAlign: 'center' }}>{item.quantity}</Text>
+              <Text style={{ fontSize: 22, color: '#000', width: '20%', textAlign: 'center' }}>{item.unitPrice.toFixed(2)}</Text>
+              <Text style={{ fontSize: 24, color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl', fontWeight: '900' }}>{item.name}</Text>
             </View>
           ))}
         </>
@@ -165,25 +165,25 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
       </Text>
 
       {/* Totals */}
-      <View style={{ marginTop: 8 }}>
+      <View style={{ marginTop: 8, paddingHorizontal: 2 }}>
         {showField('subtotal') && (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 20, color: '#000', fontWeight: '700' }}>{data.subtotal.toFixed(2)}</Text>
-            <Text style={{ fontSize: 20, color: '#000', writingDirection: 'rtl', fontWeight: '600' }}>المجموع الفرعي</Text>
+            <Text style={{ fontSize: 24, color: '#000', fontWeight: '700' }}>{data.subtotal.toFixed(2)}</Text>
+            <Text style={{ fontSize: 24, color: '#000', writingDirection: 'rtl', fontWeight: '600' }}>المجموع الفرعي</Text>
           </View>
         )}
 
         {data.discount > 0 && showField('discount') && (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-            <Text style={{ fontSize: 20, color: '#000', fontWeight: '600' }}>-{data.discount.toFixed(2)}</Text>
-            <Text style={{ fontSize: 20, color: '#000', writingDirection: 'rtl' }}>الخصم</Text>
+            <Text style={{ fontSize: 24, color: '#000', fontWeight: '600' }}>-{data.discount.toFixed(2)}</Text>
+            <Text style={{ fontSize: 24, color: '#000', writingDirection: 'rtl' }}>الخصم</Text>
           </View>
         )}
 
         {data.tax > 0 && showField('tax') && (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-            <Text style={{ fontSize: 20, color: '#000', fontWeight: '600' }}>{data.tax.toFixed(2)}</Text>
-            <Text style={{ fontSize: 20, color: '#000', writingDirection: 'rtl' }}>الضريبة</Text>
+            <Text style={{ fontSize: 24, color: '#000', fontWeight: '600' }}>{data.tax.toFixed(2)}</Text>
+            <Text style={{ fontSize: 24, color: '#000', writingDirection: 'rtl' }}>الضريبة</Text>
           </View>
         )}
       </View>
@@ -197,7 +197,7 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
       {showField('total_amount') && (
         <Text
           style={{
-            fontSize: 32,
+            fontSize: 36,
             fontWeight: '900',
             textAlign: 'center',
             color: primaryColor,
@@ -215,22 +215,22 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
       </Text>
 
       {/* Payment info */}
-      {showField('notes') && ( // Reusing notes for generic info or payment
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-          <Text style={{ fontSize: 22, color: '#000', fontWeight: '700' }}>{data.paidAmount.toFixed(2)}</Text>
-          <Text style={{ fontSize: 22, color: '#000', writingDirection: 'rtl', fontWeight: '600' }}>المدفوع</Text>
+      {showField('notes') && (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 2 }}>
+          <Text style={{ fontSize: 26, color: '#000', fontWeight: '700' }}>{data.paidAmount.toFixed(2)}</Text>
+          <Text style={{ fontSize: 26, color: '#000', writingDirection: 'rtl', fontWeight: '600' }}>المدفوع</Text>
         </View>
       )}
 
       {remaining > 0.01 ? (
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-          <Text style={{ fontSize: 22, fontWeight: '900', color: '#000' }}>{remaining.toFixed(2)}</Text>
-          <Text style={{ fontSize: 22, fontWeight: '900', color: '#000', writingDirection: 'rtl' }}>المتبقي</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 2 }}>
+          <Text style={{ fontSize: 26, fontWeight: '900', color: '#000' }}>{remaining.toFixed(2)}</Text>
+          <Text style={{ fontSize: 26, fontWeight: '900', color: '#000', writingDirection: 'rtl' }}>المتبقي</Text>
         </View>
       ) : (
         <Text
           style={{
-            fontSize: 22,
+            fontSize: 26,
             textAlign: 'center',
             color: '#000',
             marginTop: 6,
@@ -247,10 +247,42 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
         {separator}
       </Text>
 
+      {/* Customer Balance Summary */}
+      {data.customerName && (data.customerBalance !== undefined && data.customerBalance !== null) && (
+        <>
+          <Text style={{ fontSize: 24, fontWeight: '900', textAlign: 'center', color: '#000', marginTop: 8, writingDirection: 'rtl' }}>
+            كشف حساب العميل
+          </Text>
+          <View style={{ marginTop: 6, paddingHorizontal: 2 }}>
+            {data.customerTotalOwed !== undefined && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                <Text style={{ fontSize: 22, color: '#000', fontWeight: '700' }}>{data.customerTotalOwed.toFixed(2)}</Text>
+                <Text style={{ fontSize: 22, color: '#000', writingDirection: 'rtl', fontWeight: '600' }}>إجمالي المبيعات</Text>
+              </View>
+            )}
+            {data.customerTotalPaid !== undefined && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                <Text style={{ fontSize: 22, color: '#000', fontWeight: '700' }}>{data.customerTotalPaid.toFixed(2)}</Text>
+                <Text style={{ fontSize: 22, color: '#000', writingDirection: 'rtl', fontWeight: '600' }}>إجمالي المدفوعات</Text>
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+              <Text style={{ fontSize: 28, color: '#000', fontWeight: '900' }}>{data.customerBalance.toFixed(2)}</Text>
+              <Text style={{ fontSize: 28, color: '#000', writingDirection: 'rtl', fontWeight: '900' }}>الرصيد المتبقي</Text>
+            </View>
+          </View>
+        </>
+      )}
+
+      {/* Separator */}
+      <Text style={{ fontSize: 16, textAlign: 'center', color: '#000', fontFamily: 'monospace', marginTop: 10 }}>
+        {separator}
+      </Text>
+
       {/* Footer */}
       <Text
         style={{
-          fontSize: 24,
+          fontSize: 26,
           textAlign: 'center',
           color: '#000',
           marginTop: 12,

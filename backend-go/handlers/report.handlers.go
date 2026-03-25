@@ -444,6 +444,17 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 	return ResponseOK(c, dashboard, "data")
 }
 
+// StatementTransaction is a typed struct for statement transactions to avoid map type assertion issues
+type StatementTransaction struct {
+	Type        string    `json:"type" gorm:"column:type"`
+	ID          uint      `json:"id" gorm:"column:id"`
+	Reference   string    `json:"reference" gorm:"column:reference"`
+	Date        time.Time `json:"date" gorm:"column:date"`
+	Debit       float64   `json:"debit" gorm:"column:debit"`
+	Credit      float64   `json:"credit" gorm:"column:credit"`
+	Description string    `json:"description" gorm:"column:description"`
+}
+
 // CustomerStatementHandler generates a running balance statement for a customer
 func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 	customerID := c.Param("id")
@@ -459,24 +470,25 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 
 	// Get customer details
 	var customer struct {
-		ID      uint   `json:"id"`
-		Name    string `json:"name"`
-		Phone   string `json:"phone"`
-		Address string `json:"address"`
+		ID      uint    `json:"id"`
+		Name    string  `json:"name"`
+		Phone   string  `json:"phone"`
+		Address string  `json:"address"`
+		Balance float64 `json:"balance"`
 	}
 	if err := rh.db.Table("customers").Where("id = ?", customerID).First(&customer).Error; err != nil {
 		return ResponseError(c, err)
 	}
 
-	// Get all transactions (invoices and payments) for the customer
-	var transactions []map[string]interface{}
+	// Get all transactions using typed structs
+	var transactions []StatementTransaction
 
 	// Get invoices
 	invoiceQuery := `
 		SELECT 
 			'invoice' as type,
 			id,
-			invoice_number as reference,
+			COALESCE(invoice_number, '') as reference,
 			created_at as date,
 			total_amount as debit,
 			0 as credit,
@@ -485,7 +497,7 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 		WHERE customer_id = ? AND deleted_at IS NULL
 		AND DATE(created_at) BETWEEN ? AND ?
 	`
-	var invoices []map[string]interface{}
+	var invoices []StatementTransaction
 	rh.db.Raw(invoiceQuery, customerID, fromDate, toDate).Scan(&invoices)
 	transactions = append(transactions, invoices...)
 
@@ -505,7 +517,7 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 		AND p.invoice_type = 'sales'
 		AND DATE(p.created_at) BETWEEN ? AND ?
 	`
-	var payments []map[string]interface{}
+	var payments []StatementTransaction
 	rh.db.Raw(paymentQuery, customerID, fromDate, toDate).Scan(&payments)
 	transactions = append(transactions, payments...)
 
@@ -514,7 +526,7 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 		SELECT 
 			'credit_note' as type,
 			id,
-			credit_note_number as reference,
+			COALESCE(credit_note_number, '') as reference,
 			credit_note_date as date,
 			0 as debit,
 			total_amount as credit,
@@ -525,7 +537,7 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 		AND status = 'approved'
 		AND DATE(credit_note_date) BETWEEN ? AND ?
 	`
-	var creditNotes []map[string]interface{}
+	var creditNotes []StatementTransaction
 	rh.db.Raw(creditNoteQuery, customerID, fromDate, toDate).Scan(&creditNotes)
 	transactions = append(transactions, creditNotes...)
 
@@ -541,15 +553,11 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 		) as opening_balance
 	`, customerID, fromDate, customerID, fromDate, customerID, fromDate).Scan(&openingBalance)
 
-	// Calculate totals
+	// Calculate totals from typed structs (no more type assertion issues)
 	var totalDebit, totalCredit float64
 	for _, t := range transactions {
-		if debit, ok := t["debit"].(float64); ok {
-			totalDebit += debit
-		}
-		if credit, ok := t["credit"].(float64); ok {
-			totalCredit += credit
-		}
+		totalDebit += t.Debit
+		totalCredit += t.Credit
 	}
 	closingBalance := openingBalance + totalDebit - totalCredit
 
@@ -656,17 +664,6 @@ func (rh *ReportHandler) VendorStatementHandler(c echo.Context) error {
 			 WHERE (cn.vendor_id = ? OR pi.vendor_id = ?) AND cn.type = 'purchase' AND cn.status = 'approved' AND cn.deleted_at IS NULL AND DATE(cn.created_at) < ?), 0
 		) as opening_balance
 	`, vendorID, fromDate, vendorID, fromDate, vendorID, vendorID, fromDate).Scan(&openingBalance)
-
-	// Use a struct to ensure GORM handles type conversions correctly
-	type StatementTransaction struct {
-		Type        string    `json:"type"`
-		ID          uint      `json:"id"`
-		Reference   string    `json:"reference"`
-		Date        time.Time `json:"date"`
-		Debit       float64   `json:"debit"`
-		Credit      float64   `json:"credit"`
-		Description string    `json:"description"`
-	}
 
 	var allTransactions []StatementTransaction
 

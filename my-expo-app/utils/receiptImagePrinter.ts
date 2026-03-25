@@ -27,6 +27,9 @@ export interface PrintableReceiptData {
   cashierName?: string;
   storeName?: string;
   locationName?: string;
+  customerTotalOwed?: number;
+  customerTotalPaid?: number;
+  customerBalance?: number;
 }
 
 /**

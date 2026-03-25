@@ -144,6 +144,11 @@ class ApiService {
     return response.data;
   }
 
+  async getCustomerById(id: number) {
+    const response = await this.api.get(`/customers/${id}`);
+    return response.data;
+  }
+
   async getVendors() {
     const response = await this.api.get('/vendors');
     return response.data;

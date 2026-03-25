@@ -21,7 +21,7 @@ import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
 import { StockItem, Customer, CartItem, Category } from '../types';
 import { usePrinter } from '../../hooks/usePrinter';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// AsyncStorage removed - not currently used
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const ALL_CATEGORY = '__ALL__';
@@ -395,6 +395,15 @@ export default function POSScreenNew({ navigation }: any) {
                     onPress: async () => {
                       try {
                         setIsPrinting(true);
+                        // Fetch customer balance for receipt
+                        let customerBalance: number | undefined;
+                        if (selectedCustomer?.id) {
+                          try {
+                            const custResp = await apiService.getCustomerById(selectedCustomer.id);
+                            const cust = custResp.data || custResp;
+                            customerBalance = parseFloat(cust.balance) || 0;
+                          } catch { /* silently continue without balance */ }
+                        }
                         await printReceiptData({
                           invoiceNumber: invoice.invoice_number,
                           customerName: selectedCustomer?.name,
@@ -411,8 +420,8 @@ export default function POSScreenNew({ navigation }: any) {
                           paidAmount,
                           date: new Date().toLocaleString(),
                           cashierName: user?.full_name,
-                          storeName: 'DaftarStock', // Explicit store name
-                          locationName: user?.location_name, // Pass location separately
+                          locationName: user?.location_name,
+                          customerBalance,
                         });
                       } catch (err: any) {
                         Alert.alert('Print Error', err?.message || 'Failed to print');
@@ -787,6 +796,15 @@ export default function POSScreenNew({ navigation }: any) {
               </View>
             </TouchableOpacity>
           </View>
+
+          {/* Inline Search Input */}
+          <TouchableOpacity
+            onPress={() => setShowSearchModal(true)}
+            className="flex-row items-center bg-slate-100 rounded-xl px-3 py-2.5 mb-1"
+            activeOpacity={0.7}>
+            <Ionicons name="search" size={16} color="#94A3B8" />
+            <Text className="text-sm text-slate-400 ml-2 flex-1">Search products...</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
@@ -918,30 +936,27 @@ export default function POSScreenNew({ navigation }: any) {
         }
       />
 
-      {/* ── Floating Cart Bar (pinned to absolute bottom) ──────────── */}
+      {/* ── Floating Cart Bar (pinned just above tab bar) ──────────── */}
       {cart.length > 0 && (
-        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-          <View style={{ backgroundColor: 'transparent', paddingBottom: 0 }}>
-            <TouchableOpacity
-              onPress={() => setShowCartModal(true)}
-              className="mx-3 mb-1 flex-row items-center justify-between rounded-2xl px-4 py-3"
-              style={{ elevation: 12, shadowColor: '#1D4ED8', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.5, shadowRadius: 16, backgroundColor: '#1D4ED8' }}
-              activeOpacity={0.9}>
-              <View className="flex-row items-center">
-                <View className="w-9 h-9 rounded-xl bg-white/20 items-center justify-center mr-2.5">
-                  <Ionicons name="cart" size={18} color="#FFF" />
-                </View>
-                <View>
-                  <Text className="text-white/70 text-[10px] font-bold">{totalItems} ITEMS</Text>
-                  <Text className="text-white font-black text-lg leading-tight">${calculateTotal().toFixed(2)}</Text>
-                </View>
+        <View style={{ position: 'absolute', bottom: 2, left: 0, right: 0 }}>
+          <TouchableOpacity
+            onPress={() => setShowCartModal(true)}
+            className="mx-3 flex-row items-center justify-between rounded-2xl px-4 py-3"
+            style={{ elevation: 12, shadowColor: '#1D4ED8', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.5, shadowRadius: 16, backgroundColor: '#1D4ED8' }}
+            activeOpacity={0.9}>
+            <View className="flex-row items-center">
+              <View className="w-9 h-9 rounded-xl bg-white/20 items-center justify-center mr-2.5">
+                <Ionicons name="cart" size={18} color="#FFF" />
               </View>
-              <View className="bg-white rounded-xl px-5 py-2.5" style={{ elevation: 2 }}>
-                <Text className="text-blue-700 font-black text-sm">View Cart</Text>
+              <View>
+                <Text className="text-white/70 text-[10px] font-bold">{totalItems} ITEMS</Text>
+                <Text className="text-white font-black text-lg leading-tight">${calculateTotal().toFixed(2)}</Text>
               </View>
-            </TouchableOpacity>
-          </View>
-          <SafeAreaView edges={['bottom']} style={{ backgroundColor: 'transparent' }} />
+            </View>
+            <View className="bg-white rounded-xl px-5 py-2.5" style={{ elevation: 2 }}>
+              <Text className="text-blue-700 font-black text-sm">View Cart</Text>
+            </View>
+          </TouchableOpacity>
         </View>
       )}
 
