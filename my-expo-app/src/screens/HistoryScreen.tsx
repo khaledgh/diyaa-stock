@@ -29,9 +29,16 @@ export default function HistoryScreen() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const [transactionType, setTransactionType] = useState<'sales' | 'purchase'>('sales');
-  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(user?.location_id || null);
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
   const [locations, setLocations] = useState<any[]>([]);
   const isAdmin = user?.role === 'admin';
+
+  // Initialize selectedLocationId for non-admins
+  useEffect(() => {
+    if (!isAdmin && user?.location_id) {
+      setSelectedLocationId(user.location_id);
+    }
+  }, [isAdmin, user?.location_id]);
 
   const loadInvoices = useCallback(async () => {
     try {
@@ -177,6 +184,33 @@ export default function HistoryScreen() {
           )}
         </View>
 
+        {/* Admin Location Filter */}
+        {isAdmin && locations.length > 0 && (
+          <View className="mb-4">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-1">
+              <TouchableOpacity
+                onPress={() => setSelectedLocationId(null)}
+                className={`px-4 py-2 rounded-full mr-2 border ${selectedLocationId === null ? 'bg-blue-600 border-blue-600' : 'bg-gray-100 border-gray-200'}`}
+              >
+                <Text className={`text-xs font-bold ${selectedLocationId === null ? 'text-white' : 'text-gray-600'}`}>
+                  All Locations
+                </Text>
+              </TouchableOpacity>
+              {locations.map((loc: any) => (
+                <TouchableOpacity
+                  key={loc.id}
+                  onPress={() => setSelectedLocationId(loc.id)}
+                  className={`px-4 py-2 rounded-full mr-2 border ${selectedLocationId === loc.id ? 'bg-blue-600 border-blue-600' : 'bg-gray-100 border-gray-200'}`}
+                >
+                  <Text className={`text-xs font-bold ${selectedLocationId === loc.id ? 'text-white' : 'text-gray-600'}`}>
+                    {loc.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Global Filter Switcher - Only show Purchases tab for admin */}
         {isAdmin ? (
           <View className="flex-row bg-gray-100 p-1 rounded-2xl">
@@ -211,7 +245,7 @@ export default function HistoryScreen() {
 
           return (
             <TouchableOpacity
-              onPress={() => setSelectedInvoice(item)}
+              onPress={() => item && setSelectedInvoice(item)}
               className="bg-white p-5 rounded-3xl mb-4 border border-gray-100 flex-row justify-between"
               style={{ elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10 }}
             >
@@ -235,7 +269,7 @@ export default function HistoryScreen() {
                   )}
                 </View>
                 <Text className="text-gray-500 font-bold text-xs uppercase tracking-tighter">
-                  {transactionType === 'sales' ? (item.customer_name || 'Walk-in Customer') : (item.vendor_name || 'General Vendor')}
+                  {transactionType === 'sales' ? (item.customer?.name || item.customer_name || 'Walk-in Customer') : (item.vendor?.name || item.vendor_name || 'General Vendor')}
                 </Text>
                 <Text className="text-gray-400 text-[10px] mt-1">{formatDate(item.created_at)}</Text>
               </View>
@@ -279,7 +313,7 @@ export default function HistoryScreen() {
                     <View>
                       <Text className="text-[10px] text-gray-400 font-black uppercase mb-1">{transactionType === 'sales' ? 'Customer' : 'Vendor'}</Text>
                       <Text className="text-base font-bold text-gray-900">
-                        {transactionType === 'sales' ? (selectedInvoice.customer_name || 'Walk-in') : (selectedInvoice.vendor_name || 'Provider')}
+                        {transactionType === 'sales' ? (selectedInvoice.customer?.name || selectedInvoice.customer_name || 'Walk-in') : (selectedInvoice.vendor?.name || selectedInvoice.vendor_name || 'Provider')}
                       </Text>
                     </View>
                     <View className="items-end">
@@ -353,11 +387,23 @@ export default function HistoryScreen() {
                   onPress={async () => {
                     try {
                       setIsPrinting(true);
+                      // Fetch fresh customer balance for receipt
+                      let customerBalance: number | undefined;
+                      const custId = selectedInvoice.customer_id || selectedInvoice.customer?.id;
+                      if (custId) {
+                        try {
+                          const custResp = await apiService.getCustomerById(custId);
+                          const cust = custResp.data || custResp;
+                          customerBalance = parseFloat(cust.balance) || 0;
+                        } catch { /* silently continue */ }
+                      }
+                      const custName = selectedInvoice.customer?.name || selectedInvoice.customer_name;
+                      const cashier = selectedInvoice.created_by_user?.full_name || user?.full_name;
                       const printData = {
                         invoiceNumber: selectedInvoice.invoice_number,
-                        customerName: selectedInvoice.customer_name || undefined,
+                        customerName: custName || undefined,
                         items: (selectedInvoice.items || []).map((item: any) => ({
-                          name: item.product?.name_en || item.product?.name_ar || item.product_name || item.name || 'Item',
+                          name: item.product?.name || item.product?.name_en || item.product?.name_ar || item.product_name || item.name || 'Item',
                           quantity: item.quantity,
                           unitPrice: parseFloat(item.unit_price) || 0,
                           total: parseFloat(item.total) || 0,
@@ -368,8 +414,9 @@ export default function HistoryScreen() {
                         total: selectedInvoice.total_amount,
                         paidAmount: selectedInvoice.paid_amount,
                         date: new Date(selectedInvoice.created_at).toLocaleString(),
-                        cashierName: user?.full_name,
-                        storeName: 'DaftarStock',
+                        cashierName: cashier,
+                        locationName: selectedInvoice.location?.name || user?.location_name,
+                        customerBalance,
                       };
                       await printReceiptData(printData);
                     } catch (err: any) {
@@ -396,7 +443,7 @@ export default function HistoryScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={() => handleDelete(selectedInvoice.id)}
+                  onPress={() => selectedInvoice && handleDelete(selectedInvoice.id)}
                   className="w-full flex-row items-center justify-center bg-red-50 h-14 rounded-2xl border border-red-100 mb-6"
                 >
                   <Ionicons name="trash-outline" size={20} color="#EF4444" />

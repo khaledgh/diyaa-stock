@@ -437,8 +437,8 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
   // Each line: ESC * m nL nH [data] where m=0 (8-dot single density) or m=33 (24-dot double density)
   
   const getPrinterWidth = () => {
-    if (template?.layout?.paper_size === 'thermal_80') return 576;
-    return 384; // Default 58mm
+    // 576px wide for 80mm thermal paper.
+    return 576;
   };
 
   const printReceiptData = async (data: PrintableReceiptData) => {
@@ -458,13 +458,16 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
         throw new Error('Receipt view ref not ready');
       }
 
-      // 2. Capture as PNG
-      console.log('📸 Capturing...');
+      // 2. Capture as PNG at native device resolution (no width override).
+      // On a 3x device, a 384 CSS-px view captures as ~1152px PNG.
+      // The downsampling code (step 5) maps it to exactly 384 printer dots.
+      // DO NOT pass width — it causes the capture to render at 1x scale,
+      // making content only fill ~1/3 of the paper.
+      console.log('📸 Capturing at native resolution...');
       const tmpUri = await captureRef(receiptViewRef.current, {
         format: 'png',
         quality: 1,
         result: 'tmpfile',
-        width: printerWidth,
       });
       console.log('📸 Captured:', tmpUri);
 
@@ -512,7 +515,7 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
                 const bv = pixels[idx + 2];
                 const a = pixels[idx + 3];
                 const gray = 0.299 * r + 0.587 * g + 0.114 * bv;
-                if (a > 128 && gray < 128) isDark = true;
+                if (a > 128 && gray < 160) isDark = true;
               }
             }
             if (isDark) {
@@ -539,9 +542,11 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
 
       console.log(`📤 Sending ${stripes} stripes of ${STRIPE_HEIGHT}px...`);
 
-      // ESC @ init + center alignment + set line spacing
+      // ESC @ init + left align + zero margin + full print width
       const initCmd: number[] = [0x1b, 0x40]; // ESC @ — initialize
-      initCmd.push(0x1b, 0x61, 0x01);         // ESC a 1 — center alignment
+      initCmd.push(0x1b, 0x61, 0x00);         // ESC a 0 — left alignment
+      initCmd.push(0x1d, 0x4c, 0x00, 0x00);   // GS L 0 0 — left margin = 0
+      initCmd.push(0x1d, 0x57, 0x40, 0x02);   // GS W nL nH — print area = 576 dots (0x0240)
       initCmd.push(0x1b, 0x33, STRIPE_HEIGHT); // ESC 3 n — line spacing = stripe height
       await sendEscPosCommands(initCmd);
 
@@ -606,7 +611,7 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
 
   // -------------------- UI --------------------
   const bitmapView = (
-    <View collapsable={false} style={{ position: 'absolute', top: -9999, left: 0 }}>
+    <View collapsable={false} style={{ position: 'absolute', top: -9999, left: 0, width: 576, opacity: 0 }}>
       <ReceiptBitmapView ref={receiptViewRef} data={receiptData} template={template} />
     </View>
   );

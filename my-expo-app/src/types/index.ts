@@ -44,8 +44,8 @@ export interface Product {
 
 export interface StockItem extends Product {
   quantity: number;
-  location_type: string;
-  location_id: number;
+  location_type?: string;
+  location_id?: number;
 }
 
 export interface Customer {
@@ -80,9 +80,12 @@ export interface Invoice {
   invoice_type: 'sales' | 'purchase';
   customer_id?: number;
   customer_name?: string;
+  customer?: { id: number; name: string; balance?: number; phone?: string };
   vendor_id?: number;
   vendor_name?: string;
+  vendor?: { id: number; name: string; balance?: number };
   location_id: number;
+  location?: { id: number; name: string };
   subtotal: number;
   tax_amount: number;
   discount_amount: number;
@@ -91,6 +94,7 @@ export interface Invoice {
   payment_status: 'paid' | 'unpaid' | 'partial';
   status?: 'draft' | 'finalized';
   created_at: string;
+  created_by_user?: { id: number; full_name: string };
   items?: InvoiceItem[];
 }
 

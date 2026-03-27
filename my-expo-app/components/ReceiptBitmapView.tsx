@@ -32,275 +32,201 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
     return <View ref={ref} collapsable={false} style={{ width: 1, height: 1 }} />;
   }
 
-  // Determine width based on paper size
-  const paperSize = template?.layout?.paper_size || 'thermal_80'; // Default to 80mm for bigger look
-  const width = paperSize === 'thermal' ? 384 : 576; // 384 for 58mm, 576 for 80mm
-  
-  const separator = '─'.repeat(paperSize === 'thermal_80' ? 48 : 36);
-  const doubleSeparator = '═'.repeat(paperSize === 'thermal_80' ? 48 : 36);
+  // 576px width — matches 80mm thermal printer (standard POS).
+  const W = 576;
+  const SEP = '- '.repeat(22) + '-';
+  const DSEP = '= '.repeat(22) + '=';
 
   const remaining = data.total - data.paidAmount;
 
   const showField = (fieldId: string) => {
-    if (!template) return true; // Show all if no template
+    if (!template) return true;
     return template.fields.includes(fieldId);
   };
-
-  const primaryColor = template?.layout?.primary_color || '#000000';
-  const headerStyle = (template?.layout?.header_style === 'centered' ? 'center' : template?.layout?.header_style) || 'center';
 
   return (
     <View
       ref={ref}
       collapsable={false}
-      style={{
-        width: width,
-        backgroundColor: '#FFFFFF',
-        padding: 0,
-        margin: 0,
-      }}
+      style={{ width: W, backgroundColor: '#FFF', padding: 0, margin: 0 }}
     >
       {/* Logo */}
-      <View style={{ alignItems: 'center', marginTop: 2, marginBottom: 5 }}>
-        <Image 
-          source={require('../assets/logo.png')} 
-          style={{ width: width * 0.8, height: 120, resizeMode: 'contain' }} 
+      <View style={{ alignItems: 'center', paddingTop: 20, paddingBottom: 10 }}>
+        <Image
+          source={require('../assets/logo.png')}
+          style={{ width: 320, height: 140, resizeMode: 'contain' }}
         />
       </View>
-      {/* Store Name - skip DaftarStock default */}
+
+      {/* Store Name — skip DaftarStock */}
       {showField('company_name') && data.storeName && data.storeName !== 'DaftarStock' && (
-        <Text
-          style={{
-            fontSize: 38,
-            fontWeight: '900',
-            textAlign: headerStyle,
-            color: primaryColor,
-            marginBottom: 4,
-            marginTop: 4,
-          }}
-        >
+        <Text style={{ fontSize: 36, fontWeight: '900', textAlign: 'center', color: '#000', marginBottom: 2 }}>
           {data.storeName}
         </Text>
       )}
 
       {/* Document Title */}
-      <Text
-        style={{
-          fontSize: 32,
-          fontWeight: 'bold',
-          textAlign: headerStyle,
-          color: '#000',
-          marginBottom: 4,
-          writingDirection: 'rtl',
-        }}
-      >
+      <Text style={{ fontSize: 32, fontWeight: '900', textAlign: 'center', color: '#000', marginBottom: 4, writingDirection: 'rtl' }}>
         {template?.custom_texts?.title || 'إيصال'}
       </Text>
 
-      {/* Double separator */}
-      <Text style={{ fontSize: 16, textAlign: 'center', color: '#000', fontFamily: 'monospace' }}>
-        {doubleSeparator}
-      </Text>
+      {/* Single separator */}
+      <Text style={{ fontSize: 18, textAlign: 'center', marginVertical: 4 }}>{SEP}</Text>
 
       {/* Invoice info */}
       {data.invoiceNumber && showField('invoice_number') && (
-        <Text style={{ fontSize: 24, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 4, fontWeight: '600' }}>
+        <Text style={{ fontSize: 24, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 4, fontWeight: '700' }}>
           رقم الفاتورة: {data.invoiceNumber}
         </Text>
       )}
-
       {data.date && showField('invoice_date') && (
-        <Text style={{ fontSize: 22, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 6 }}>
+        <Text style={{ fontSize: 22, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 3 }}>
           التاريخ: {data.date}
         </Text>
       )}
-
       {data.customerName && showField('customer_details') && (
-        <Text style={{ fontSize: 24, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 6, fontWeight: '700' }}>
+        <Text style={{ fontSize: 24, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 3, fontWeight: '800' }}>
           العميل: {data.customerName}
         </Text>
       )}
-
       {data.cashierName && (
-        <Text style={{ fontSize: 22, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 4 }}>
+        <Text style={{ fontSize: 22, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 2 }}>
           الكاشير: {data.cashierName}
         </Text>
       )}
-
       {data.locationName && (
-        <Text style={{ fontSize: 22, color: '#444', textAlign: 'right', writingDirection: 'rtl', marginTop: 2 }}>
+        <Text style={{ fontSize: 22, color: '#000', textAlign: 'right', writingDirection: 'rtl', marginTop: 2 }}>
           الموقع: {data.locationName}
         </Text>
       )}
 
-      {/* Separator */}
-      <Text style={{ fontSize: 16, textAlign: 'center', color: '#000', fontFamily: 'monospace', marginTop: 10 }}>
-        {separator}
-      </Text>
+      {/* ━━━ Separator ━━━ */}
+      <Text style={{ fontSize: 14, textAlign: 'center', color: '#000', marginTop: 8, letterSpacing: 1 }}>{SEP}</Text>
 
       {/* Items Table */}
       {showField('items_table') && (
         <>
-          <View style={{ flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: '#000', paddingVertical: 4, paddingHorizontal: 2 }}>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#000', width: '25%', textAlign: 'left' }}>المجموع</Text>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#000', width: '15%', textAlign: 'center' }}>الكمية</Text>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#000', width: '20%', textAlign: 'center' }}>السعر</Text>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl' }}>الصنف</Text>
+          {/* Table header */}
+          <View style={{ flexDirection: 'row', borderBottomWidth: 3, borderBottomColor: '#000', paddingVertical: 5 }}>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: '#000', width: '24%', textAlign: 'left' }}>المجموع</Text>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: '#000', width: '14%', textAlign: 'center' }}>الكمية</Text>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: '#000', width: '22%', textAlign: 'center' }}>السعر</Text>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl' }}>الصنف</Text>
           </View>
 
+          {/* Table rows */}
           {data.items.map((item, index) => (
-            <View key={index} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: '#DDD' }}>
-              <Text style={{ fontSize: 22, color: '#000', width: '25%', textAlign: 'left', fontWeight: 'bold' }}>{item.total.toFixed(2)}</Text>
-              <Text style={{ fontSize: 22, color: '#000', width: '15%', textAlign: 'center' }}>{item.quantity}</Text>
-              <Text style={{ fontSize: 22, color: '#000', width: '20%', textAlign: 'center' }}>{item.unitPrice.toFixed(2)}</Text>
-              <Text style={{ fontSize: 24, color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl', fontWeight: '900' }}>{item.name}</Text>
+            <View key={index} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#999' }}>
+              <Text style={{ fontSize: 22, color: '#000', width: '24%', textAlign: 'left', fontWeight: '800' }}>{item.total.toFixed(2)}</Text>
+              <Text style={{ fontSize: 22, color: '#000', width: '14%', textAlign: 'center', fontWeight: '700' }}>{item.quantity}</Text>
+              <Text style={{ fontSize: 22, color: '#000', width: '22%', textAlign: 'center' }}>{item.unitPrice.toFixed(2)}</Text>
+              <Text style={{ fontSize: 22, color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl', fontWeight: '900' }} numberOfLines={2}>{item.name}</Text>
             </View>
           ))}
         </>
       )}
 
-      {/* Separator */}
-      <Text style={{ fontSize: 16, textAlign: 'center', color: '#000', fontFamily: 'monospace', marginTop: 10 }}>
-        {separator}
-      </Text>
+      {/* ━━━ Separator ━━━ */}
+      <Text style={{ fontSize: 14, textAlign: 'center', color: '#000', marginTop: 8, letterSpacing: 1 }}>{SEP}</Text>
 
       {/* Totals */}
-      <View style={{ marginTop: 8, paddingHorizontal: 2 }}>
+      <View style={{ marginTop: 6 }}>
         {showField('subtotal') && (
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 24, color: '#000', fontWeight: '700' }}>{data.subtotal.toFixed(2)}</Text>
-            <Text style={{ fontSize: 24, color: '#000', writingDirection: 'rtl', fontWeight: '600' }}>المجموع الفرعي</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
+            <Text style={{ fontSize: 26, color: '#000', fontWeight: '800' }}>{data.subtotal.toFixed(2)}</Text>
+            <Text style={{ fontSize: 26, color: '#000', writingDirection: 'rtl', fontWeight: '700' }}>المجموع الفرعي</Text>
           </View>
         )}
-
         {data.discount > 0 && showField('discount') && (
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-            <Text style={{ fontSize: 24, color: '#000', fontWeight: '600' }}>-{data.discount.toFixed(2)}</Text>
-            <Text style={{ fontSize: 24, color: '#000', writingDirection: 'rtl' }}>الخصم</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+            <Text style={{ fontSize: 26, color: '#000', fontWeight: '700' }}>-{data.discount.toFixed(2)}</Text>
+            <Text style={{ fontSize: 26, color: '#000', writingDirection: 'rtl' }}>الخصم</Text>
           </View>
         )}
-
         {data.tax > 0 && showField('tax') && (
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-            <Text style={{ fontSize: 24, color: '#000', fontWeight: '600' }}>{data.tax.toFixed(2)}</Text>
-            <Text style={{ fontSize: 24, color: '#000', writingDirection: 'rtl' }}>الضريبة</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+            <Text style={{ fontSize: 26, color: '#000', fontWeight: '700' }}>{data.tax.toFixed(2)}</Text>
+            <Text style={{ fontSize: 26, color: '#000', writingDirection: 'rtl' }}>الضريبة</Text>
           </View>
         )}
       </View>
 
-      {/* Double separator */}
-      <Text style={{ fontSize: 16, textAlign: 'center', color: '#000', fontFamily: 'monospace', marginTop: 10 }}>
-        {doubleSeparator}
-      </Text>
+      <Text style={{ fontSize: 18, textAlign: 'center', color: '#000', marginVertical: 4 }}>{SEP}</Text>
 
-      {/* Grand total */}
+      {/* Grand Total — BIG */}
       {showField('total_amount') && (
-        <Text
-          style={{
-            fontSize: 36,
-            fontWeight: '900',
-            textAlign: 'center',
-            color: primaryColor,
-            marginTop: 8,
-            writingDirection: 'rtl',
-          }}
-        >
+        <Text style={{ fontSize: 38, fontWeight: '900', textAlign: 'center', color: '#000', marginTop: 6, writingDirection: 'rtl' }}>
           الإجمالي: {data.total.toFixed(2)}
         </Text>
       )}
 
-      {/* Separator */}
-      <Text style={{ fontSize: 16, textAlign: 'center', color: '#000', fontFamily: 'monospace', marginTop: 10 }}>
-        {separator}
-      </Text>
+      {/* ━━━ Separator ━━━ */}
+      <Text style={{ fontSize: 18, textAlign: 'center', color: '#000', marginVertical: 4 }}>{SEP}</Text>
 
       {/* Payment info */}
       {showField('notes') && (
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 2 }}>
-          <Text style={{ fontSize: 26, color: '#000', fontWeight: '700' }}>{data.paidAmount.toFixed(2)}</Text>
-          <Text style={{ fontSize: 26, color: '#000', writingDirection: 'rtl', fontWeight: '600' }}>المدفوع</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+          <Text style={{ fontSize: 28, color: '#000', fontWeight: '800' }}>{data.paidAmount.toFixed(2)}</Text>
+          <Text style={{ fontSize: 28, color: '#000', writingDirection: 'rtl', fontWeight: '700' }}>المدفوع</Text>
         </View>
       )}
 
       {remaining > 0.01 ? (
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 2 }}>
-          <Text style={{ fontSize: 26, fontWeight: '900', color: '#000' }}>{remaining.toFixed(2)}</Text>
-          <Text style={{ fontSize: 26, fontWeight: '900', color: '#000', writingDirection: 'rtl' }}>المتبقي</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+          <Text style={{ fontSize: 30, fontWeight: '900', color: '#000' }}>{remaining.toFixed(2)}</Text>
+          <Text style={{ fontSize: 30, fontWeight: '900', color: '#000', writingDirection: 'rtl' }}>المتبقي</Text>
         </View>
       ) : (
-        <Text
-          style={{
-            fontSize: 26,
-            textAlign: 'center',
-            color: '#000',
-            marginTop: 6,
-            fontWeight: 'bold',
-            writingDirection: 'rtl',
-          }}
-        >
+        <Text style={{ fontSize: 28, textAlign: 'center', color: '#000', marginTop: 4, fontWeight: '900', writingDirection: 'rtl' }}>
           مدفوع بالكامل
         </Text>
       )}
 
-      {/* Separator */}
-      <Text style={{ fontSize: 16, textAlign: 'center', color: '#000', fontFamily: 'monospace', marginTop: 10 }}>
-        {separator}
-      </Text>
+      {/* ━━━ Separator ━━━ */}
+      <Text style={{ fontSize: 18, textAlign: 'center', color: '#000', marginVertical: 4 }}>{SEP}</Text>
 
       {/* Customer Balance Summary */}
       {data.customerName && (data.customerBalance !== undefined && data.customerBalance !== null) && (
         <>
-          <Text style={{ fontSize: 24, fontWeight: '900', textAlign: 'center', color: '#000', marginTop: 8, writingDirection: 'rtl' }}>
+          <Text style={{ fontSize: 26, fontWeight: '900', textAlign: 'center', color: '#000', marginTop: 6, writingDirection: 'rtl' }}>
             كشف حساب العميل
           </Text>
-          <View style={{ marginTop: 6, paddingHorizontal: 2 }}>
+          <View style={{ marginTop: 4 }}>
             {data.customerTotalOwed !== undefined && (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                <Text style={{ fontSize: 22, color: '#000', fontWeight: '700' }}>{data.customerTotalOwed.toFixed(2)}</Text>
-                <Text style={{ fontSize: 22, color: '#000', writingDirection: 'rtl', fontWeight: '600' }}>إجمالي المبيعات</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
+                <Text style={{ fontSize: 24, color: '#000', fontWeight: '800' }}>{data.customerTotalOwed.toFixed(2)}</Text>
+                <Text style={{ fontSize: 24, color: '#000', writingDirection: 'rtl', fontWeight: '700' }}>إجمالي المبيعات</Text>
               </View>
             )}
             {data.customerTotalPaid !== undefined && (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                <Text style={{ fontSize: 22, color: '#000', fontWeight: '700' }}>{data.customerTotalPaid.toFixed(2)}</Text>
-                <Text style={{ fontSize: 22, color: '#000', writingDirection: 'rtl', fontWeight: '600' }}>إجمالي المدفوعات</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
+                <Text style={{ fontSize: 24, color: '#000', fontWeight: '800' }}>{data.customerTotalPaid.toFixed(2)}</Text>
+                <Text style={{ fontSize: 24, color: '#000', writingDirection: 'rtl', fontWeight: '700' }}>إجمالي المدفوعات</Text>
               </View>
             )}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
               <Text style={{ fontSize: 28, color: '#000', fontWeight: '900' }}>{data.customerBalance.toFixed(2)}</Text>
               <Text style={{ fontSize: 28, color: '#000', writingDirection: 'rtl', fontWeight: '900' }}>الرصيد المتبقي</Text>
             </View>
           </View>
+
+          <Text style={{ fontSize: 18, textAlign: 'center', color: '#000', marginVertical: 4 }}>{SEP}</Text>
         </>
       )}
 
-      {/* Separator */}
-      <Text style={{ fontSize: 16, textAlign: 'center', color: '#000', fontFamily: 'monospace', marginTop: 10 }}>
-        {separator}
-      </Text>
-
       {/* Footer */}
-      <Text
-        style={{
-          fontSize: 26,
-          textAlign: 'center',
-          color: '#000',
-          marginTop: 12,
-          fontWeight: '700',
-          writingDirection: 'rtl',
-        }}
-      >
+      <Text style={{ fontSize: 28, textAlign: 'center', color: '#000', marginTop: 10, fontWeight: '800', writingDirection: 'rtl' }}>
         {template?.custom_texts?.footer || 'شكراً لكم'}
       </Text>
 
       {template?.custom_texts?.terms ? (
-        <Text style={{ fontSize: 14, textAlign: 'center', color: '#666', marginTop: 8 }}>
+        <Text style={{ fontSize: 18, textAlign: 'center', color: '#666', marginTop: 6 }}>
           {template.custom_texts.terms}
         </Text>
       ) : null}
 
       {/* Bottom padding for paper feed */}
-      <View style={{ height: 40 }} />
+      <View style={{ height: 30 }} />
     </View>
   );
 });

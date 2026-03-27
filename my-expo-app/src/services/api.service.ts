@@ -139,6 +139,11 @@ class ApiService {
     return response.data;
   }
 
+  async getProducts(params?: any) {
+    const response = await this.api.get('/products', { params });
+    return response.data;
+  }
+
   async getCustomers(params?: any) {
     const response = await this.api.get('/customers', { params });
     return response.data;

@@ -12,12 +12,12 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <PrinterProvider>
-          <NavigationContainer>
+        <NavigationContainer>
+          <PrinterProvider>
             <AppNavigator />
             <StatusBar style="auto" />
-          </NavigationContainer>
-        </PrinterProvider>
+          </PrinterProvider>
+        </NavigationContainer>
       </AuthProvider>
     </SafeAreaProvider>
   );

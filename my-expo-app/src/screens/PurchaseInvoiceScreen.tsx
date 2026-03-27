@@ -39,6 +39,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
     const [vendorSearchQuery, setVendorSearchQuery] = useState('');
     const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
     const [locations, setLocations] = useState<any[]>([]);
+    const [showLocationModal, setShowLocationModal] = useState(false);
     const [todaySession, setTodaySession] = useState<any>(null);
     const [locationMode, setLocationMode] = useState<'automatic' | 'manual'>('automatic');
     const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
@@ -50,21 +51,41 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
         setIsLoading(true);
         try {
             const locationId = selectedLocationId || user?.location_id;
-            const [stockRes, vendorsRes, locationsRes] = await Promise.all([
-                locationId ? apiService.getLocationStock(locationId) : Promise.resolve({ data: [] }),
-                apiService.getVendors(),
-                isAdmin ? apiService.getLocations() : Promise.resolve({ data: [] }),
+            const [productsRes, vendorsRes, locationsRes] = await Promise.all([
+                apiService.getProducts().catch((err: any) => {
+                    console.error('PurchaseInvoice - getProducts error:', err);
+                    return { data: [] };
+                }),
+                apiService.getVendors().catch(() => ({ data: [] })),
+                apiService.getLocations().catch(() => ({ data: [] })),
             ]);
 
-            if (stockRes.ok || stockRes.success) {
-                setStockItems((stockRes.data || []).map((item: any) => ({
-                    id: item.product_id,
+            let plist: any[] = [];
+            if (Array.isArray(productsRes)) {
+                plist = productsRes;
+            } else if (productsRes && Array.isArray(productsRes.data)) {
+                plist = productsRes.data;
+            } else if (productsRes && productsRes.ok && Array.isArray(productsRes.data)) {
+                plist = productsRes.data;
+            }
+
+            console.log('PurchaseInvoice loaded data:', {
+                productsRaw: productsRes ? Object.keys(productsRes) : 'null',
+                productsCount: plist.length,
+                vendorsCount: vendorsRes?.data?.length || (Array.isArray(vendorsRes) ? vendorsRes.length : 0),
+                locationsCount: locationsRes?.data?.length || (Array.isArray(locationsRes) ? locationsRes.length : 0),
+            });
+
+            if (plist.length > 0) {
+                setStockItems(plist.map((item: any) => ({
+                    id: item.id,
                     name: item.name_en || item.name_ar || 'Unknown',
                     sku: item.sku,
-                    unit_price: parseFloat(item.unit_price) || 0,
-                    quantity: parseInt(item.quantity) || 0,
-                    location_id: item.location_id,
+                    unit_price: parseFloat(item.cost_price || item.unit_price) || 0,
+                    quantity: 0, 
                 })));
+            } else {
+                setStockItems([]);
             }
 
             // Vendor API returns paginated format: {data: [], current_page, total}
@@ -75,8 +96,16 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                 setVendors([]);
             }
 
-            if (locationsRes.success || locationsRes.ok) {
-                setLocations(locationsRes.data || []);
+            const availableLocations = locationsRes?.data || (Array.isArray(locationsRes) ? locationsRes : []);
+            if (availableLocations.length > 0) {
+                setLocations(availableLocations);
+            } else {
+                // Fallback for non-admins
+                const userId = user?.id;
+                if (userId) {
+                    const userLocsRes = await apiService.getUserLocations(userId).catch(() => ({ data: [] }));
+                    setLocations(userLocsRes.data || []);
+                }
             }
         } catch {
             // silently fail
@@ -84,7 +113,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
         } finally {
             setIsLoading(false);
         }
-    }, [user?.location_id, selectedLocationId, isAdmin]);
+    }, [user?.location_id, user?.id, selectedLocationId, isAdmin]);
 
     useEffect(() => {
         loadInitialData();
@@ -209,6 +238,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
 
     const handleSubmit = async () => {
         if (!selectedVendor) return Alert.alert('Error', 'Please select a vendor');
+        if (!selectedLocationId) return Alert.alert('Error', 'Please select a location');
         if (cart.length === 0) return Alert.alert('Error', 'Please add items');
 
         try {
@@ -331,6 +361,31 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                         </View>
                         <View className={`w-10 h-10 rounded-full items-center justify-center ${selectedVendor ? 'bg-emerald-100' : 'bg-indigo-100'}`}>
                             <Ionicons name={selectedVendor ? "checkmark-circle" : "chevron-forward"} size={22} color={selectedVendor ? '#10B981' : '#4F46E5'} />
+                        </View>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Location Section (Step 2) */}
+                <View className="mb-4">
+                    <TouchableOpacity
+                        onPress={() => setShowLocationModal(true)}
+                        className={`flex-row items-center justify-between rounded-[25px] px-6 py-5 border-2 ${selectedLocationId ? 'border-blue-500 bg-blue-50' : 'border-indigo-600 bg-indigo-50 shadow-lg shadow-indigo-100'}`}
+                        activeOpacity={0.8}>
+                        <View className="flex-1 flex-row items-center">
+                            <View className={`w-12 h-12 rounded-2xl items-center justify-center mr-4 ${selectedLocationId ? 'bg-blue-100' : 'bg-indigo-600'}`}>
+                                <Ionicons name="location" size={24} color={selectedLocationId ? '#3B82F6' : '#FFFFFF'} />
+                            </View>
+                            <View>
+                                <Text className={`text-[10px] font-black uppercase tracking-[1px] ${selectedLocationId ? 'text-blue-600' : 'text-indigo-600'}`}>
+                                    {selectedLocationId ? 'Selected Location' : 'Step 2: Add to Location'}
+                                </Text>
+                                <Text className="text-lg font-black text-slate-900 tracking-tight">
+                                    {locations.find(l => l.id === selectedLocationId)?.name || 'Select a Location'}
+                                </Text>
+                            </View>
+                        </View>
+                        <View className={`w-10 h-10 rounded-full items-center justify-center ${selectedLocationId ? 'bg-blue-100' : 'bg-indigo-100'}`}>
+                            <Ionicons name={selectedLocationId ? "checkmark-circle" : "chevron-forward"} size={22} color={selectedLocationId ? '#3B82F6' : '#4F46E5'} />
                         </View>
                     </TouchableOpacity>
                 </View>
@@ -670,6 +725,43 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                             </View>
                         </View>
                     )}
+                </View>
+            </Modal>
+
+            {/* Location Selection Modal */}
+            <Modal visible={showLocationModal} animationType="slide" transparent onRequestClose={() => setShowLocationModal(false)}>
+                <TouchableOpacity activeOpacity={1} onPress={() => setShowLocationModal(false)} className="flex-1" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }} />
+                <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '50%' }}>
+                    <SafeAreaView edges={['bottom']}>
+                        <View className="p-6">
+                            <View className="flex-row justify-between items-center mb-4">
+                                <Text className="text-xl font-bold text-gray-900">Select Storage Location</Text>
+                                <TouchableOpacity onPress={() => setShowLocationModal(false)}>
+                                    <Ionicons name="close" size={24} color="#9CA3AF" />
+                                </TouchableOpacity>
+                            </View>
+                            <ScrollView>
+                                {locations.map(loc => (
+                                    <TouchableOpacity
+                                        key={loc.id}
+                                        onPress={() => {
+                                            setSelectedLocationId(loc.id);
+                                            setShowLocationModal(false);
+                                        }}
+                                        className="py-4 border-b border-gray-100 flex-row items-center justify-between"
+                                    >
+                                        <View>
+                                            <Text className="text-gray-900 font-bold text-base">{loc.name}</Text>
+                                            <Text className="text-gray-500 text-sm">{loc.type}</Text>
+                                        </View>
+                                        {selectedLocationId === loc.id && (
+                                            <Ionicons name="checkmark-circle" size={24} color="#2563EB" />
+                                        )}
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    </SafeAreaView>
                 </View>
             </Modal>
         </KeyboardAvoidingView>
