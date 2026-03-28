@@ -72,41 +72,70 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
-	// Fix floating-point precision issues in existing invoices
-	log.Println("Fixing floating-point precision issues in invoices...")
-
-	// Fix purchase invoices where paid amount is within 1 cent of total
+	// Fix purchase invoices precision & status
 	result := db.Exec(`
 		UPDATE purchase_invoices 
 		SET 
-			paid_amount = total_amount,
 			payment_status = 'paid'
 		WHERE 
-			payment_status = 'partial'
+			payment_status != 'paid'
 			AND paid_amount >= (total_amount - 0.01)
-			AND paid_amount < total_amount
 	`)
 	if result.Error != nil {
-		log.Printf("Warning: Could not fix purchase invoices precision: %v", result.Error)
-	} else if result.RowsAffected > 0 {
-		log.Printf("Fixed %d purchase invoices with precision issues", result.RowsAffected)
+		log.Printf("Warning: Could not fix purchase invoices status: %v", result.Error)
 	}
 
-	// Fix sales invoices where paid amount is within 1 cent of total
+	// Fix sales invoices precision & status
 	result = db.Exec(`
 		UPDATE sales_invoices 
 		SET 
-			paid_amount = total_amount,
 			payment_status = 'paid'
 		WHERE 
-			payment_status = 'partial'
+			payment_status != 'paid'
 			AND paid_amount >= (total_amount - 0.01)
-			AND paid_amount < total_amount
 	`)
 	if result.Error != nil {
-		log.Printf("Warning: Could not fix sales invoices precision: %v", result.Error)
+		log.Printf("Warning: Could not fix sales invoices status: %v", result.Error)
+	}
+
+	// Backfill missing subtotal and discount_amount for existing sales invoices
+	log.Println("Backfilling subtotal and discount_amount for sales invoices...")
+	result = db.Exec(`
+		UPDATE sales_invoices si
+		JOIN (
+			SELECT invoice_id, 
+				   SUM(quantity * unit_price) as calc_subtotal,
+				   SUM(quantity * unit_price * discount_percent / 100) as calc_discount
+			FROM sales_invoice_items
+			GROUP BY invoice_id
+		) items ON si.id = items.invoice_id
+		SET si.subtotal = items.calc_subtotal,
+			si.discount_amount = items.calc_discount
+		WHERE si.subtotal = 0 OR si.subtotal IS NULL
+	`)
+	if result.Error != nil {
+		log.Printf("Warning: Could not backfill sales invoice amounts: %v", result.Error)
 	} else if result.RowsAffected > 0 {
-		log.Printf("Fixed %d sales invoices with precision issues", result.RowsAffected)
+		log.Printf("Backfilled %d sales invoices with subtotal/discount data", result.RowsAffected)
+	}
+
+	// Backfill missing subtotal and discount_amount for existing purchase invoices
+	log.Println("Backfilling subtotal and discount_amount for purchase invoices...")
+	result = db.Exec(`
+		UPDATE purchase_invoices pi
+		JOIN (
+			SELECT invoice_id, 
+				   SUM(quantity * unit_price) as calc_subtotal,
+				   SUM(quantity * unit_price * discount_percent / 100) as calc_discount
+			FROM purchase_invoice_items
+			GROUP BY invoice_id
+		) items ON pi.id = items.invoice_id
+		SET pi.subtotal = items.calc_subtotal,
+			pi.discount_amount = items.calc_discount
+		WHERE pi.subtotal = 0 OR pi.subtotal IS NULL
+	`)
+	if result.Error != nil {
+		log.Printf("Warning: Could not backfill purchase invoice amounts: %v", result.Error)
 	}
 
 	log.Println("Database migration completed successfully!")

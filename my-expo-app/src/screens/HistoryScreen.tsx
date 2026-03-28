@@ -329,11 +329,21 @@ export default function HistoryScreen() {
                   <View className="flex-row justify-between items-center mb-4">
                     <View>
                       <Text className="text-[10px] text-gray-400 font-black uppercase mb-1">Subtotal</Text>
-                      <Text className="text-xl font-bold text-gray-600">${(selectedInvoice.subtotal || selectedInvoice.total_amount).toFixed(2)}</Text>
+                      <Text className="text-xl font-bold text-gray-600">
+                        ${(selectedInvoice.subtotal && selectedInvoice.subtotal > 0 
+                          ? selectedInvoice.subtotal 
+                          : (selectedInvoice.items?.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0) || selectedInvoice.total_amount)
+                        ).toFixed(2)}
+                      </Text>
                     </View>
                     <View className="items-end">
                       <Text className="text-[10px] text-gray-400 font-black uppercase mb-1">Discount</Text>
-                      <Text className="text-xl font-bold text-red-500">-${(selectedInvoice.discount_amount || 0).toFixed(2)}</Text>
+                      <Text className="text-xl font-bold text-red-500">
+                        -${(selectedInvoice.discount_amount && selectedInvoice.discount_amount > 0
+                          ? selectedInvoice.discount_amount
+                          : ((selectedInvoice.items?.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0) || 0) - selectedInvoice.total_amount)
+                        ).toFixed(2)}
+                      </Text>
                     </View>
                   </View>
 
