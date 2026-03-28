@@ -182,15 +182,26 @@ func (s *SalesInvoiceService) RecalculateTotals(invoiceID uint) error {
 
 	// Recalculate total
 	var totalAmount float64
+	var subtotalAmount float64
+	var discountAmount float64
+
 	for _, item := range invoice.Items {
+		itemSubtotal := item.Quantity * item.UnitPrice
+		itemDiscount := itemSubtotal * item.DiscountPercent / 100
+		
+		subtotalAmount += itemSubtotal
+		discountAmount += itemDiscount
 		totalAmount += item.Total
 	}
+	
+	invoice.SubtotalAmount = subtotalAmount
+	invoice.DiscountAmount = discountAmount
 	invoice.TotalAmount = totalAmount
 
-	// Update payment status
-	if invoice.PaidAmount >= totalAmount {
+	// Update payment status with a small tolerance (1 cent)
+	if invoice.PaidAmount >= totalAmount-0.01 {
 		invoice.PaymentStatus = "paid"
-	} else if invoice.PaidAmount > 0 {
+	} else if invoice.PaidAmount > 0.01 {
 		invoice.PaymentStatus = "partial"
 	} else {
 		invoice.PaymentStatus = "unpaid"
@@ -207,9 +218,10 @@ func (s *SalesInvoiceService) UpdatePaymentStatus(id uint, paidAmount float64) e
 
 	invoice.PaidAmount = paidAmount
 
-	if paidAmount >= invoice.TotalAmount {
+	// Use tolerance for floating point comparison
+	if paidAmount >= invoice.TotalAmount-0.01 {
 		invoice.PaymentStatus = "paid"
-	} else if paidAmount > 0 {
+	} else if paidAmount > 0.01 {
 		invoice.PaymentStatus = "partial"
 	} else {
 		invoice.PaymentStatus = "unpaid"

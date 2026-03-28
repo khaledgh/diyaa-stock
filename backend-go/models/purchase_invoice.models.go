@@ -10,8 +10,11 @@ type PurchaseInvoice struct {
 	LocationID    uint                  `json:"location_id" gorm:"not null"`
 	Location      *Location             `json:"location,omitempty" gorm:"foreignKey:LocationID"`
 	InvoiceDate   time.Time             `json:"invoice_date" gorm:"not null"`
-	TotalAmount   float64               `json:"total_amount" gorm:"type:decimal(15,2);not null"`
-	PaidAmount    float64               `json:"paid_amount" gorm:"type:decimal(15,2);default:0"`
+	TotalAmount    float64               `json:"total_amount" gorm:"type:decimal(15,2);not null"`
+	SubtotalAmount float64               `json:"subtotal" gorm:"type:decimal(15,2);default:0"`
+	DiscountAmount float64               `json:"discount_amount" gorm:"type:decimal(15,2);default:0"`
+	TaxAmount      float64               `json:"tax_amount" gorm:"type:decimal(15,2);default:0"`
+	PaidAmount     float64               `json:"paid_amount" gorm:"type:decimal(15,2);default:0"`
 	PaymentStatus string                `json:"payment_status" gorm:"size:20;default:unpaid"` // unpaid, partial, paid
 	PaymentMethod *string               `json:"payment_method" gorm:"size:20"`
 	Notes         *string               `json:"notes" gorm:"type:text"`

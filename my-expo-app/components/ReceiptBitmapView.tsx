@@ -116,11 +116,18 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
 
           {/* Table rows */}
           {data.items.map((item, index) => (
-            <View key={index} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#999' }}>
-              <Text style={{ fontSize: 22, color: '#000', width: '24%', textAlign: 'left', fontWeight: '800' }}>{item.total.toFixed(2)}</Text>
-              <Text style={{ fontSize: 22, color: '#000', width: '14%', textAlign: 'center', fontWeight: '700' }}>{item.quantity}</Text>
-              <Text style={{ fontSize: 22, color: '#000', width: '22%', textAlign: 'center' }}>{item.unitPrice.toFixed(2)}</Text>
-              <Text style={{ fontSize: 22, color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl', fontWeight: '900' }} numberOfLines={2}>{item.name}</Text>
+            <View key={index} style={{ borderBottomWidth: 1, borderBottomColor: '#999', paddingVertical: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 22, color: '#000', width: '24%', textAlign: 'left', fontWeight: '800' }}>{item.total.toFixed(2)}</Text>
+                <Text style={{ fontSize: 22, color: '#000', width: '14%', textAlign: 'center', fontWeight: '700' }}>{item.quantity}</Text>
+                <Text style={{ fontSize: 22, color: '#000', width: '22%', textAlign: 'center' }}>{item.unitPrice.toFixed(2)}</Text>
+                <Text style={{ fontSize: 22, color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl', fontWeight: '900' }} numberOfLines={2}>{item.name}</Text>
+              </View>
+              {item.discountPercent !== undefined && item.discountPercent > 0 && (
+                <Text style={{ fontSize: 18, color: '#444', textAlign: 'right', writingDirection: 'rtl', marginTop: 2, fontStyle: 'italic' }}>
+                  الخصم: {item.discountPercent}%
+                </Text>
+              )}
             </View>
           ))}
         </>

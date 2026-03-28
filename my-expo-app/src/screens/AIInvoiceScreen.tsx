@@ -81,7 +81,7 @@ export default function AIInvoiceScreen() {
           barcode: item.barcode,
           category_name: item.category_name_en || item.category_name_ar,
           unit_price: parseFloat(item.unit_price) || 0,
-          quantity: parseInt(item.quantity) || 0,
+          quantity: parseFloat(item.quantity) || 0,
           location_type: item.location_type,
           location_id: item.location_id,
         }));

@@ -353,12 +353,18 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 
 	// Calculate total
 	var totalAmount float64
+	var subtotalAmount float64
+	var discountAmount float64
 	var items []models.PurchaseInvoiceItem
 	for _, item := range req.Items {
-		subtotal := float64(item.Quantity) * item.UnitPrice
-		discountAmount := subtotal * item.DiscountPercent / 100
-		total := subtotal - discountAmount
+		itemSubtotal := float64(item.Quantity) * item.UnitPrice
+		itemDiscount := itemSubtotal * item.DiscountPercent / 100
+		total := itemSubtotal - itemDiscount
+		
+		subtotalAmount += itemSubtotal
+		discountAmount += itemDiscount
 		totalAmount += total
+		
 		items = append(items, models.PurchaseInvoiceItem{
 			ProductID:       item.ProductID,
 			Quantity:        item.Quantity,
@@ -368,11 +374,11 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 		})
 	}
 
-	// Determine payment status
+	// Determine payment status with tolerance
 	paymentStatus := "unpaid"
-	if req.PaidAmount >= totalAmount {
+	if req.PaidAmount >= totalAmount-0.01 {
 		paymentStatus = "paid"
-	} else if req.PaidAmount > 0 {
+	} else if req.PaidAmount > 0.01 {
 		paymentStatus = "partial"
 	}
 
@@ -382,17 +388,19 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 	}
 
 	invoice := models.PurchaseInvoice{
-		VendorID:      req.VendorID,
-		LocationID:    req.LocationID,
-		InvoiceDate:   invoiceDate,
-		TotalAmount:   totalAmount,
-		PaidAmount:    req.PaidAmount,
-		PaymentStatus: paymentStatus,
-		PaymentMethod: req.PaymentMethod,
-		Notes:         req.Notes,
-		CreatedBy:     user.ID,
-		Items:         items,
-		Status:        status,
+		VendorID:       req.VendorID,
+		LocationID:     req.LocationID,
+		InvoiceDate:    invoiceDate,
+		TotalAmount:    totalAmount,
+		SubtotalAmount: subtotalAmount,
+		DiscountAmount: discountAmount,
+		PaidAmount:     req.PaidAmount,
+		PaymentStatus:  paymentStatus,
+		PaymentMethod:  req.PaymentMethod,
+		Notes:          req.Notes,
+		CreatedBy:      user.ID,
+		Items:          items,
+		Status:         status,
 	}
 
 	createdInvoice, err := ih.PurchaseInvoiceServices.Create(invoice)
@@ -486,12 +494,18 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 
 	// Calculate total
 	var totalAmount float64
+	var subtotalAmount float64
+	var discountAmount float64
 	var items []models.SalesInvoiceItem
 	for _, item := range req.Items {
-		subtotal := float64(item.Quantity) * item.UnitPrice
-		discountAmount := subtotal * item.DiscountPercent / 100
-		total := subtotal - discountAmount
+		itemSubtotal := float64(item.Quantity) * item.UnitPrice
+		itemDiscount := itemSubtotal * item.DiscountPercent / 100
+		total := itemSubtotal - itemDiscount
+		
+		subtotalAmount += itemSubtotal
+		discountAmount += itemDiscount
 		totalAmount += total
+		
 		items = append(items, models.SalesInvoiceItem{
 			ProductID:       item.ProductID,
 			Quantity:        item.Quantity,
@@ -501,11 +515,11 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 		})
 	}
 
-	// Determine payment status
+	// Determine payment status with tolerance
 	paymentStatus := "unpaid"
-	if req.PaidAmount >= totalAmount {
+	if req.PaidAmount >= totalAmount-0.01 {
 		paymentStatus = "paid"
-	} else if req.PaidAmount > 0 {
+	} else if req.PaidAmount > 0.01 {
 		paymentStatus = "partial"
 	}
 
@@ -515,16 +529,18 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 	}
 
 	invoice := models.SalesInvoice{
-		CustomerID:    req.CustomerID,
-		LocationID:    req.LocationID,
-		TotalAmount:   totalAmount,
-		PaidAmount:    req.PaidAmount,
-		PaymentStatus: paymentStatus,
-		PaymentMethod: req.PaymentMethod,
-		Notes:         req.Notes,
-		CreatedBy:     user.ID,
-		Items:         items,
-		Status:        status,
+		CustomerID:     req.CustomerID,
+		LocationID:     req.LocationID,
+		TotalAmount:    totalAmount,
+		SubtotalAmount: subtotalAmount,
+		DiscountAmount: discountAmount,
+		PaidAmount:     req.PaidAmount,
+		PaymentStatus:  paymentStatus,
+		PaymentMethod:  req.PaymentMethod,
+		Notes:          req.Notes,
+		CreatedBy:      user.ID,
+		Items:          items,
+		Status:         status,
 	}
 
 	createdInvoice, err := ih.SalesInvoiceServices.Create(invoice)

@@ -326,10 +326,21 @@ export default function HistoryScreen() {
                     </View>
                   </View>
 
+                  <View className="flex-row justify-between items-center mb-4">
+                    <View>
+                      <Text className="text-[10px] text-gray-400 font-black uppercase mb-1">Subtotal</Text>
+                      <Text className="text-xl font-bold text-gray-600">${(selectedInvoice.subtotal || selectedInvoice.total_amount).toFixed(2)}</Text>
+                    </View>
+                    <View className="items-end">
+                      <Text className="text-[10px] text-gray-400 font-black uppercase mb-1">Discount</Text>
+                      <Text className="text-xl font-bold text-red-500">-${(selectedInvoice.discount_amount || 0).toFixed(2)}</Text>
+                    </View>
+                  </View>
+
                   <View className="flex-row justify-between items-center">
                     <View>
                       <Text className="text-[10px] text-gray-400 font-black uppercase mb-1">Total Paid</Text>
-                      <Text className="text-xl font-bold text-gray-900">${selectedInvoice.paid_amount.toFixed(2)}</Text>
+                      <Text className="text-xl font-bold text-emerald-600">${selectedInvoice.paid_amount.toFixed(2)}</Text>
                     </View>
                     <View className="items-end">
                       <Text className="text-[10px] text-gray-400 font-black uppercase mb-1">Grand Total</Text>
@@ -407,10 +418,11 @@ export default function HistoryScreen() {
                           quantity: item.quantity,
                           unitPrice: parseFloat(item.unit_price) || 0,
                           total: parseFloat(item.total) || 0,
+                          discountPercent: item.discount_percent || 0,
                         })),
-                        subtotal: selectedInvoice.total_amount,
-                        discount: 0,
-                        tax: 0,
+                        subtotal: selectedInvoice.subtotal || selectedInvoice.total_amount,
+                        discount: selectedInvoice.discount_amount || 0,
+                        tax: selectedInvoice.tax_amount || 0,
                         total: selectedInvoice.total_amount,
                         paidAmount: selectedInvoice.paid_amount,
                         date: new Date(selectedInvoice.created_at).toLocaleString(),

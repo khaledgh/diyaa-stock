@@ -223,7 +223,7 @@ export default function POSScreen({ navigation }: any) {
           barcode: item.barcode,
           category_name: item.category_name_en || item.category_name_ar,
           unit_price: parseFloat(item.unit_price) || 0,
-          quantity: parseInt(item.quantity) || 0,
+          quantity: parseFloat(item.quantity) || 0,
           location_type: item.location_type,
           location_id: item.location_id,
         }));
@@ -558,6 +558,7 @@ export default function POSScreen({ navigation }: any) {
                             quantity: item.quantity,
                             unitPrice: item.unit_price,
                             total: item.total,
+                            discountPercent: item.discount_percent || 0,
                           })),
                           subtotal: parseFloat(invoice.subtotal) || 0,
                           discount: parseFloat(invoice.discount_amount) || 0,

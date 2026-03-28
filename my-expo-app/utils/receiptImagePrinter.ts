@@ -17,6 +17,8 @@ export interface PrintableReceiptData {
     quantity: number;
     unitPrice: number;
     total: number;
+    discountAmount?: number;
+    discountPercent?: number;
   }[];
   subtotal: number;
   discount: number;
