@@ -184,6 +184,17 @@ func (s *PurchaseInvoiceService) AddItem(invoiceID uint, productID uint, quantit
 	return s.db.Create(&newItem).Error
 }
 
+func (s *PurchaseInvoiceService) DeleteItem(itemID uint) (models.PurchaseInvoiceItem, error) {
+	var item models.PurchaseInvoiceItem
+	if err := s.db.First(&item, itemID).Error; err != nil {
+		return item, err
+	}
+	if err := s.db.Delete(&item).Error; err != nil {
+		return item, err
+	}
+	return item, nil
+}
+
 func (s *PurchaseInvoiceService) RecalculateTotals(invoiceID uint) error {
 	var invoice models.PurchaseInvoice
 	if err := s.db.Preload("Items").First(&invoice, invoiceID).Error; err != nil {
@@ -198,12 +209,12 @@ func (s *PurchaseInvoiceService) RecalculateTotals(invoiceID uint) error {
 	for _, item := range invoice.Items {
 		itemSubtotal := item.Quantity * item.UnitPrice
 		itemDiscount := itemSubtotal * item.DiscountPercent / 100
-		
+
 		subtotalAmount += itemSubtotal
 		discountAmount += itemDiscount
 		totalAmount += item.Total
 	}
-	
+
 	invoice.SubtotalAmount = subtotalAmount
 	invoice.DiscountAmount = discountAmount
 	invoice.TotalAmount = totalAmount

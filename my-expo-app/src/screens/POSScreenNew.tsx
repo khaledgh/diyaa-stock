@@ -14,6 +14,7 @@ import {
   ScrollView,
   ToastAndroid,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
 import { StockItem, Customer, CartItem, Category } from '../types';
 import { usePrinter } from '../../hooks/usePrinter';
+import QuantityModal from '../components/QuantityModal';
 // AsyncStorage removed - not currently used
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -66,10 +68,9 @@ export default function POSScreenNew({ navigation }: any) {
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(user?.location_id || null);
   const [paymentType, setPaymentType] = useState<'paid' | 'partial'>('paid');
   const [partialAmount, setPartialAmount] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
-  const [tempQty, setTempQty] = useState('1');
-  const [tempPrice, setTempPrice] = useState('');
   const [isPrinting, setIsPrinting] = useState(false);
+  const [showQuantityModal, setShowQuantityModal] = useState(false);
+  const [quantityModalProduct, setQuantityModalProduct] = useState<StockItem | null>(null);
   const [locationMode, setLocationMode] = useState<'automatic' | 'manual'>('automatic');
   const [userLocations, setUserLocations] = useState<any[]>([]);
   const [todaySession, setTodaySession] = useState<any>(null);
@@ -202,11 +203,25 @@ export default function POSScreenNew({ navigation }: any) {
   // ─── Filtering ──────────────────────────────────────────────────────────
   const filteredItems = React.useMemo(() => {
     let items = stockItems;
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      items = items.filter(
+        (item) =>
+          item.name.toLowerCase().includes(q) ||
+          item.sku?.toLowerCase().includes(q) ||
+          item.barcode?.toLowerCase().includes(q)
+      );
+    }
+    
+    // Apply category filter
     if (selectedCategory !== ALL_CATEGORY) {
       items = items.filter((i) => i.category_name === selectedCategory);
     }
+    
     return items;
-  }, [stockItems, selectedCategory]);
+  }, [stockItems, selectedCategory, searchQuery]);
 
   // Unique category names from stock
   const categoryNames = React.useMemo(() => {
@@ -220,7 +235,13 @@ export default function POSScreenNew({ navigation }: any) {
   // Group items by category for the list
   const sections = React.useMemo(() => {
     if (selectedCategory !== ALL_CATEGORY) {
-      return [{ title: selectedCategory, data: filteredItems }];
+      // Sort: in-stock items first, then out-of-stock
+      const sorted = [...filteredItems].sort((a, b) => {
+        if (a.quantity > 0 && b.quantity <= 0) return -1;
+        if (a.quantity <= 0 && b.quantity > 0) return 1;
+        return 0;
+      });
+      return [{ title: selectedCategory, data: sorted }];
     }
     const map = new Map<string, StockItem[]>();
     filteredItems.forEach((item) => {
@@ -228,7 +249,15 @@ export default function POSScreenNew({ navigation }: any) {
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat)!.push(item);
     });
-    return Array.from(map.entries()).map(([title, data]) => ({ title, data }));
+    return Array.from(map.entries()).map(([title, data]) => {
+      // Sort each category: in-stock first, then out-of-stock
+      const sorted = data.sort((a, b) => {
+        if (a.quantity > 0 && b.quantity <= 0) return -1;
+        if (a.quantity <= 0 && b.quantity > 0) return 1;
+        return 0;
+      });
+      return { title, data: sorted };
+    });
   }, [filteredItems, selectedCategory]);
 
   // Search filter
@@ -253,7 +282,7 @@ export default function POSScreenNew({ navigation }: any) {
     return item ? item.quantity : 0;
   };
 
-  const setCartQty = (item: StockItem, qty: number) => {
+  const setCartQty = (item: StockItem, qty: number, priceOverride?: number, discountOverride?: number) => {
     if (!selectedCustomer && qty > 0) {
       Alert.alert('Customer Required', 'Please select a customer before adding items.', [
         { text: 'Select Customer', onPress: () => setShowCustomerModal(true) },
@@ -261,35 +290,49 @@ export default function POSScreenNew({ navigation }: any) {
       ]);
       return;
     }
-    if (qty <= 0) {
-      setCart((prev) => prev.filter((c) => c.product.id !== item.id));
-      return;
-    }
-    if (qty > item.quantity) {
-      showToast(`Only ${item.quantity} available`);
-      return;
-    }
+    
     setCart((prev) => {
       const existing = prev.find((c) => c.product.id === item.id);
+      
+      // If qty <= 0, remove the item
+      if (qty <= 0) {
+        return prev.filter((c) => c.product.id !== item.id);
+      }
+
+      // Check stock limit for NEW items or if increasing quantity
+      if (qty > item.quantity) {
+        showToast(`Only ${item.quantity} units available in stock`);
+        // If it already exists, keep current qty, otherwise don't add
+        return existing ? prev : prev;
+      }
+
+      // Determine price and discount (prioritize overrides, then existing cart values, then base product price)
+      const finalPrice = priceOverride !== undefined ? priceOverride : (existing ? existing.unit_price : item.unit_price);
+      const finalDiscount = discountOverride !== undefined ? discountOverride : (existing ? existing.discount_percent : 0);
+      const total = qty * finalPrice * (1 - finalDiscount / 100);
+
       if (existing) {
         return prev.map((c) =>
           c.product.id === item.id
             ? {
                 ...c,
                 quantity: qty,
-                total: qty * c.unit_price * (1 - c.discount_percent / 100),
+                unit_price: finalPrice,
+                discount_percent: finalDiscount,
+                total: total,
               }
             : c
         );
       }
+
       return [
         ...prev,
         {
           product: item,
           quantity: qty,
-          unit_price: item.unit_price,
-          discount_percent: 0,
-          total: qty * item.unit_price,
+          unit_price: finalPrice,
+          discount_percent: finalDiscount,
+          total: total,
         },
       ];
     });
@@ -306,37 +349,8 @@ export default function POSScreenNew({ navigation }: any) {
   };
 
   const openItemEditModal = (item: CartItem) => {
-    setSelectedProduct(item.product);
-    setTempQty(item.quantity.toString().replace('.', ','));
-    setTempPrice(item.unit_price.toString().replace('.', ','));
-  };
-
-  const confirmItemEdit = () => {
-    if (!selectedProduct) return;
-    const qty = parseDecimal(tempQty);
-    const price = parseDecimal(tempPrice);
-    
-    if (qty <= 0) {
-      removeFromCart(selectedProduct.id);
-    } else {
-      setCart((prev) => {
-        const itemInCart = prev.find((c) => c.product.id === selectedProduct.id);
-        if (itemInCart) {
-          return prev.map((c) =>
-            c.product.id === selectedProduct.id
-              ? {
-                  ...c,
-                  quantity: qty,
-                  unit_price: price,
-                  total: qty * price * (1 - c.discount_percent / 100),
-                }
-              : c
-          );
-        }
-        return prev;
-      });
-    }
-    setSelectedProduct(null);
+    setQuantityModalProduct(item.product);
+    setShowQuantityModal(true);
   };
 
   const removeFromCart = (productId: number) => {
@@ -660,19 +674,18 @@ export default function POSScreenNew({ navigation }: any) {
               <>
                 <TouchableOpacity
                   onPress={() => setCartQty(item, qty - 1)}
-                  className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
-                  <Ionicons name="remove" size={18} color="#374151" />
+                  className="w-12 h-12 rounded-2xl bg-blue-600 items-center justify-center"
+                  style={{ elevation: 4 }}>
+                  <Ionicons name="remove" size={24} color="#FFF" />
                 </TouchableOpacity>
-                <TextInput
-                  className="w-10 text-center text-sm font-bold text-gray-900 mx-0.5"
-                  value={qty.toString()}
-                  onChangeText={(t) => {
-                    const val = parseDecimal(t);
-                    if (val >= 0) setCartQty(item, val);
+                <TouchableOpacity
+                  onPress={() => {
+                    setQuantityModalProduct(item);
+                    setShowQuantityModal(true);
                   }}
-                  keyboardType="decimal-pad"
-                  selectTextOnFocus
-                />
+                  className="mx-1 px-2 py-1 min-w-[40px]">
+                  <Text className="text-center text-sm font-bold text-gray-900">{qty}</Text>
+                </TouchableOpacity>
               </>
             ) : null}
             <TouchableOpacity
@@ -705,31 +718,14 @@ export default function POSScreenNew({ navigation }: any) {
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFF' }}>
         <View className="bg-white px-4 pt-2 pb-1" style={{ elevation: 2 }}>
-          {/* Top row: title + actions */}
+          {/* Top row: title + logout */}
           <View className="flex-row items-center justify-between mb-2">
-            <View className="flex-row items-center">
-              <Text className="text-lg font-black text-gray-900">Sales</Text>
-              {/* View toggle */}
-              <TouchableOpacity 
-                onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
-                className="ml-3 bg-slate-100 p-1.5 rounded-lg">
-                <Ionicons name={viewMode === 'list' ? "grid-outline" : "list-outline"} size={16} color="#475569" />
-              </TouchableOpacity>
-            </View>
-            <View className="flex-row items-center gap-1.5">
-              {/* Search button */}
-              <TouchableOpacity
-                onPress={() => setShowSearchModal(true)}
-                className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
-                <Ionicons name="search" size={18} color="#374151" />
-              </TouchableOpacity>
-              {/* Logout */}
-              <TouchableOpacity
-                onPress={logout}
-                className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
-                <Ionicons name="log-out-outline" size={18} color="#374151" />
-              </TouchableOpacity>
-            </View>
+            <Text className="text-lg font-black text-gray-900">Sales</Text>
+            <TouchableOpacity
+              onPress={logout}
+              className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
+              <Ionicons name="log-out-outline" size={18} color="#374151" />
+            </TouchableOpacity>
           </View>
 
           {/* Admin location pills */}
@@ -798,80 +794,27 @@ export default function POSScreenNew({ navigation }: any) {
             </TouchableOpacity>
           </View>
 
-          {/* Inline Search Input */}
-          <TouchableOpacity
-            onPress={() => setShowSearchModal(true)}
-            className="flex-row items-center bg-slate-100 rounded-xl px-3 py-2.5 mb-1"
-            activeOpacity={0.7}>
-            <Ionicons name="search" size={16} color="#94A3B8" />
-            <Text className="text-sm text-slate-400 ml-2 flex-1">Search products...</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-
-      {/* ── Item Edit Modal (Qty/Price/Comma Support) ───────────────── */}
-      <Modal visible={!!selectedProduct} animationType="fade" transparent onRequestClose={() => setSelectedProduct(null)}>
-        <View className="flex-1 justify-center bg-black/60 p-6">
-          <View className="bg-white rounded-3xl p-6 shadow-2xl">
-            <View className="flex-row justify-between items-center mb-4">
-               <View>
-                  <Text className="text-lg font-black text-slate-900">{selectedProduct?.name}</Text>
-                  <Text className="text-xs text-slate-400">Update quantity and unit price</Text>
-               </View>
-               <TouchableOpacity onPress={() => setSelectedProduct(null)} className="bg-slate-100 p-2 rounded-full">
-                  <Ionicons name="close" size={20} color="#64748b" />
-               </TouchableOpacity>
-            </View>
-
-            <View className="mb-6">
-               <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Quantity</Text>
-               <View className="flex-row items-center">
-                  <TouchableOpacity
-                    onPress={() => setTempQty(prev => (Math.max(0, parseDecimal(prev) - 1)).toString().replace('.', ','))}
-                    className="w-14 h-14 bg-slate-100 rounded-2xl items-center justify-center">
-                    <Ionicons name="remove" size={24} color="#475569" />
-                  </TouchableOpacity>
-                  <TextInput
-                    className="flex-1 text-center text-3xl font-black text-slate-900 mx-3 border-2 border-indigo-50 rounded-2xl py-3 focus:border-indigo-600"
-                    keyboardType="decimal-pad"
-                    value={tempQty}
-                    onChangeText={setTempQty}
-                    selectTextOnFocus
-                  />
-                  <TouchableOpacity
-                    onPress={() => setTempQty(prev => (parseDecimal(prev) + 1).toString().replace('.', ','))}
-                    className="w-14 h-14 bg-indigo-600 rounded-2xl items-center justify-center">
-                    <Ionicons name="add" size={24} color="#FFF" />
-                  </TouchableOpacity>
-               </View>
-            </View>
-
-            <View className="mb-8">
-               <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Unit Price ($)</Text>
-               <TextInput
-                 className="w-full text-center text-2xl font-black text-indigo-600 border-2 border-indigo-50 rounded-2xl py-4 focus:border-indigo-600"
-                 keyboardType="decimal-pad"
-                 value={tempPrice}
-                 onChangeText={setTempPrice}
-                 selectTextOnFocus
-               />
-            </View>
-
-            <View className="flex-row gap-3">
-               <TouchableOpacity
-                 onPress={() => setSelectedProduct(null)}
-                 className="flex-1 py-4 bg-slate-100 rounded-2xl">
-                 <Text className="text-center font-bold text-slate-600">Cancel</Text>
-               </TouchableOpacity>
-               <TouchableOpacity
-                 onPress={confirmItemEdit}
-                 className="flex-2 py-4 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200">
-                 <Text className="text-center font-bold text-white px-8">Confirm</Text>
-               </TouchableOpacity>
+          {/* Product Search Input */}
+          <View className="mb-2">
+            <View className="flex-row items-center bg-slate-100 rounded-xl px-3 py-2.5">
+              <Ionicons name="search" size={18} color={searchQuery ? "#3B82F6" : "#94A3B8"} />
+              <TextInput
+                className="flex-1 ml-2 text-sm font-medium text-gray-900"
+                placeholder="Search products..."
+                placeholderTextColor="#94A3B8"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={20} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
-      </Modal>
+      </SafeAreaView>
+
 
       {/* ── Item List (grouped by category) ────────────────────────────── */}
 
@@ -1226,10 +1169,13 @@ export default function POSScreenNew({ navigation }: any) {
       </Modal>
       {/* ── Customer Modal (modern bottom sheet) ────────────────── */}
       <Modal visible={showCustomerModal} animationType="slide" transparent onRequestClose={() => setShowCustomerModal(false)}>
-        <View className="flex-1 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <View className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <TouchableOpacity className="flex-1" activeOpacity={1} onPress={() => setShowCustomerModal(false)} />
-          <View className="rounded-t-[28px] bg-white" style={{ maxHeight: height * 0.75 }}>
-            <SafeAreaView>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'position'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+            <View className="rounded-t-[28px] bg-white" style={{ maxHeight: height * 0.75 }}>
+              <SafeAreaView>
               {/* Drag handle */}
               <View className="items-center pt-3 pb-1">
                 <View className="w-10 h-1 bg-slate-200 rounded-full" />
@@ -1303,9 +1249,31 @@ export default function POSScreenNew({ navigation }: any) {
                 )}
               </ScrollView>
             </SafeAreaView>
-          </View>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      {/* ── Quantity Modal ─────────────────────────────────────────────── */}
+      {quantityModalProduct && (
+        <QuantityModal
+          visible={showQuantityModal}
+          productName={quantityModalProduct.name}
+          currentQuantity={getCartQty(quantityModalProduct.id)}
+          maxQuantity={quantityModalProduct.quantity}
+          unitPrice={cart.find(c => c.product.id === quantityModalProduct.id)?.unit_price ?? quantityModalProduct.unit_price}
+          currentDiscount={cart.find(c => c.product.id === quantityModalProduct.id)?.discount_percent ?? 0}
+          onConfirm={(qty, price, disc) => {
+            setCartQty(quantityModalProduct, qty, price, disc);
+            setShowQuantityModal(false);
+            setQuantityModalProduct(null);
+          }}
+          onCancel={() => {
+            setShowQuantityModal(false);
+            setQuantityModalProduct(null);
+          }}
+        />
+      )}
 
       {/* ── Printing Overlay ───────────────────────────────────────────── */}
       {isPrinting && (

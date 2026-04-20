@@ -49,12 +49,13 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 
 	// Customer routes - matches PHP: /api/customers
 	customerService := services.NewCustomerService(models.Customer{}, store)
-	customerHandler := handlers.NewCustomerHandler(customerService)
+	customerHandler := handlers.NewCustomerHandler(customerService, store)
 	apiGroup.GET("/customers", customerHandler.GetAllHandler)
 	apiGroup.GET("/customers/:id", customerHandler.GetIDHandler)
 	apiGroup.POST("/customers", customerHandler.CreateHandler)
 	apiGroup.PUT("/customers/:id", customerHandler.UpdateHandler)
 	apiGroup.DELETE("/customers/:id", customerHandler.Delete)
+	apiGroup.POST("/customers/:id/balance-adjustment", customerHandler.AdjustBalanceHandler)
 
 	// Location routes - matches PHP: /api/locations
 	locationService := services.NewLocationService(models.Location{}, store)
@@ -122,6 +123,7 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.PUT("/invoices/purchase/:id/items/:item_id", invoiceHandler.UpdatePurchaseInvoiceItem)
 	apiGroup.POST("/invoices/sales/:id/items", invoiceHandler.AddSalesInvoiceItem)
 	apiGroup.POST("/invoices/purchase/:id/items", invoiceHandler.AddPurchaseInvoiceItem)
+	apiGroup.DELETE("/invoices/purchase/:id/items/:item_id", invoiceHandler.DeletePurchaseInvoiceItem)
 	apiGroup.DELETE("/invoices/:id", invoiceHandler.DeleteInvoiceHandler)
 
 	// Credit Note service (needed for payment handler)
@@ -131,6 +133,7 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	paymentHandler := handlers.NewPaymentHandler(paymentService, salesInvoiceService, purchaseInvoiceService, creditNoteService, store)
 	apiGroup.GET("/payments", paymentHandler.GetAllHandler)
 	apiGroup.POST("/payments", paymentHandler.CreateHandler)
+	apiGroup.POST("/payments/:id/reverse", paymentHandler.ReversePaymentHandler)
 
 	// Report routes - matches PHP: /api/reports
 	reportHandler := handlers.NewReportHandler(store)

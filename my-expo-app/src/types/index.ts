@@ -67,6 +67,7 @@ export interface Vendor {
 }
 
 export interface CartItem {
+  item_id?: number; // backend item ID (for edit diff)
   product: StockItem;
   quantity: number;
   unit_price: number;

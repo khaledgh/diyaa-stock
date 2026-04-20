@@ -257,6 +257,11 @@ class ApiService {
     return response.data;
   }
 
+  async getInvoiceReturns(invoiceId: number) {
+    const response = await this.api.get(`/invoices/${invoiceId}/returns`);
+    return response.data;
+  }
+
   // Session & Location Management
   async getTodaySession() {
     const response = await this.api.get('/sessions/today');
@@ -316,6 +321,79 @@ class ApiService {
       console.error('Failed to parse AI response:', rawText);
       return { summary: 'Error parsing AI output', items: [] };
     }
+  }
+
+  // Payment endpoints
+  async getPayments(params?: { invoice_id?: number; limit?: number }) {
+    const response = await this.api.get('/payments', { params });
+    return response.data;
+  }
+
+  async createPayment(data: {
+    invoice_id: number;
+    invoice_type: string;
+    amount: number;
+    payment_method: string;
+    reference_number?: string;
+    notes?: string;
+  }) {
+    const response = await this.api.post('/payments', data);
+    return response.data;
+  }
+
+  async reversePayment(paymentId: number) {
+    const response = await this.api.post(`/payments/${paymentId}/reverse`);
+    return response.data;
+  }
+
+  // Report endpoints
+  async getCustomerStatement(customerId: number, params?: { from_date?: string; to_date?: string }) {
+    const response = await this.api.get(`/reports/customer-statement/${customerId}`, { params });
+    return response.data;
+  }
+
+  async getDashboardReport(params?: { from_date?: string; to_date?: string }) {
+    const response = await this.api.get('/reports/dashboard', { params });
+    return response.data;
+  }
+
+  async getReceivables(params?: any) {
+    const response = await this.api.get('/reports/receivables', { params });
+    return response.data;
+  }
+
+  async getReportPayments(params?: any) {
+    const response = await this.api.get('/reports/payments', { params });
+    return response.data;
+  }
+
+  // Customer balance adjustment
+  async adjustCustomerBalance(customerId: number, data: { amount: number; type: 'debit' | 'credit'; reason: string }) {
+    const response = await this.api.post(`/customers/${customerId}/balance-adjustment`, data);
+    return response.data;
+  }
+
+  // Invoice item endpoints
+  async updatePurchaseInvoiceItem(
+    invoiceId: number,
+    itemId: number,
+    data: { product_id: number; quantity: number; unit_price: number; discount_percent?: number }
+  ) {
+    const response = await this.api.put(`/invoices/purchase/${invoiceId}/items/${itemId}`, data);
+    return response.data;
+  }
+
+  async addPurchaseInvoiceItem(
+    invoiceId: number,
+    data: { product_id: number; quantity: number; unit_price: number; discount_percent?: number }
+  ) {
+    const response = await this.api.post(`/invoices/purchase/${invoiceId}/items`, data);
+    return response.data;
+  }
+
+  async deletePurchaseInvoiceItem(invoiceId: number, itemId: number) {
+    const response = await this.api.delete(`/invoices/purchase/${invoiceId}/items/${itemId}`);
+    return response.data;
   }
 }
 

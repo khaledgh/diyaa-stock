@@ -80,7 +80,7 @@ export default function CustomerScreen({ navigation }: any) {
     setFormEmail(customer.email || '');
     setFormAddress(customer.address || '');
     setFormTaxNumber('');
-    setFormOpeningBalance('');
+    setFormOpeningBalance((customer as any).opening_balance?.toString() || '');
     setShowAddModal(true);
   };
 
@@ -191,7 +191,8 @@ export default function CustomerScreen({ navigation }: any) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />}
           renderItem={({ item }) => (
             <TouchableOpacity
-              onPress={() => openEditModal(item)}
+              onPress={() => navigation.navigate('CustomerDetail', { customerId: item.id })}
+              onLongPress={() => openEditModal(item)}
               className="bg-white rounded-2xl p-4 mb-3"
               style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4 }}
               activeOpacity={0.7}>
@@ -331,20 +332,18 @@ export default function CustomerScreen({ navigation }: any) {
             </View>
 
             {/* Opening Balance */}
-            {!editingCustomer && (
-              <View className="mb-4">
-                <Text className="text-sm font-semibold text-gray-700 mb-1.5">Opening Balance</Text>
-                <TextInput
-                  className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
-                  placeholder="0.00"
-                  placeholderTextColor="#9CA3AF"
-                  value={formOpeningBalance}
-                  onChangeText={setFormOpeningBalance}
-                  keyboardType="decimal-pad"
-                />
-                <Text className="text-xs text-gray-400 mt-1">Enter positive for amount owed by customer</Text>
-              </View>
-            )}
+            <View className="mb-4">
+              <Text className="text-sm font-semibold text-gray-700 mb-1.5">Opening Balance</Text>
+              <TextInput
+                className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
+                placeholder="0.00"
+                placeholderTextColor="#9CA3AF"
+                value={formOpeningBalance}
+                onChangeText={setFormOpeningBalance}
+                keyboardType="decimal-pad"
+              />
+              <Text className="text-xs text-gray-400 mt-1">Enter positive for amount owed by customer</Text>
+            </View>
           </ScrollView>
         </SafeAreaView>
       </Modal>

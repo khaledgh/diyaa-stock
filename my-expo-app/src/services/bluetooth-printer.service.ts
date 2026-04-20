@@ -1,20 +1,25 @@
-import { CartItem } from '../types';
-
-interface PrinterDevice {
-  address: string;
+export interface ReceiptItem {
   name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  discountPercent?: number;
 }
 
-interface ReceiptData {
+export interface ReceiptData {
   invoiceNumber: string;
   customerName?: string;
-  items: CartItem[];
+  customerPhone?: string;
+  customerBalance?: number;
+  items: ReceiptItem[];
   subtotal: number;
   tax: number;
   discount: number;
   total: number;
+  paidAmount?: number;
   date: string;
-  locationId: number;
+  locationId?: number;
+  locationName?: string;
   cashierName: string;
 }
 
@@ -39,7 +44,7 @@ class BluetoothPrinterService {
     return true;
   }
 
-  async scanDevices(): Promise<PrinterDevice[]> {
+  async scanDevices(): Promise<any[]> {
     if (!this.isAvailable() || !ThermalPrinterModule) {
       throw new Error('Thermal printer not available. Requires development build.');
     }
@@ -97,61 +102,76 @@ class BluetoothPrinterService {
         throw new Error('Printer not connected');
       }
 
-      // Build receipt text
+      // Build receipt text with professional layout
       let receipt = '';
       
       // Header
       receipt += '[C]<font size="big">DIYAA STOCK</font>\n';
-      receipt += '[C]Point of Sale System\n';
-      receipt += '[C]================================\n';
+      receipt += `[C]${data.locationName || 'Quality Wholesale'}\n`;
+      receipt += '[L]--------------------------------\n';
       
       // Invoice info
-      receipt += `[L]Invoice: ${data.invoiceNumber}\n`;
-      receipt += `[L]Date: ${data.date}\n`;
-      receipt += `[L]Location: ${data.locationId}\n`;
-      receipt += `[L]Cashier: ${data.cashierName}\n`;
+      receipt += `[L]INVOICE: ${data.invoiceNumber}\n`;
+      receipt += `[L]DATE: ${data.date}\n`;
+      receipt += `[L]CASHIER: ${data.cashierName}\n`;
       
       if (data.customerName) {
-        receipt += `[L]Customer: ${data.customerName}\n`;
+        receipt += `[L]CUSTOMER: ${data.customerName}\n`;
       }
       
-      receipt += '[C]================================\n';
+      receipt += '[L]--------------------------------\n';
       
-      // Items
-      receipt += '[L]ITEMS:\n';
+      // Items Header
+      receipt += '[L]ITEM[R]TOTAL\n';
       receipt += '[L]--------------------------------\n';
       
       for (const item of data.items) {
-        const name = item.product.name.substring(0, 20);
-        const qty = item.quantity;
-        const price = item.unit_price.toFixed(2);
-        const total = item.total.toFixed(2);
+        // Name on one line
+        receipt += `[L]${item.name.substring(0, 32)}\n`;
+        // Qty and Price below
+        const qtyPrice = `  ${item.quantity} x $${item.unitPrice.toFixed(2)}`;
+        const itemTotal = `$${item.total.toFixed(2)}`;
+        receipt += `[L]${qtyPrice}[R]${itemTotal}\n`;
         
-        receipt += `[L]${name}\n`;
-        receipt += `[L]  ${qty} x $${price}[R]$${total}\n`;
+        if (item.discountPercent && item.discountPercent > 0) {
+          receipt += `[L]  (Disc: ${item.discountPercent}%)\n`;
+        }
       }
       
-      receipt += '[C]================================\n';
+      receipt += '[L]--------------------------------\n';
       
       // Totals
-      receipt += `[L]Subtotal:[R]$${data.subtotal.toFixed(2)}\n`;
+      receipt += `[L]SUBTOTAL:[R]$${data.subtotal.toFixed(2)}\n`;
       
       if (data.discount > 0) {
-        receipt += `[L]Discount:[R]-$${data.discount.toFixed(2)}\n`;
+        receipt += `[L]DISCOUNT:[R]-$${data.discount.toFixed(2)}\n`;
       }
       
       if (data.tax > 0) {
-        receipt += `[L]Tax:[R]$${data.tax.toFixed(2)}\n`;
+        receipt += `[L]VAT (0%):[R]$${data.tax.toFixed(2)}\n`;
       }
       
-      receipt += '[C]================================\n';
+      receipt += '[L]--------------------------------\n';
       receipt += `[L]<font size="big">TOTAL:[R]$${data.total.toFixed(2)}</font>\n`;
       
+      if (data.paidAmount !== undefined) {
+        receipt += `[L]PAID:[R]$${data.paidAmount.toFixed(2)}\n`;
+        const bal = data.total - data.paidAmount;
+        if (bal > 0) {
+          receipt += `[L]<font size="big">DUE:[R]$${bal.toFixed(2)}</font>\n`;
+        }
+      }
+      
+      if (data.customerBalance !== undefined) {
+        receipt += '[L]--------------------------------\n';
+        receipt += `[L]TOTAL BALANCE:[R]$${data.customerBalance.toFixed(2)}\n`;
+      }
+      
       // Footer
-      receipt += '\n';
+      receipt += '[L]--------------------------------\n';
       receipt += '[C]Thank you for your business!\n';
-      receipt += '[C]Please come again\n';
-      receipt += '\n\n\n';
+      receipt += '[C]Goods once sold not returnable\n';
+      receipt += '\n\n\n\n';
 
       // Print the receipt
       await ThermalPrinterModule.printText(receipt);
@@ -168,11 +188,12 @@ class BluetoothPrinterService {
     try {
       const testReceipt = 
         '\n' +
-        '================================\n' +
-        '       TEST PRINT\n' +
-        '================================\n' +
-        '   Printer is working!\n' +
-        '\n\n\n';
+        '[C]================================\n' +
+        '[C]       TEST PRINT\n' +
+        '[C]================================\n' +
+        '[C]   Printer is working!\n' +
+        '[C]   DIYAA STOCK SYSTEM\n' +
+        '\n\n\n\n';
       
       await ThermalPrinterModule.printText(testReceipt);
     } catch (error) {

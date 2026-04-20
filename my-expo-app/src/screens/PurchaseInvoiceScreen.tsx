@@ -45,6 +45,8 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
     const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
     const [tempQty, setTempQty] = useState('1');
     const [tempPrice, setTempPrice] = useState('');
+    // Track raw quantity text per cart item (allows typing "1." without losing the dot)
+    const [quantityTextMap, setQuantityTextMap] = useState<Record<number, string>>({});
     const isAdmin = user?.role === 'admin';
 
     const loadInitialData = useCallback(async () => {
@@ -164,6 +166,8 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
     const updateCartQuantity = (productId: number, quantity: number) => {
         if (quantity <= 0) {
             setCart(cart.filter(item => item.product.id !== productId));
+            // Also clear the text map entry
+            setQuantityTextMap(prev => { const n = { ...prev }; delete n[productId]; return n; });
             return;
         }
         setCart(cart.map(item => {
@@ -457,7 +461,11 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                 </View>
                                 <View className="flex-row items-center bg-gray-100 rounded-xl px-2 py-1">
                                     <TouchableOpacity
-                                        onPress={() => updateCartQuantity(item.product.id, item.quantity - 1)}
+                                        onPress={() => {
+                                            // Clear text map so input reverts to numeric value
+                                            setQuantityTextMap(prev => { const n = { ...prev }; delete n[item.product.id]; return n; });
+                                            updateCartQuantity(item.product.id, item.quantity - 1);
+                                        }}
                                         className="w-10 h-10 items-center justify-center"
                                     >
                                         <Ionicons name="remove" size={22} color="#4B5563" />
@@ -465,15 +473,40 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                     <TextInput
                                         className="w-16 text-center font-bold text-gray-900 text-lg p-0"
                                         keyboardType="decimal-pad"
-                                        defaultValue={item.quantity.toString()}
-                                        onEndEditing={(e) => {
-                                            const val = e.nativeEvent.text;
-                                            updateCartQuantity(item.product.id, parseFloat(val.replace(',', '.')) || 0);
+                                        value={quantityTextMap[item.product.id] !== undefined
+                                            ? quantityTextMap[item.product.id]
+                                            : item.quantity.toString()}
+                                        onChangeText={(val) => {
+                                            // Always update the text map so intermediate values like "1." are preserved
+                                            setQuantityTextMap(prev => ({ ...prev, [item.product.id]: val }));
+                                            // Only parse and update cart when it's a complete valid number
+                                            const normalized = val.replace(',', '.');
+                                            if (!normalized.endsWith('.') && normalized !== '') {
+                                                const parsed = parseFloat(normalized);
+                                                if (!isNaN(parsed) && parsed > 0) {
+                                                    updateCartQuantity(item.product.id, parsed);
+                                                }
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            // On blur, commit whatever value is in the text map
+                                            const raw = quantityTextMap[item.product.id];
+                                            if (raw !== undefined) {
+                                                const parsed = parseFloat(raw.replace(',', '.'));
+                                                if (!isNaN(parsed) && parsed > 0) {
+                                                    updateCartQuantity(item.product.id, parsed);
+                                                }
+                                                // Clear the map entry so it reverts to the committed value
+                                                setQuantityTextMap(prev => { const n = { ...prev }; delete n[item.product.id]; return n; });
+                                            }
                                         }}
                                         selectTextOnFocus
                                     />
                                     <TouchableOpacity
-                                        onPress={() => updateCartQuantity(item.product.id, item.quantity + 1)}
+                                        onPress={() => {
+                                            setQuantityTextMap(prev => { const n = { ...prev }; delete n[item.product.id]; return n; });
+                                            updateCartQuantity(item.product.id, item.quantity + 1);
+                                        }}
                                         className="w-10 h-10 items-center justify-center"
                                     >
                                         <Ionicons name="add" size={22} color="#4B5563" />

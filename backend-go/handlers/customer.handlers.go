@@ -7,6 +7,7 @@ import (
 	"github.com/gonext-tech/invoicing-system/backend/models"
 	"github.com/gonext-tech/invoicing-system/backend/services"
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 type CustomerService interface {
@@ -19,12 +20,17 @@ type CustomerService interface {
 
 type CustomerHandler struct {
 	CustomerServices CustomerService
+	DB               *gorm.DB
 }
 
-func NewCustomerHandler(cs CustomerService) *CustomerHandler {
-	return &CustomerHandler{
+func NewCustomerHandler(cs CustomerService, db ...*gorm.DB) *CustomerHandler {
+	h := &CustomerHandler{
 		CustomerServices: cs,
 	}
+	if len(db) > 0 {
+		h.DB = db[0]
+	}
+	return h
 }
 
 func (ch *CustomerHandler) GetAllHandler(c echo.Context) error {
@@ -191,4 +197,48 @@ func (ch *CustomerHandler) Delete(c echo.Context) error {
 		return ResponseError(c, err)
 	}
 	return ResponseSuccess(c, "Customer deleted successfully", nil)
+}
+
+// AdjustBalanceHandler applies a manual debit or credit balance adjustment for a customer
+func (ch *CustomerHandler) AdjustBalanceHandler(c echo.Context) error {
+	id := c.Param("id")
+	if ch.DB == nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Database not available")
+	}
+
+	var req struct {
+		Amount float64 `json:"amount"`
+		Type   string  `json:"type"` // "debit" adds to balance, "credit" reduces balance
+		Reason string  `json:"reason"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request: "+err.Error())
+	}
+	if req.Amount <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Amount must be greater than zero")
+	}
+	if req.Type != "debit" && req.Type != "credit" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Type must be 'debit' or 'credit'")
+	}
+
+	customer, err := ch.CustomerServices.GetID(id)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	if req.Type == "debit" {
+		customer.Balance += req.Amount
+	} else {
+		customer.Balance -= req.Amount
+		if customer.Balance < 0 {
+			customer.Balance = 0
+		}
+	}
+
+	updated, err := ch.CustomerServices.Update(customer)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	return ResponseSuccess(c, "Customer balance adjusted successfully", updated)
 }

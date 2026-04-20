@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { usePrinter } from '../../hooks/usePrinter';
 import apiService from '../services/api.service';
+import InvoicePreviewModal from '../components/InvoicePreviewModal';
 
 export default function ProfileScreen({ navigation }: any) {
   const { user, logout } = useAuth();
@@ -14,6 +15,7 @@ export default function ProfileScreen({ navigation }: any) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [showCommissionModal, setShowCommissionModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [commissionValue, setCommissionValue] = useState('');
 
   const handleChangePassword = async () => {
@@ -212,6 +214,19 @@ export default function ProfileScreen({ navigation }: any) {
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
 
+          {/* Invoice Preview Button */}
+          <TouchableOpacity
+            onPress={() => setShowPreviewModal(true)}
+            className="bg-white rounded-2xl py-4 mb-3 flex-row items-center justify-between px-4"
+            style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 }}
+          >
+            <View className="flex-row items-center">
+              <Ionicons name="eye" size={24} color="#6366F1" />
+              <Text className="text-gray-900 font-semibold text-base ml-3">Invoice Preview</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+
           {/* Logout Button */}
           <TouchableOpacity
             onPress={handleLogout}
@@ -306,6 +321,13 @@ export default function ProfileScreen({ navigation }: any) {
           </View>
         </View>
       </Modal>
+
+      {/* Invoice Preview Modal */}
+      <InvoicePreviewModal 
+        visible={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        user={user}
+      />
     </SafeAreaView>
   );
 }

@@ -100,6 +100,10 @@ func (s *PaymentService) GetPaginated(limit, page int, orderBy, sortBy, invoiceI
 	}, nil
 }
 
+func (s *PaymentService) GetByID(id uint) (models.Payment, error) {
+	return s.GetID(strconv.Itoa(int(id)))
+}
+
 func (s *PaymentService) DeleteByInvoiceID(invoiceID uint, invoiceType string) error {
 	// Delete all payments for the given invoice
 	if err := s.db.Where("invoice_id = ? AND invoice_type = ?", invoiceID, invoiceType).Delete(&models.Payment{}).Error; err != nil {

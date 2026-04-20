@@ -31,6 +31,7 @@
     "axios": "^1.7.9",
     "buffer": "^6.0.3",
     "expo": "54.0.22",
+    "expo-asset": "~12.0.12",
     "expo-av": "^16.0.8",
     "expo-dev-client": "~6.0.17",
     "expo-file-system": "~18.0.11",

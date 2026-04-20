@@ -32,6 +32,7 @@ type PurchaseInvoiceService interface {
 	Update(invoice models.PurchaseInvoice) (models.PurchaseInvoice, error)
 	UpdateItem(itemID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error
 	AddItem(invoiceID uint, productID uint, quantity float64, unitPrice, discountPercent float64) error
+	DeleteItem(itemID uint) (models.PurchaseInvoiceItem, error)
 	RecalculateTotals(invoiceID uint) error
 	Delete(id string, tx *gorm.DB) error
 }
@@ -172,6 +173,7 @@ func (ih *InvoiceHandler) UpdateHandler(c echo.Context) error {
 			Notes       *string `json:"notes"`
 			VendorID    *uint   `json:"vendor_id"`
 			Status      *string `json:"status"`
+			LocationID  *uint   `json:"location_id"`
 		}
 
 		if err := c.Bind(&req); err != nil {
@@ -203,6 +205,13 @@ func (ih *InvoiceHandler) UpdateHandler(c echo.Context) error {
 		// VendorID can be set to null (to remove vendor) or to a valid vendor ID
 		invoice.VendorID = req.VendorID
 
+		// Handle location change on finalized invoices — move stock between locations
+		oldLocationID := invoice.LocationID
+		locationChanged := req.LocationID != nil && *req.LocationID != 0 && *req.LocationID != oldLocationID
+		if req.LocationID != nil && *req.LocationID != 0 {
+			invoice.LocationID = *req.LocationID
+		}
+
 		wasDraft := invoice.Status == "draft"
 		if req.Status != nil {
 			invoice.Status = *req.Status
@@ -214,9 +223,26 @@ func (ih *InvoiceHandler) UpdateHandler(c echo.Context) error {
 			return ResponseError(c, err)
 		}
 
+		user, _ := GetUserContext(c)
+
+		if locationChanged && !wasDraft {
+			// Move stock from old location to new location for all items
+			oldLocationType, oldLocID := ih.StockServices.GetLocationTypeAndID(oldLocationID)
+			newLocationType, newLocID := ih.StockServices.GetLocationTypeAndID(updatedInvoice.LocationID)
+
+			for _, item := range updatedInvoice.Items {
+				// Remove from old location
+				ih.StockServices.UpdateStock(item.ProductID, oldLocationType, oldLocID, -item.Quantity)
+				ih.StockServices.CreateMovement(item.ProductID, "transfer", item.Quantity, oldLocationType, oldLocID, newLocationType, newLocID,
+					fmt.Sprintf("Purchase Invoice #%d location change", updatedInvoice.ID), user.ID)
+
+				// Add to new location
+				ih.StockServices.UpdateStock(item.ProductID, newLocationType, newLocID, item.Quantity)
+			}
+		}
+
 		if isFinalizing {
 			// Trigger stock update since it was a draft
-			user, _ := GetUserContext(c)
 			locationType, locationID := ih.StockServices.GetLocationTypeAndID(updatedInvoice.LocationID)
 
 			for _, item := range updatedInvoice.Items {
@@ -360,11 +386,11 @@ func (ih *InvoiceHandler) CreatePurchaseHandler(c echo.Context) error {
 		itemSubtotal := float64(item.Quantity) * item.UnitPrice
 		itemDiscount := itemSubtotal * item.DiscountPercent / 100
 		total := itemSubtotal - itemDiscount
-		
+
 		subtotalAmount += itemSubtotal
 		discountAmount += itemDiscount
 		totalAmount += total
-		
+
 		items = append(items, models.PurchaseInvoiceItem{
 			ProductID:       item.ProductID,
 			Quantity:        item.Quantity,
@@ -501,11 +527,11 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 		itemSubtotal := float64(item.Quantity) * item.UnitPrice
 		itemDiscount := itemSubtotal * item.DiscountPercent / 100
 		total := itemSubtotal - itemDiscount
-		
+
 		subtotalAmount += itemSubtotal
 		discountAmount += itemDiscount
 		totalAmount += total
-		
+
 		items = append(items, models.SalesInvoiceItem{
 			ProductID:       item.ProductID,
 			Quantity:        item.Quantity,
@@ -1016,6 +1042,70 @@ func (ih *InvoiceHandler) AddPurchaseInvoiceItem(c echo.Context) error {
 
 	log.Printf("[ADD PURCHASE ITEM] New item added to invoice #%s", id)
 	return ResponseSuccess(c, "Purchase invoice item added successfully", updatedInvoice)
+}
+
+// DeletePurchaseInvoiceItem deletes an item from a purchase invoice and reverses stock if finalized
+func (ih *InvoiceHandler) DeletePurchaseInvoiceItem(c echo.Context) error {
+	id := c.Param("id")
+	itemID := c.Param("item_id")
+
+	user, err := GetUserContext(c)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Get the invoice
+	invoice, err := ih.PurchaseInvoiceServices.GetID(id)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	if len(invoice.Items) <= 1 {
+		return ResponseError(c, errors.New("cannot delete the last item from an invoice"))
+	}
+
+	// Find the item
+	itemIDUint, err := strconv.ParseUint(itemID, 10, 32)
+	if err != nil {
+		return ResponseError(c, errors.New("invalid item ID"))
+	}
+	var itemToDelete *models.PurchaseInvoiceItem
+	for i := range invoice.Items {
+		if invoice.Items[i].ID == uint(itemIDUint) {
+			itemToDelete = &invoice.Items[i]
+			break
+		}
+	}
+	if itemToDelete == nil {
+		return ResponseError(c, errors.New("item not found"))
+	}
+
+	// Delete the item via service
+	deletedItem, err := ih.PurchaseInvoiceServices.DeleteItem(uint(itemIDUint))
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Recalculate invoice totals
+	if err := ih.PurchaseInvoiceServices.RecalculateTotals(invoice.ID); err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Reverse stock if invoice is finalized
+	if invoice.Status != "draft" {
+		locationType, locationID := ih.StockServices.GetLocationTypeAndID(invoice.LocationID)
+		ih.StockServices.UpdateStock(deletedItem.ProductID, locationType, locationID, -deletedItem.Quantity)
+		notes := fmt.Sprintf("Deleted item from purchase invoice #%d", invoice.ID)
+		ih.StockServices.CreateMovement(deletedItem.ProductID, "adjustment", deletedItem.Quantity, locationType, locationID, "", 0, notes, user.ID)
+	}
+
+	updatedInvoice, err := ih.PurchaseInvoiceServices.GetID(fmt.Sprintf("%d", invoice.ID))
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	log.Printf("[DELETE PURCHASE ITEM] Item %s deleted from invoice #%s", itemID, id)
+	return ResponseSuccess(c, "Purchase invoice item deleted successfully", updatedInvoice)
 }
 
 func (ih *InvoiceHandler) DeleteInvoiceHandler(c echo.Context) error {

@@ -9,10 +9,12 @@ import POSScreen from '../screens/POSScreenNew';
 import HistoryScreen from '../screens/HistoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import PurchaseInvoiceScreen from '../screens/PurchaseInvoiceScreen';
+import EditInvoiceScreen from '../screens/EditInvoiceScreen';
 import CreditNoteListScreen from '../screens/CreditNoteListScreen';
 import CreateCreditNoteScreen from '../screens/CreateCreditNoteScreen';
 import UserManagementScreen from '../screens/UserManagementScreen';
 import CustomerScreen from '../screens/CustomerScreen';
+import CustomerDetailScreen from '../screens/CustomerDetailScreen';
 import LocationSessionModal from '../components/LocationSessionModal';
 // import AIInvoiceScreen from '../screens/AIInvoiceScreen'; // Hidden for now
 
@@ -97,6 +99,16 @@ function AdminTabs() {
         }}
       />
       <Tab.Screen
+        name="Customers"
+        component={CustomerScreen}
+        options={{
+          tabBarLabel: 'Customers',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'people-circle' : 'people-circle-outline'} color={color} size={24} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
@@ -171,6 +183,16 @@ function SalesTabs() {
         }}
       />
       <Tab.Screen
+        name="Customers"
+        component={CustomerScreen}
+        options={{
+          tabBarLabel: 'Customers',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'people-circle' : 'people-circle-outline'} color={color} size={24} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
@@ -223,10 +245,12 @@ export default function AppNavigator() {
         <>
           <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="PurchaseInvoice" component={PurchaseInvoiceScreen} />
+          <Stack.Screen name="EditInvoice" component={EditInvoiceScreen} />
           <Stack.Screen name="CreditNoteList" component={CreditNoteListScreen} />
           <Stack.Screen name="CreateCreditNote" component={CreateCreditNoteScreen} />
           <Stack.Screen name="UserManagement" component={UserManagementScreen} />
           <Stack.Screen name="Customers" component={CustomerScreen} />
+          <Stack.Screen name="CustomerDetail" component={CustomerDetailScreen} />
         </>
       )}
     </Stack.Navigator>

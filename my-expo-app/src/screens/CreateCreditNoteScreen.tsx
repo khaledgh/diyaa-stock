@@ -18,6 +18,7 @@ export default function CreateCreditNoteScreen({ route, navigation }: any) {
     const { invoiceId, invoiceType } = route.params || {};
     const [invoice, setInvoice] = useState<Invoice | null>(null);
     const [returnItems, setReturnItems] = useState<{ [key: number]: number }>({});
+    const [locationStock, setLocationStock] = useState<{ [key: number]: number }>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,6 +35,24 @@ export default function CreateCreditNoteScreen({ route, navigation }: any) {
                         initialReturns[item.product_id] = 0;
                     });
                     setReturnItems(initialReturns);
+
+                    // For purchase invoices, load location stock to prevent over-returns
+                    if (invoiceType === 'purchase' && res.data.location_id) {
+                        try {
+                            const stockRes = await apiService.getLocationStock(res.data.location_id);
+                            if (stockRes.ok || stockRes.success) {
+                                const stockMap: { [key: number]: number } = {};
+                                const stockData = stockRes.data || [];
+                                stockData.forEach((stockItem: any) => {
+                                    stockMap[stockItem.product_id] = parseFloat(stockItem.quantity) || 0;
+                                });
+                                setLocationStock(stockMap);
+                            }
+                        } catch (err) {
+                            // If stock fetch fails, continue without validation
+                            console.warn('Failed to load location stock:', err);
+                        }
+                    }
                 }
             } catch (e) {
                 Alert.alert('Error', 'Failed to load invoice details');
@@ -47,6 +66,16 @@ export default function CreateCreditNoteScreen({ route, navigation }: any) {
     const updateQuantity = (productId: number, qty: number, max: number) => {
         if (qty < 0 || qty > max) return;
         setReturnItems({ ...returnItems, [productId]: qty });
+    };
+
+    const getMaxReturnQty = (productId: number, purchasedQty: number): number => {
+        // For purchase invoices, limit by available stock at location
+        if (invoiceType === 'purchase') {
+            const availableStock = locationStock[productId] || 0;
+            return Math.min(purchasedQty, availableStock);
+        }
+        // For sales invoices, can return up to purchased quantity
+        return purchasedQty;
     };
 
     const calculateTotal = () => {
@@ -63,7 +92,7 @@ export default function CreateCreditNoteScreen({ route, navigation }: any) {
 
         try {
             setIsSubmitting(true);
-            const data = {
+            const data: any = {
                 invoice_id: invoiceId,
                 items: Object.entries(returnItems)
                     .filter(([_, qty]) => qty > 0)
@@ -73,6 +102,11 @@ export default function CreateCreditNoteScreen({ route, navigation }: any) {
                     })),
                 total_amount: total,
             };
+
+            // Auto-populate location_id from the loaded invoice
+            if (invoice?.location_id) {
+                data.location_id = invoice.location_id;
+            }
 
             const res = await apiService.createCreditNote(data);
             if (res.ok || res.success) {
@@ -108,35 +142,56 @@ export default function CreateCreditNoteScreen({ route, navigation }: any) {
             <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
                 <Text className="text-gray-500 font-bold text-xs uppercase mb-3 ml-1">Select Items to Return</Text>
 
-                {invoice.items?.map((item: InvoiceItem) => (
-                    <View key={item.product_id} className="bg-white rounded-2xl p-4 mb-3 border border-gray-100" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
-                        <View className="flex-row justify-between mb-2">
-                            <View className="flex-1">
-                                <Text className="font-bold text-gray-900">{(item as any).product?.name_en || (item as any).product?.name_ar || item.product_name || 'Unknown Product'}</Text>
-                                <Text className="text-xs text-gray-500">Purchased: {item.quantity} | Price: ${item.unit_price}</Text>
+                {invoice.items?.map((item: InvoiceItem) => {
+                    const maxReturn = getMaxReturnQty(item.product_id, item.quantity);
+                    const availableStock = locationStock[item.product_id];
+                    const isPurchase = invoiceType === 'purchase';
+                    
+                    return (
+                        <View key={item.product_id} className="bg-white rounded-2xl p-4 mb-3 border border-gray-100" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
+                            <View className="flex-row justify-between mb-2">
+                                <View className="flex-1">
+                                    <Text className="font-bold text-gray-900">{(item as any).product?.name_en || (item as any).product?.name_ar || item.product_name || 'Unknown Product'}</Text>
+                                    <Text className="text-xs text-gray-500">
+                                        Purchased: {item.quantity} | Price: ${item.unit_price}
+                                    </Text>
+                                    {isPurchase && availableStock !== undefined && (
+                                        <View className="flex-row items-center mt-1">
+                                            <Ionicons name="cube-outline" size={12} color="#059669" />
+                                            <Text className="text-xs text-emerald-600 font-bold ml-1">
+                                                Available at {invoice.location?.name || 'location'}: {availableStock} units
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {isPurchase && maxReturn < item.quantity && (
+                                        <Text className="text-[10px] text-orange-600 font-bold mt-0.5">
+                                            ⚠ Max return: {maxReturn} (limited by stock)
+                                        </Text>
+                                    )}
+                                </View>
+                                <Text className="font-black text-blue-600">${(item.unit_price * (returnItems[item.product_id] || 0)).toFixed(2)}</Text>
                             </View>
-                            <Text className="font-black text-blue-600">${(item.unit_price * (returnItems[item.product_id] || 0)).toFixed(2)}</Text>
-                        </View>
 
-                        <View className="flex-row items-center bg-gray-50 rounded-xl p-1 self-start">
-                            <TouchableOpacity
-                                onPress={() => updateQuantity(item.product_id, (returnItems[item.product_id] || 0) - 1, item.quantity)}
-                                className="w-10 h-10 items-center justify-center bg-white rounded-lg"
-                                style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
-                            >
-                                <Ionicons name="remove" size={20} color="#374151" />
-                            </TouchableOpacity>
-                            <Text className="w-12 text-center font-bold text-gray-900">{returnItems[item.product_id] || 0}</Text>
-                            <TouchableOpacity
-                                onPress={() => updateQuantity(item.product_id, (returnItems[item.product_id] || 0) + 1, item.quantity)}
-                                className="w-10 h-10 items-center justify-center bg-white rounded-lg"
-                                style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
-                            >
-                                <Ionicons name="add" size={20} color="#374151" />
-                            </TouchableOpacity>
+                            <View className="flex-row items-center bg-gray-50 rounded-xl p-1 self-start">
+                                <TouchableOpacity
+                                    onPress={() => updateQuantity(item.product_id, (returnItems[item.product_id] || 0) - 1, maxReturn)}
+                                    className="w-10 h-10 items-center justify-center bg-white rounded-lg"
+                                    style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
+                                >
+                                    <Ionicons name="remove" size={20} color="#374151" />
+                                </TouchableOpacity>
+                                <Text className="w-12 text-center font-bold text-gray-900">{returnItems[item.product_id] || 0}</Text>
+                                <TouchableOpacity
+                                    onPress={() => updateQuantity(item.product_id, (returnItems[item.product_id] || 0) + 1, maxReturn)}
+                                    className="w-10 h-10 items-center justify-center bg-white rounded-lg"
+                                    style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
+                                >
+                                    <Ionicons name="add" size={20} color="#374151" />
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                    </View>
-                ))}
+                    );
+                })}
             </ScrollView>
 
             <SafeAreaView edges={['bottom']} className="bg-white rounded-t-3xl" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 16 }}>

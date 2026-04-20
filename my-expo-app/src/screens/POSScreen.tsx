@@ -552,7 +552,7 @@ export default function POSScreen({ navigation }: any) {
                         setIsPrinting(true);
                         const printData = {
                           invoiceNumber: invoice.invoice_number,
-                          customerName: selectedCustomer?.name,
+                          customerName: selectedCustomer?.name || 'Walk-in Customer',
                           items: cart.map(item => ({
                             name: item.product.name,
                             quantity: item.quantity,
@@ -564,10 +564,12 @@ export default function POSScreen({ navigation }: any) {
                           discount: parseFloat(invoice.discount_amount) || 0,
                           tax: parseFloat(invoice.tax_amount) || 0,
                           total: parseFloat(invoice.total_amount) || 0,
-                          paidAmount: paidAmount,
+                          paidAmount: paidAmount, // Includes partial payments
+                          customerBalance: selectedCustomer?.balance,
                           date: new Date().toLocaleString(),
                           cashierName: user.full_name,
-                          storeName: 'DaftarStock',
+                          locationName: user.location_name || 'Main Warehouse',
+                          storeName: 'DIYAA STOCK',
                         };
                         await printReceiptData(printData);
                       } catch (err: any) {

@@ -11,14 +11,17 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "experiments": {
       "tsconfigPaths": true
     },
     "plugins": [
       "expo-secure-store",
       "expo-font",
-      "./plugins/withThermalPrinter"
+      "./plugins/withThermalPrinter",
+      "expo-asset"
     ],
     "web": {
       "favicon": "./assets/favicon.png",

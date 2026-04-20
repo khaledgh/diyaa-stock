@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/gonext-tech/invoicing-system/backend/models"
@@ -11,6 +12,7 @@ import (
 
 type PaymentService interface {
 	GetALL(invoiceID string, limit int) ([]models.Payment, error)
+	GetByID(id uint) (models.Payment, error)
 	Create(payment models.Payment) (models.Payment, error)
 	DeleteByInvoiceID(invoiceID uint, invoiceType string) error
 }
@@ -196,4 +198,96 @@ func (ph *PaymentHandler) CreateHandler(c echo.Context) error {
 	}
 
 	return ResponseSuccess(c, "Payment recorded successfully", createdPayment)
+}
+
+// ReversePaymentHandler creates a reversal (negative) payment record and restores invoice + balance
+func (ph *PaymentHandler) ReversePaymentHandler(c echo.Context) error {
+	paymentIDStr := c.Param("id")
+	paymentIDUint, err := strconv.ParseUint(paymentIDStr, 10, 32)
+	if err != nil {
+		return ResponseError(c, errors.New("invalid payment ID"))
+	}
+
+	user, err := GetUserContext(c)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Get original payment
+	original, err := ph.PaymentServices.GetByID(uint(paymentIDUint))
+	if err != nil {
+		return ResponseError(c, fmt.Errorf("payment not found: %w", err))
+	}
+
+	// Create reversal payment (negative amount)
+	reversalNotes := fmt.Sprintf("Reversal of payment #%d", original.ID)
+	reversal := models.Payment{
+		InvoiceID:       original.InvoiceID,
+		InvoiceType:     original.InvoiceType,
+		CustomerID:      original.CustomerID,
+		VendorID:        original.VendorID,
+		Amount:          -original.Amount,
+		PaymentMethod:   original.PaymentMethod,
+		ReferenceNumber: original.ReferenceNumber,
+		Notes:           &reversalNotes,
+		AllocationType:  "single",
+		CreatedBy:       user.ID,
+	}
+
+	createdReversal, err := ph.PaymentServices.Create(reversal)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
+	// Restore invoice paid_amount and payment_status
+	invoiceIDStr := strconv.Itoa(int(original.InvoiceID))
+	if original.InvoiceType == "purchase" {
+		invoice, err := ph.PurchaseInvoiceServices.GetID(invoiceIDStr)
+		if err == nil {
+			newPaidAmount := invoice.PaidAmount - original.Amount
+			if newPaidAmount < 0 {
+				newPaidAmount = 0
+			}
+			invoice.PaidAmount = newPaidAmount
+			if newPaidAmount <= 0.01 {
+				invoice.PaymentStatus = "unpaid"
+			} else if newPaidAmount >= invoice.TotalAmount-0.01 {
+				invoice.PaymentStatus = "paid"
+			} else {
+				invoice.PaymentStatus = "partial"
+			}
+			ph.PurchaseInvoiceServices.Update(invoice)
+		}
+	} else {
+		invoice, err := ph.SalesInvoiceServices.GetID(invoiceIDStr)
+		if err == nil {
+			newPaidAmount := invoice.PaidAmount - original.Amount
+			if newPaidAmount < 0 {
+				newPaidAmount = 0
+			}
+			invoice.PaidAmount = newPaidAmount
+			if newPaidAmount <= 0.01 {
+				invoice.PaymentStatus = "unpaid"
+			} else if newPaidAmount >= invoice.TotalAmount-0.01 {
+				invoice.PaymentStatus = "paid"
+			} else {
+				invoice.PaymentStatus = "partial"
+			}
+			ph.SalesInvoiceServices.Update(invoice)
+		}
+	}
+
+	// Restore customer/vendor balance (add back the reversed amount)
+	if ph.DB != nil {
+		if original.CustomerID != nil && *original.CustomerID > 0 {
+			ph.DB.Model(&models.Customer{}).Where("id = ?", *original.CustomerID).
+				Update("balance", gorm.Expr("balance + ?", original.Amount))
+		}
+		if original.VendorID != nil && *original.VendorID > 0 {
+			ph.DB.Model(&models.Vendor{}).Where("id = ?", *original.VendorID).
+				Update("balance", gorm.Expr("balance + ?", original.Amount))
+		}
+	}
+
+	return ResponseSuccess(c, "Payment reversed successfully", createdReversal)
 }

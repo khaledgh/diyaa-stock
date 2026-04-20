@@ -50,11 +50,15 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
       collapsable={false}
       style={{ width: W, backgroundColor: '#FFF', padding: 0, margin: 0 }}
     >
-      {/* Logo */}
-      <View style={{ alignItems: 'center', paddingTop: 20, paddingBottom: 10 }}>
+      {/* Dual Logos */}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingTop: 20, paddingBottom: 10 }}>
         <Image
           source={require('../assets/logo.png')}
-          style={{ width: 320, height: 140, resizeMode: 'contain' }}
+          style={{ width: 220, height: 100, resizeMode: 'contain', marginRight: 20 }}
+        />
+        <Image
+          source={require('../assets/ghourani-logo.png')}
+          style={{ width: 220, height: 100, resizeMode: 'contain' }}
         />
       </View>
 
@@ -108,26 +112,23 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
         <>
           {/* Table header */}
           <View style={{ flexDirection: 'row', borderBottomWidth: 3, borderBottomColor: '#000', paddingVertical: 5 }}>
-            <Text style={{ fontSize: 22, fontWeight: '900', color: '#000', width: '24%', textAlign: 'left' }}>المجموع</Text>
-            <Text style={{ fontSize: 22, fontWeight: '900', color: '#000', width: '14%', textAlign: 'center' }}>الكمية</Text>
-            <Text style={{ fontSize: 22, fontWeight: '900', color: '#000', width: '22%', textAlign: 'center' }}>السعر</Text>
-            <Text style={{ fontSize: 22, fontWeight: '900', color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl' }}>الصنف</Text>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: '#000', width: '20%', textAlign: 'left' }}>المجموع</Text>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: '#000', width: '14%', textAlign: 'center' }}>الحسم</Text>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: '#000', width: '12%', textAlign: 'center' }}>الكمية</Text>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: '#000', width: '18%', textAlign: 'center' }}>السعر</Text>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl' }}>الصنف</Text>
           </View>
 
           {/* Table rows */}
           {data.items.map((item, index) => (
             <View key={index} style={{ borderBottomWidth: 1, borderBottomColor: '#999', paddingVertical: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 22, color: '#000', width: '24%', textAlign: 'left', fontWeight: '800' }}>{item.total.toFixed(2)}</Text>
-                <Text style={{ fontSize: 22, color: '#000', width: '14%', textAlign: 'center', fontWeight: '700' }}>{item.quantity}</Text>
-                <Text style={{ fontSize: 22, color: '#000', width: '22%', textAlign: 'center' }}>{item.unitPrice.toFixed(2)}</Text>
-                <Text style={{ fontSize: 22, color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl', fontWeight: '900' }} numberOfLines={2}>{item.name}</Text>
+                <Text style={{ fontSize: 20, color: '#000', width: '20%', textAlign: 'left', fontWeight: '800' }}>{item.total.toFixed(2)}</Text>
+                <Text style={{ fontSize: 18, color: '#ef4444', width: '14%', textAlign: 'center' }}>{item.discountPercent && item.discountPercent > 0 ? `${item.discountPercent}%` : '-'}</Text>
+                <Text style={{ fontSize: 20, color: '#000', width: '12%', textAlign: 'center', fontWeight: '700' }}>{item.quantity}</Text>
+                <Text style={{ fontSize: 20, color: '#000', width: '18%', textAlign: 'center' }}>{item.unitPrice.toFixed(2)}</Text>
+                <Text style={{ fontSize: 20, color: '#000', flex: 1, textAlign: 'right', writingDirection: 'rtl', fontWeight: '900' }} numberOfLines={2}>{item.name}</Text>
               </View>
-              {item.discountPercent !== undefined && item.discountPercent > 0 && (
-                <Text style={{ fontSize: 18, color: '#444', textAlign: 'right', writingDirection: 'rtl', marginTop: 2, fontStyle: 'italic' }}>
-                  الخصم: {item.discountPercent}%
-                </Text>
-              )}
             </View>
           ))}
         </>
@@ -147,7 +148,7 @@ const ReceiptBitmapView = forwardRef<View, ReceiptBitmapViewProps>(({ data, temp
         {data.discount > 0 && showField('discount') && (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
             <Text style={{ fontSize: 26, color: '#000', fontWeight: '700' }}>-{data.discount.toFixed(2)}</Text>
-            <Text style={{ fontSize: 26, color: '#000', writingDirection: 'rtl' }}>الخصم</Text>
+            <Text style={{ fontSize: 26, color: '#000', writingDirection: 'rtl' }}>الحسم</Text>
           </View>
         )}
         {data.tax > 0 && showField('tax') && (
