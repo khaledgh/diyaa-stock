@@ -529,7 +529,7 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 			CONCAT('Direct-', si.invoice_number) as reference,
 			si.created_at as date,
 			0 as debit,
-			(si.paid_amount - COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.invoice_id = si.id AND p.invoice_type = 'sales' AND p.deleted_at IS NULL), 0)) as credit,
+			(si.paid_amount - COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.invoice_id = si.id AND p.invoice_type = 'sales'), 0)) as credit,
 			CONCAT('Payment (', COALESCE(si.payment_method, 'cash'), ')') as description
 		FROM sales_invoices si
 		WHERE si.customer_id = ? AND si.deleted_at IS NULL
@@ -569,9 +569,12 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 		) - COALESCE(
 			(SELECT SUM(p.amount) FROM payments p JOIN sales_invoices si ON p.invoice_id = si.id WHERE p.customer_id = ? AND si.deleted_at IS NULL AND p.invoice_type = 'sales' AND DATE(p.created_at) < ?), 0
 		) - COALESCE(
+			(SELECT SUM(si.paid_amount - COALESCE((SELECT SUM(p2.amount) FROM payments p2 WHERE p2.invoice_id = si.id AND p2.invoice_type = 'sales'), 0))
+			 FROM sales_invoices si WHERE si.customer_id = ? AND si.deleted_at IS NULL AND si.paid_amount > 0 AND DATE(si.created_at) < ?), 0
+		) - COALESCE(
 			(SELECT SUM(total_amount) FROM credit_notes WHERE customer_id = ? AND deleted_at IS NULL AND type = 'sales' AND status = 'approved' AND DATE(credit_note_date) < ?), 0
 		) as opening_balance
-	`, customerID, fromDate, customerID, fromDate, customerID, fromDate).Scan(&openingBalance)
+	`, customerID, fromDate, customerID, fromDate, customerID, fromDate, customerID, fromDate).Scan(&openingBalance)
 
 	// Calculate totals from typed structs (no more type assertion issues)
 	var totalDebit, totalCredit float64
