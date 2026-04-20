@@ -45,7 +45,7 @@ func (h *InvoiceTemplateHandler) GetDefaultTemplate(c echo.Context) error {
 
 	var template models.InvoiceTemplate
 	if err := h.DB.Where("type = ? AND is_default = ?", templateType, true).First(&template).Error; err != nil {
-		return ResponseError(c, err)
+		return c.JSON(404, map[string]interface{}{"ok": false, "message": "No default template found"})
 	}
 
 	return ResponseOK(c, template, "data")

@@ -35,7 +35,7 @@ func (s *CustomerService) GetALL(limit, page int, orderBy, sortBy, searchTerm st
 	// Validate sortBy to prevent SQL injection and errors
 	validSortFields := map[string]bool{
 		"id": true, "name": true, "phone": true, "email": true,
-		"address": true, "created_at": true, "updated_at": true,
+		"address": true, "created_at": true, "updated_at": true, "balance": true,
 	}
 	if !validSortFields[sortBy] {
 		sortBy = "id"

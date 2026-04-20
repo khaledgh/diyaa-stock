@@ -36,7 +36,7 @@ export default function CustomerScreen({ navigation }: any) {
 
   const loadCustomers = useCallback(async () => {
     try {
-      const params: any = {};
+      const params: any = { per_page: 500, sortBy: 'balance', orderBy: 'desc' };
       if (searchQuery.trim()) params.search = searchQuery;
       const response = await apiService.getCustomers(params);
       const data = response.data || [];
@@ -123,14 +123,18 @@ export default function CustomerScreen({ navigation }: any) {
   };
 
   const filteredCustomers = React.useMemo(() => {
-    if (!searchQuery.trim()) return customers;
-    const q = searchQuery.toLowerCase();
-    return customers.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.phone?.toLowerCase().includes(q) ||
-        c.email?.toLowerCase().includes(q)
-    );
+    let list = customers;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.phone?.toLowerCase().includes(q) ||
+          c.email?.toLowerCase().includes(q)
+      );
+    }
+    // Sort: unpaid (positive balance) first, then zero, then credit (negative)
+    return [...list].sort((a, b) => parseFloat((b as any).balance || 0) - parseFloat((a as any).balance || 0));
   }, [customers, searchQuery]);
 
   return (
@@ -218,10 +222,10 @@ export default function CustomerScreen({ navigation }: any) {
                   )}
                 </View>
                 <View className="items-end">
-                  {item.balance !== undefined && item.balance !== 0 && (
-                    <View className={`rounded-full px-3 py-1 ${item.balance > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
-                      <Text className={`text-xs font-bold ${item.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                        ${Math.abs(item.balance).toFixed(2)}
+                  {item.balance !== undefined && item.balance != 0 && (
+                    <View className={`rounded-full px-3 py-1 ${parseFloat(item.balance) > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                      <Text className={`text-xs font-bold ${parseFloat(item.balance) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        ${Math.abs(parseFloat(item.balance || 0)).toFixed(2)}
                       </Text>
                     </View>
                   )}

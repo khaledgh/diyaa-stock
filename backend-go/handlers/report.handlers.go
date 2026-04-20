@@ -521,6 +521,26 @@ func (rh *ReportHandler) CustomerStatementHandler(c echo.Context) error {
 	rh.db.Raw(paymentQuery, customerID, fromDate, toDate).Scan(&payments)
 	transactions = append(transactions, payments...)
 
+	// Get direct payments (paid_amount on the invoice not covered by a Payment record)
+	directPaymentQuery := `
+		SELECT 
+			'direct_payment' as type,
+			si.id,
+			CONCAT('Direct-', si.invoice_number) as reference,
+			si.created_at as date,
+			0 as debit,
+			(si.paid_amount - COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.invoice_id = si.id AND p.invoice_type = 'sales' AND p.deleted_at IS NULL), 0)) as credit,
+			CONCAT('Payment (', COALESCE(si.payment_method, 'cash'), ')') as description
+		FROM sales_invoices si
+		WHERE si.customer_id = ? AND si.deleted_at IS NULL
+		AND si.paid_amount > 0
+		AND DATE(si.created_at) BETWEEN ? AND ?
+		HAVING credit > 0.001
+	`
+	var directPayments []StatementTransaction
+	rh.db.Raw(directPaymentQuery, customerID, fromDate, toDate).Scan(&directPayments)
+	transactions = append(transactions, directPayments...)
+
 	// Get credit notes
 	creditNoteQuery := `
 		SELECT 

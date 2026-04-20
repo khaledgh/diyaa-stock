@@ -11,7 +11,7 @@ import {
   Platform,
   Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
@@ -25,6 +25,7 @@ const parseDecimal = (text: string): number => {
 export default function EditInvoiceScreen({ route, navigation }: any) {
   const { invoiceId, invoiceType } = route.params || {};
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -430,7 +431,7 @@ export default function EditInvoiceScreen({ route, navigation }: any) {
       </ScrollView>
 
       {/* Footer */}
-      <View className="bg-white border-t border-gray-100 px-4 py-3">
+      <View className="bg-white border-t border-gray-100 px-4 pt-3" style={{ paddingBottom: insets.bottom || 12 }}>
         <View className="flex-row items-center justify-between mb-3">
           <Text className="text-gray-500 text-sm">Total ({cart.length} items)</Text>
           <Text className="text-2xl font-black text-blue-600">${calculateTotal().toFixed(2)}</Text>

@@ -311,7 +311,7 @@ export default function DashboardScreen({ navigation }: any) {
                     <Text className="text-sm font-bold text-gray-900" numberOfLines={1}>{item.customer_name || 'Customer'}</Text>
                     <Text className="text-[11px] text-gray-400">{item.invoice_number}</Text>
                   </View>
-                  <Text className="text-base font-black text-rose-500">${(item.balance || 0).toFixed(2)}</Text>
+                  <Text className="text-base font-black text-rose-500">${parseFloat(item.balance || 0).toFixed(2)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
