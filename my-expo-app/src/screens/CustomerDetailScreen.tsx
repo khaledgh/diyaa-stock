@@ -81,7 +81,7 @@ export default function CustomerDetailScreen({ route, navigation }: any) {
         setClosingBalance(d.closing_balance || 0);
       }
 
-      const invList = invoicesRes?.data?.data || invoicesRes?.data || [];
+      const invList = invoicesRes?.invoices?.data || invoicesRes?.data?.data || invoicesRes?.data || [];
       const allInvoices = Array.isArray(invList) ? invList : [];
       // Prefer unpaid first, but allow payment on any invoice
       const sorted = [...allInvoices].sort((a: any, b: any) => {

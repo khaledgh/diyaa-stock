@@ -38,11 +38,11 @@ func (rh *ReportHandler) SalesReportHandler(c echo.Context) error {
 			i.paid_amount,
 			i.payment_status,
 			c.name as customer_name,
-			v.name as van_name,
+			l.name as location_name,
 			u.full_name as created_by_name
 		FROM sales_invoices i
 		LEFT JOIN customers c ON i.customer_id = c.id
-		LEFT JOIN vans v ON i.van_id = v.id
+		LEFT JOIN locations l ON i.location_id = l.id
 		LEFT JOIN users u ON i.created_by = u.id
 		WHERE i.deleted_at IS NULL AND DATE(i.created_at) BETWEEN ? AND ?
 	`
@@ -50,7 +50,7 @@ func (rh *ReportHandler) SalesReportHandler(c echo.Context) error {
 	args := []interface{}{fromDate, toDate}
 
 	if vanID != "" {
-		query += " AND i.van_id = ?"
+		query += " AND i.location_id = ?"
 		args = append(args, vanID)
 	}
 
@@ -141,10 +141,10 @@ func (rh *ReportHandler) ReceivablesReportHandler(c echo.Context) error {
 			i.payment_status,
 			c.name as customer_name,
 			c.phone as customer_phone,
-			v.name as van_name
+			l.name as location_name
 		FROM sales_invoices i
 		LEFT JOIN customers c ON i.customer_id = c.id
-		LEFT JOIN vans v ON i.van_id = v.id
+		LEFT JOIN locations l ON i.location_id = l.id
 		WHERE i.deleted_at IS NULL AND (i.total_amount - i.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = i.id AND status = 'approved' AND deleted_at IS NULL), 0)) > 0
 		ORDER BY i.created_at DESC
 	`
