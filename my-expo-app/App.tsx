@@ -7,6 +7,7 @@ import { PrinterProvider } from './hooks/usePrinter';
 import './global.css';
 
 import { NavigationContainer } from '@react-navigation/native';
+import './src/i18n';
 
 export default function App() {
   return (

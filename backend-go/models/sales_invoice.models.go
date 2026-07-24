@@ -21,6 +21,7 @@ type SalesInvoice struct {
 	CreatedByUser *User              `json:"created_by_user,omitempty" gorm:"foreignKey:CreatedBy"`
 	Items         []SalesInvoiceItem `json:"items,omitempty" gorm:"foreignKey:InvoiceID"`
 	Status        string             `json:"status" gorm:"size:20;default:'draft'"` // draft, finalized
+	Channel       string             `json:"channel" gorm:"size:20;default:'web'"`  // web, mobile
 	CreatedAt     time.Time          `json:"created_at"`
 	UpdatedAt     time.Time          `json:"updated_at"`
 	DeletedAt     *time.Time         `json:"deleted_at,omitempty" gorm:"index"`

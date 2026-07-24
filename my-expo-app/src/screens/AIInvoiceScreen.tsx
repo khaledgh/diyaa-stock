@@ -14,8 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
 import { StockItem, Customer, Vendor } from '../types';
+import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 interface ExtractedItem {
   name: string;
@@ -35,6 +36,7 @@ interface ExtractionResult {
 
 export default function AIInvoiceScreen() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const isAdmin = user?.role === 'admin';
 
   const [mode, setMode] = useState<'idle' | 'voice' | 'image' | 'review'>('idle');
@@ -123,7 +125,7 @@ export default function AIInvoiceScreen() {
   // -------- Voice Input --------
   const handleVoiceSubmit = async () => {
     if (!voiceText.trim()) {
-      Alert.alert('Error', 'Please type or paste the invoice description');
+      Alert.alert(t('common.error'), t('ai.voiceTextDesc'));
       return;
     }
 
@@ -144,7 +146,7 @@ export default function AIInvoiceScreen() {
       });
       setMode('review');
     } catch (error: any) {
-      Alert.alert('AI Error', error.message || 'Failed to process text. Please try again.');
+      Alert.alert(t('ai.aiError'), error.message || t('common.error'));
       setMode('idle');
     } finally {
       setIsProcessing(false);
@@ -155,7 +157,7 @@ export default function AIInvoiceScreen() {
   const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Camera access is needed to capture invoice images.');
+      Alert.alert(t('ai.permissionRequired'), t('ai.cameraPermissionMsg'));
       return;
     }
 
@@ -175,7 +177,7 @@ export default function AIInvoiceScreen() {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Photo library access is needed to select invoice images.');
+        Alert.alert(t('ai.permissionRequired'), t('ai.galleryPermissionMsg'));
         return;
       }
 
@@ -190,7 +192,7 @@ export default function AIInvoiceScreen() {
         processImage(result.assets[0].uri);
       }
     } catch {
-      Alert.alert('Error', 'Failed to open image picker. Please use "Take Photo" instead.');
+      Alert.alert(t('common.error'), t('ai.galleryError'));
     }
   };
 
@@ -216,7 +218,7 @@ export default function AIInvoiceScreen() {
       });
       setMode('review');
     } catch (error: any) {
-      Alert.alert('AI Error', error.message || 'Failed to process image. Please try again.');
+      Alert.alert(t('ai.aiError'), error.message || t('common.error'));
       setMode('idle');
     } finally {
       setIsProcessing(false);
@@ -226,22 +228,22 @@ export default function AIInvoiceScreen() {
   // -------- Submit Invoice --------
   const handleCreateInvoice = async () => {
     if (!extractedData || extractedData.items.length === 0) {
-      Alert.alert('Error', 'No items to create invoice');
+      Alert.alert(t('common.error'), t('ai.noItems'));
       return;
     }
 
     const unmatchedItems = extractedData.items.filter(i => !i.matched_product);
     if (unmatchedItems.length > 0) {
       Alert.alert(
-        'Unmatched Items',
-        `${unmatchedItems.length} item(s) could not be matched to products in stock:\n${unmatchedItems.map(i => `• ${i.name}`).join('\n')}\n\nPlease remove or match them before submitting.`
+        t('ai.unmatchedItemsError', { count: unmatchedItems.length }),
+        `${unmatchedItems.map(i => `• ${i.name}`).join('\n')}\n\n${t('ai.unmatchedItemsWarning')}`
       );
       return;
     }
 
     const locationId = selectedLocationId || user?.location_id;
     if (!locationId) {
-      Alert.alert('Error', 'No location selected');
+      Alert.alert(t('common.error'), t('ai.noLocationSelected'));
       return;
     }
 
@@ -268,10 +270,10 @@ export default function AIInvoiceScreen() {
 
         const res = await apiService.createPurchaseInvoice(data);
         if (res.ok || res.success) {
-          Alert.alert('Success', 'Purchase invoice created!');
+          Alert.alert(t('common.success'), t('ai.successCreated', { type: t('purchase.title') }));
           resetState();
         } else {
-          Alert.alert('Error', res.message || 'Failed to create invoice');
+          Alert.alert(t('common.error'), res.message || t('common.error'));
         }
       } else {
         const data = {
@@ -285,14 +287,14 @@ export default function AIInvoiceScreen() {
 
         const res = await apiService.createSalesInvoice(data);
         if (res.ok || res.success) {
-          Alert.alert('Success', 'Sales invoice created!');
+          Alert.alert(t('common.success'), t('ai.successCreated', { type: t('pos.title') }));
           resetState();
         } else {
-          Alert.alert('Error', res.message || 'Failed to create invoice');
+          Alert.alert(t('common.error'), res.message || t('common.error'));
         }
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to create invoice');
+      Alert.alert(t('common.error'), error.message || t('common.error'));
     } finally {
       setIsSubmitting(false);
     }
@@ -339,10 +341,10 @@ export default function AIInvoiceScreen() {
             <ActivityIndicator size="large" color={isAdmin ? '#2563EB' : '#059669'} />
           </View>
           <Text style={{ fontSize: 20, fontWeight: '700', color: '#1E293B', marginBottom: 8 }}>
-            Processing with AI
+            {t('ai.processing')}
           </Text>
           <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center' }}>
-            {mode === 'voice' ? 'Analyzing your text description...' : 'Extracting data from image...'}
+            {mode === 'voice' ? t('ai.processingVoice') : t('ai.processingImage')}
           </Text>
         </View>
       </SafeAreaView>
@@ -363,10 +365,10 @@ export default function AIInvoiceScreen() {
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 18, fontWeight: '700', color: '#1E293B' }}>
-              Review {isAdmin ? 'Purchase' : 'Sales'} Invoice
+              {t('ai.reviewTitle', { type: isAdmin ? t('purchase.title') : t('pos.title') })}
             </Text>
             <Text style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>
-              {extractedData.summary || `${extractedData.items.length} items extracted`}
+              {extractedData.summary || t('ai.itemsExtracted', { count: extractedData.items.length })}
             </Text>
           </View>
         </View>
@@ -388,14 +390,14 @@ export default function AIInvoiceScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                       <Ionicons name="checkmark-circle" size={14} color="#059669" />
                       <Text style={{ fontSize: 12, color: '#059669', marginLeft: 4 }}>
-                        Matched: {item.matched_product.name}
+                        {t('ai.matched')}: {item.matched_product.name}
                       </Text>
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                       <Ionicons name="warning" size={14} color="#D97706" />
                       <Text style={{ fontSize: 12, color: '#D97706', marginLeft: 4 }}>
-                        No matching product found
+                        {t('ai.unmatched')}
                       </Text>
                     </View>
                   )}
@@ -407,7 +409,7 @@ export default function AIInvoiceScreen() {
 
               <View style={{ flexDirection: 'row', marginTop: 12, gap: 12 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 4 }}>QTY</Text>
+                  <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 4 }}>{t('ai.qty')}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 10, paddingHorizontal: 8 }}>
                     <TouchableOpacity onPress={() => updateItemQuantity(index, item.quantity - 1)} style={{ padding: 8 }}>
                       <Ionicons name="remove" size={16} color="#64748B" />
@@ -421,7 +423,7 @@ export default function AIInvoiceScreen() {
                   </View>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 4 }}>PRICE</Text>
+                  <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 4 }}>{t('ai.price')}</Text>
                   <View style={{ backgroundColor: '#F8FAFC', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 }}>
                     <Text style={{ fontSize: 15, fontWeight: '600', color: '#1E293B' }}>
                       ${item.unit_price.toFixed(2)}
@@ -429,7 +431,7 @@ export default function AIInvoiceScreen() {
                   </View>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 4 }}>TOTAL</Text>
+                  <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 4 }}>{t('ai.total')}</Text>
                   <View style={{ backgroundColor: '#F8FAFC', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 }}>
                     <Text style={{ fontSize: 15, fontWeight: '700', color: isAdmin ? '#2563EB' : '#059669' }}>
                       ${(item.quantity * item.unit_price).toFixed(2)}
@@ -446,13 +448,13 @@ export default function AIInvoiceScreen() {
             borderRadius: 16, padding: 20, marginTop: 4, marginBottom: 24,
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#1E293B' }}>Total</Text>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#1E293B' }}>{t('pos.total')}</Text>
               <Text style={{ fontSize: 28, fontWeight: '800', color: isAdmin ? '#2563EB' : '#059669' }}>
                 ${calculatedTotal.toFixed(2)}
               </Text>
             </View>
             <Text style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
-              {extractedData.items.length} item(s) • {isAdmin ? 'Purchase' : 'Sales'} Invoice
+              {extractedData.items.length} {t('pos.items')} • {isAdmin ? t('purchase.title') : t('pos.title')}
             </Text>
           </View>
         </ScrollView>
@@ -480,7 +482,7 @@ export default function AIInvoiceScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
                 <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginLeft: 8 }}>
-                  Create {isAdmin ? 'Purchase' : 'Sales'} Invoice
+                  {t('ai.createInvoice', { type: isAdmin ? t('purchase.title') : t('pos.title') })}
                 </Text>
               </View>
             )}
@@ -499,10 +501,10 @@ export default function AIInvoiceScreen() {
         borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
       }}>
         <Text style={{ fontSize: 22, fontWeight: '800', color: '#1E293B' }}>
-          AI Invoice
+          {t('ai.title')}
         </Text>
         <Text style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>
-          Create {isAdmin ? 'purchase' : 'sales'} invoices using AI
+          {t('ai.subtitle', { type: isAdmin ? t('purchase.title') : t('pos.title') })}
         </Text>
       </View>
 
@@ -521,8 +523,8 @@ export default function AIInvoiceScreen() {
               <Ionicons name="mic" size={22} color="#2563EB" />
             </View>
             <View style={{ marginLeft: 12 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E293B' }}>Voice / Text</Text>
-              <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>Describe items to create an invoice</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E293B' }}>{t('ai.voiceTextTitle')}</Text>
+              <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>{t('ai.voiceTextDesc')}</Text>
             </View>
           </View>
 
@@ -551,7 +553,7 @@ export default function AIInvoiceScreen() {
           >
             <Ionicons name="sparkles" size={18} color="#FFFFFF" />
             <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600', marginLeft: 8 }}>
-              Extract with AI
+              {t('ai.extractButton')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -577,8 +579,8 @@ export default function AIInvoiceScreen() {
               <Ionicons name="camera" size={22} color="#EA580C" />
             </View>
             <View style={{ marginLeft: 12 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E293B' }}>Image</Text>
-              <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>Scan an invoice or receipt photo</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E293B' }}>{t('ai.imageTitle')}</Text>
+              <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>{t('ai.imageDesc')}</Text>
             </View>
           </View>
 
@@ -592,7 +594,7 @@ export default function AIInvoiceScreen() {
               }}
             >
               <Ionicons name="camera-outline" size={28} color="#EA580C" />
-              <Text style={{ color: '#EA580C', fontSize: 13, fontWeight: '600', marginTop: 8 }}>Take Photo</Text>
+              <Text style={{ color: '#EA580C', fontSize: 13, fontWeight: '600', marginTop: 8 }}>{t('ai.takePhoto')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -604,7 +606,7 @@ export default function AIInvoiceScreen() {
               }}
             >
               <Ionicons name="image-outline" size={28} color="#2563EB" />
-              <Text style={{ color: '#2563EB', fontSize: 13, fontWeight: '600', marginTop: 8 }}>From Gallery</Text>
+              <Text style={{ color: '#2563EB', fontSize: 13, fontWeight: '600', marginTop: 8 }}>{t('ai.fromGallery')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -619,13 +621,10 @@ export default function AIInvoiceScreen() {
             <Ionicons name="information-circle" size={20} color={isAdmin ? '#2563EB' : '#059669'} />
             <View style={{ marginLeft: 10, flex: 1 }}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: isAdmin ? '#1E40AF' : '#047857' }}>
-                How it works
+                {t('ai.howItWorksTitle')}
               </Text>
               <Text style={{ fontSize: 12, color: isAdmin ? '#3B82F6' : '#10B981', marginTop: 4, lineHeight: 18 }}>
-                1. Describe items by text or take a photo of an invoice{'\n'}
-                2. AI extracts product names, quantities & prices{'\n'}
-                3. Items are matched to your stock automatically{'\n'}
-                4. Review, adjust & create the invoice instantly
+                {t('ai.howItWorksDesc')}
               </Text>
             </View>
           </View>

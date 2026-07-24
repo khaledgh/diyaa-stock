@@ -93,7 +93,8 @@ export default function CreateCreditNoteScreen({ route, navigation }: any) {
         try {
             setIsSubmitting(true);
             const data: any = {
-                invoice_id: invoiceId,
+                type: invoiceType === 'purchase' ? 'purchase' : 'sales',
+                credit_note_date: new Date().toISOString().split('T')[0],
                 items: Object.entries(returnItems)
                     .filter(([_, qty]) => qty > 0)
                     .map(([pid, qty]) => ({
@@ -103,6 +104,12 @@ export default function CreateCreditNoteScreen({ route, navigation }: any) {
                 total_amount: total,
             };
 
+            if (invoiceType === 'purchase') {
+                data.purchase_invoice_id = invoiceId;
+            } else {
+                data.sales_invoice_id = invoiceId;
+            }
+
             // Auto-populate location_id from the loaded invoice
             if (invoice?.location_id) {
                 data.location_id = invoice.location_id;
@@ -110,7 +117,22 @@ export default function CreateCreditNoteScreen({ route, navigation }: any) {
 
             const res = await apiService.createCreditNote(data);
             if (res.ok || res.success) {
-                Alert.alert('Success', 'Credit note created successfully');
+                // Approve immediately so stock is adjusted right away — mobile
+                // has no separate review step like the desktop app does.
+                const creditNoteId = res.data?.id;
+                if (creditNoteId) {
+                    try {
+                        await apiService.approveCreditNote(creditNoteId);
+                    } catch (approveErr) {
+                        Alert.alert(
+                            'Partially Completed',
+                            'Credit note was created but could not be auto-approved. Please approve it from the history screen so stock is updated.'
+                        );
+                        navigation.navigate('CreditNoteList');
+                        return;
+                    }
+                }
+                Alert.alert('Success', 'Credit note created and stock updated');
                 navigation.navigate('CreditNoteList');
             } else {
                 Alert.alert('Error', res.message || 'Failed to create credit note');

@@ -30,7 +30,8 @@ const parseDecimal = (text: string): number => {
 };
 
 const formatDecimal = (num: number): string => {
-  return num.toString().replace('.', ',');
+  const rounded = Math.round(num * 100) / 100;
+  return rounded.toString().replace('.', ',');
 };
 
 export default function QuantityModal({
@@ -57,15 +58,17 @@ export default function QuantityModal({
 
   const handleIncrement = () => {
     const current = parseDecimal(quantity);
-    const newQty = current + 1;
-    if (newQty <= maxQuantity) {
+    const newQty = Math.round((current + 1) * 100) / 100;
+    if (current < maxQuantity && newQty > maxQuantity) {
+      setQuantity(formatDecimal(maxQuantity));
+    } else if (newQty <= maxQuantity) {
       setQuantity(formatDecimal(newQty));
     }
   };
 
   const handleDecrement = () => {
     const current = parseDecimal(quantity);
-    const newQty = Math.max(0, current - 1);
+    const newQty = Math.max(0, Math.round((current - 1) * 100) / 100);
     setQuantity(formatDecimal(newQty));
   };
 
@@ -75,7 +78,11 @@ export default function QuantityModal({
     const discValue = parseDecimal(discount);
 
     if (qtyValue > maxQuantity) {
-      setQuantity(formatDecimal(maxQuantity));
+      if (maxQuantity <= 0) {
+        onCancel();
+        return;
+      }
+      onConfirm(maxQuantity, priceValue, discValue);
       return;
     }
     onConfirm(qtyValue, priceValue, discValue);

@@ -61,6 +61,10 @@ func (s *SalesInvoiceService) GetALL(filters map[string]string, limit, offset in
 		query = query.Where("location_id = ?", locationID)
 	}
 
+	if createdBy, ok := filters["created_by"]; ok && createdBy != "" {
+		query = query.Where("created_by = ?", createdBy)
+	}
+
 	if fromDate, ok := filters["from_date"]; ok && fromDate != "" {
 		if toDate, ok := filters["to_date"]; ok && toDate != "" {
 			query = query.Where("DATE(created_at) BETWEEN ? AND ?", fromDate, toDate)

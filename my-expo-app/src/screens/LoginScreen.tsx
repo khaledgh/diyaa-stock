@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -22,13 +23,14 @@ export default function LoginScreen() {
   const [passwordError, setPasswordError] = useState('');
   const [loginError, setLoginError] = useState('');
   const { login } = useAuth();
+  const { t } = useTranslation();
 
   const validateEmail = (text: string) => {
     setEmail(text);
     setEmailError('');
     setLoginError('');
     if (text && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
-      setEmailError('Please enter a valid email address');
+      setEmailError(t('login.invalidEmail'));
     }
   };
 
@@ -37,7 +39,7 @@ export default function LoginScreen() {
     setPasswordError('');
     setLoginError('');
     if (text && text.length < 6) {
-      setPasswordError('Password must be at least 6 characters');
+      setPasswordError(t('login.passwordLength'));
     }
   };
 
@@ -50,18 +52,18 @@ export default function LoginScreen() {
     // Validate
     let hasError = false;
     if (!email) {
-      setEmailError('Email is required');
+      setEmailError(t('login.emailRequired'));
       hasError = true;
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setEmailError('Please enter a valid email address');
+      setEmailError(t('login.invalidEmail'));
       hasError = true;
     }
 
     if (!password) {
-      setPasswordError('Password is required');
+      setPasswordError(t('login.passwordRequired'));
       hasError = true;
     } else if (password.length < 6) {
-      setPasswordError('Password must be at least 6 characters');
+      setPasswordError(t('login.passwordLength'));
       hasError = true;
     }
 
@@ -71,7 +73,7 @@ export default function LoginScreen() {
     try {
       await login(email, password);
     } catch (error: any) {
-      setLoginError(error.message || 'Invalid email or password. Please try again.');
+      setLoginError(error.message || t('login.invalidCredentials'));
     } finally {
       setIsLoading(false);
     }
@@ -112,7 +114,7 @@ export default function LoginScreen() {
             />
           </View>
           <Text className="text-3xl font-bold text-gray-900 mb-1">DaftarStock</Text>
-          <Text className="text-gray-500 text-base">Sign in to your account</Text>
+          <Text className="text-gray-500 text-base">{t('login.signInToAccount')}</Text>
         </View>
 
         {/* Form Section */}
@@ -127,7 +129,7 @@ export default function LoginScreen() {
 
           {/* Email Input */}
           <View>
-            <Text className="text-sm font-semibold text-gray-700 mb-2 ml-1">Email Address</Text>
+            <Text className="text-sm font-semibold text-gray-700 mb-2 ml-1">{t('login.email')}</Text>
             <View 
               className={`bg-white rounded-2xl flex-row items-center px-4 border ${emailError ? 'border-red-300' : 'border-gray-200'}`}
               style={{
@@ -141,7 +143,7 @@ export default function LoginScreen() {
               <Ionicons name="mail-outline" size={20} color={emailError ? "#DC2626" : "#9CA3AF"} />
               <TextInput
                 className="flex-1 py-4 px-3 text-base text-gray-900"
-                placeholder="your@email.com"
+                placeholder={t('login.emailPlaceholder')}
                 placeholderTextColor="#9CA3AF"
                 value={email}
                 onChangeText={validateEmail}
@@ -160,7 +162,7 @@ export default function LoginScreen() {
 
           {/* Password Input */}
           <View>
-            <Text className="text-sm font-semibold text-gray-700 mb-2 ml-1">Password</Text>
+            <Text className="text-sm font-semibold text-gray-700 mb-2 ml-1">{t('login.password')}</Text>
             <View 
               className={`bg-white rounded-2xl flex-row items-center px-4 border ${passwordError ? 'border-red-300' : 'border-gray-200'}`}
               style={{
@@ -174,7 +176,7 @@ export default function LoginScreen() {
               <Ionicons name="lock-closed-outline" size={20} color={passwordError ? "#DC2626" : "#9CA3AF"} />
               <TextInput
                 className="flex-1 py-4 px-3 text-base text-gray-900"
-                placeholder="Enter your password"
+                placeholder={t('login.passwordPlaceholder')}
                 placeholderTextColor="#9CA3AF"
                 value={password}
                 onChangeText={validatePassword}
@@ -220,7 +222,7 @@ export default function LoginScreen() {
               <ActivityIndicator color="white" size="small" />
             ) : (
               <View className="flex-row items-center justify-center">
-                <Text className="text-white text-center font-bold text-lg mr-2">Sign In</Text>
+                <Text className="text-white text-center font-bold text-lg mr-2">{t('login.signIn')}</Text>
                 <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
               </View>
             )}
@@ -231,9 +233,9 @@ export default function LoginScreen() {
         <View className="mt-12 items-center">
           <View className="flex-row items-center mb-2">
             <View className="w-2 h-2 rounded-full bg-green-500 mr-2" />
-            <Text className="text-gray-400 text-sm font-medium">DaftarStock POS System</Text>
+            <Text className="text-gray-400 text-sm font-medium">{t('login.posSystem')}</Text>
           </View>
-          <Text className="text-gray-400 text-xs">Version 1.0.0</Text>
+          <Text className="text-gray-400 text-xs">{t('login.version')} 1.0.0</Text>
         </View>
         </View>
       </ScrollView>

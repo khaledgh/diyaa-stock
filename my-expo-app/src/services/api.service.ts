@@ -144,6 +144,16 @@ class ApiService {
     return response.data;
   }
 
+  async getProductDetails(id: number) {
+    const response = await this.api.get(`/products/${id}`);
+    return response.data;
+  }
+
+  async getProductHistory(id: number, params?: any) {
+    const response = await this.api.get(`/products/${id}/history`, { params });
+    return response.data;
+  }
+
   async getCustomers(params?: any) {
     const response = await this.api.get('/customers', { params });
     return response.data;
@@ -154,8 +164,8 @@ class ApiService {
     return response.data;
   }
 
-  async getVendors() {
-    const response = await this.api.get('/vendors');
+  async getVendors(params?: any) {
+    const response = await this.api.get('/vendors', { params });
     return response.data;
   }
 
@@ -175,7 +185,7 @@ class ApiService {
     tax_percent?: number;
     notes?: string;
   }) {
-    const response = await this.api.post('/invoices/sales', data);
+    const response = await this.api.post('/invoices/sales', { ...data, channel: 'mobile' });
     return response.data;
   }
 
@@ -352,8 +362,8 @@ class ApiService {
     return response.data;
   }
 
-  async getDashboardReport(params?: { from_date?: string; to_date?: string }) {
-    const response = await this.api.get('/reports/dashboard', { params });
+  async getDashboardReport(params?: { from_date?: string; to_date?: string; location_id?: number }) {
+    const response = await this.api.get('/reports/dashboard', { params: { ...params, channel: 'mobile' } });
     return response.data;
   }
 

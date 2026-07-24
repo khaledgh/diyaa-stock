@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
+import { useTranslation } from 'react-i18next';
 
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -32,12 +33,18 @@ export default function DashboardScreen({ navigation }: any) {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const isAdmin = user?.role === 'admin';
+  const { t } = useTranslation();
 
   const loadDashboardData = useCallback(async () => {
     try {
+      const params: any = {};
+      if (selectedLocationId) {
+        params.location_id = selectedLocationId;
+      }
+
       const [dashRes, recvRes] = await Promise.all([
-        apiService.getDashboardReport(),
-        apiService.getReceivables(),
+        apiService.getDashboardReport(params),
+        apiService.getReceivables(params),
       ]);
 
       if (dashRes?.data) setDashboard(dashRes.data);
@@ -49,7 +56,7 @@ export default function DashboardScreen({ navigation }: any) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedLocationId]);
 
   const loadLocations = useCallback(async () => {
     if (!isAdmin) return;
@@ -132,9 +139,9 @@ export default function DashboardScreen({ navigation }: any) {
           {/* Top row */}
           <View className="flex-row justify-between items-center mb-6">
             <View>
-              <Text className="text-indigo-200 text-xs font-bold uppercase tracking-widest">Business Overview</Text>
+              <Text className="text-indigo-200 text-xs font-bold uppercase tracking-widest">{t('dashboard.businessOverview')}</Text>
               <Text className="text-white text-2xl font-black mt-0.5">
-                Hi, {user?.full_name?.split(' ')[0] || 'Merchant'} 👋
+                {t('dashboard.hi')}, {user?.full_name?.split(' ')[0] || 'Merchant'} 👋
               </Text>
             </View>
             <TouchableOpacity className="w-11 h-11 bg-white/15 rounded-2xl items-center justify-center">
@@ -149,7 +156,7 @@ export default function DashboardScreen({ navigation }: any) {
                 <TouchableOpacity
                   onPress={() => setSelectedLocationId(null)}
                   className={`px-4 py-2 rounded-full ${!selectedLocationId ? 'bg-white' : 'bg-white/20'}`}>
-                  <Text className={`text-xs font-bold ${!selectedLocationId ? 'text-indigo-700' : 'text-white'}`}>All Branches</Text>
+                  <Text className={`text-xs font-bold ${!selectedLocationId ? 'text-indigo-700' : 'text-white'}`}>{t('dashboard.allBranches')}</Text>
                 </TouchableOpacity>
                 {locations.map((loc: any) => (
                   <TouchableOpacity
@@ -165,29 +172,29 @@ export default function DashboardScreen({ navigation }: any) {
 
           {/* Hero KPI */}
           <View className="bg-white/15 rounded-3xl p-5 border border-white/20">
-            <Text className="text-indigo-200 text-[10px] font-bold uppercase tracking-widest mb-1">Today's Sales</Text>
+            <Text className="text-indigo-200 text-[10px] font-bold uppercase tracking-widest mb-1">{t('dashboard.todaySales')}</Text>
             <Text className="text-white text-4xl font-black tracking-tight">
               ${(dashboard.today_sales_total || 0).toFixed(2)}
             </Text>
             <View className="bg-emerald-400 self-start px-3 py-1 rounded-full mt-2 flex-row items-center">
               <Ionicons name="receipt-outline" size={12} color="white" />
-              <Text className="text-white text-xs font-bold ml-1">{dashboard.today_sales_count || 0} invoices</Text>
+              <Text className="text-white text-xs font-bold ml-1">{dashboard.today_sales_count || 0} {t('dashboard.invoices')}</Text>
             </View>
 
             {/* Sub-stats */}
             <View className="flex-row mt-5 pt-4 border-t border-white/20">
               <View className="flex-1 items-center">
-                <Text className="text-white/50 text-[9px] font-bold uppercase tracking-wider mb-1">Monthly</Text>
+                <Text className="text-white/50 text-[9px] font-bold uppercase tracking-wider mb-1">{t('dashboard.monthly')}</Text>
                 <Text className="text-white font-black text-base">${(dashboard.product_revenue || 0).toFixed(0)}</Text>
               </View>
               <View className="w-px bg-white/20" />
               <View className="flex-1 items-center">
-                <Text className="text-white/50 text-[9px] font-bold uppercase tracking-wider mb-1">Collected</Text>
+                <Text className="text-white/50 text-[9px] font-bold uppercase tracking-wider mb-1">{t('dashboard.collected')}</Text>
                 <Text className="text-white font-black text-base">${(dashboard.today_collections || 0).toFixed(0)}</Text>
               </View>
               <View className="w-px bg-white/20" />
               <View className="flex-1 items-center">
-                <Text className="text-white/50 text-[9px] font-bold uppercase tracking-wider mb-1">Receivables</Text>
+                <Text className="text-white/50 text-[9px] font-bold uppercase tracking-wider mb-1">{t('dashboard.receivables')}</Text>
                 <Text className="text-rose-300 font-black text-base">${(dashboard.pending_payments || 0).toFixed(0)}</Text>
               </View>
             </View>
@@ -205,20 +212,22 @@ export default function DashboardScreen({ navigation }: any) {
               <View className="w-12 h-12 bg-indigo-100 rounded-2xl items-center justify-center mb-2">
                 <Ionicons name="cart-outline" size={24} color="#4F46E5" />
               </View>
-              <Text className="text-gray-900 font-black text-sm">POS Sale</Text>
-              <Text className="text-gray-400 text-[11px]">New invoice</Text>
+              <Text className="text-gray-900 font-black text-sm">{t('dashboard.posSale')}</Text>
+              <Text className="text-gray-400 text-[11px]">{t('dashboard.newInvoice')}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Purchase')}
-              className="flex-1 bg-white rounded-3xl p-4 items-center"
-              style={{ elevation: 4, shadowColor: '#10B981', shadowOpacity: 0.12, shadowRadius: 12 }}>
-              <View className="w-12 h-12 bg-emerald-100 rounded-2xl items-center justify-center mb-2">
-                <Ionicons name="cube-outline" size={24} color="#10B981" />
-              </View>
-              <Text className="text-gray-900 font-black text-sm">Purchase</Text>
-              <Text className="text-gray-400 text-[11px]">Add stock</Text>
-            </TouchableOpacity>
+            {isAdmin && (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Purchase')}
+                className="flex-1 bg-white rounded-3xl p-4 items-center"
+                style={{ elevation: 4, shadowColor: '#10B981', shadowOpacity: 0.12, shadowRadius: 12 }}>
+                <View className="w-12 h-12 bg-emerald-100 rounded-2xl items-center justify-center mb-2">
+                  <Ionicons name="cube-outline" size={24} color="#10B981" />
+                </View>
+                <Text className="text-gray-900 font-black text-sm">{t('dashboard.purchase')}</Text>
+                <Text className="text-gray-400 text-[11px]">{t('dashboard.addStock')}</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               onPress={() => navigation.navigate('Customers')}
@@ -227,8 +236,8 @@ export default function DashboardScreen({ navigation }: any) {
               <View className="w-12 h-12 bg-rose-100 rounded-2xl items-center justify-center mb-2">
                 <Ionicons name="people-outline" size={24} color="#F43F5E" />
               </View>
-              <Text className="text-gray-900 font-black text-sm">Customers</Text>
-              <Text className="text-gray-400 text-[11px]">Accounts</Text>
+              <Text className="text-gray-900 font-black text-sm">{t('dashboard.customers')}</Text>
+              <Text className="text-gray-400 text-[11px]">{t('dashboard.accounts')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -237,38 +246,40 @@ export default function DashboardScreen({ navigation }: any) {
             <View className="flex-1 bg-white rounded-2xl p-4"
               style={{ elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8 }}>
               <Ionicons name="cube" size={20} color="#10B981" />
-              <Text className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-2 mb-1">Stock Value</Text>
+              <Text className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-2 mb-1">{t('dashboard.stockValue')}</Text>
               <Text className="text-gray-900 font-black text-lg">${(dashboard.inventory_value || 0).toFixed(0)}</Text>
               {(dashboard.low_stock_count || 0) > 0 && (
-                <Text className="text-orange-500 text-[10px] font-bold mt-1">{dashboard.low_stock_count} low</Text>
+                <Text className="text-orange-500 text-[10px] font-bold mt-1">{dashboard.low_stock_count} {t('dashboard.pending')}</Text>
               )}
             </View>
 
             <View className="flex-1 bg-white rounded-2xl p-4"
               style={{ elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8 }}>
               <Ionicons name="arrow-up-circle" size={20} color="#F59E0B" />
-              <Text className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-2 mb-1">Payables</Text>
+              <Text className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-2 mb-1">{t('dashboard.payables')}</Text>
               <Text className="text-gray-900 font-black text-lg">${(dashboard.payables || 0).toFixed(0)}</Text>
-              <Text className="text-gray-400 text-[10px] mt-1">Owed to vendors</Text>
+              <Text className="text-gray-400 text-[10px] mt-1">{t('dashboard.owedToVendors')}</Text>
             </View>
           </View>
 
           {/* ── More stats row ── */}
           <View className="flex-row gap-3 mb-4">
-            <View className="flex-1 bg-white rounded-2xl p-4"
+            <TouchableOpacity
+              onPress={() => navigation.navigate('History', { type: 'credit_note' })}
+              className="flex-1 bg-white rounded-2xl p-4"
               style={{ elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8 }}>
               <Ionicons name="document-text-outline" size={20} color="#6366F1" />
-              <Text className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-2 mb-1">Credit Notes</Text>
+              <Text className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-2 mb-1">{t('dashboard.creditNotes')}</Text>
               <Text className="text-gray-900 font-black text-lg">{dashboard.credit_notes_total || 0}</Text>
-              <Text className="text-orange-400 text-[10px] mt-1">{dashboard.credit_notes_pending || 0} pending</Text>
-            </View>
+              <Text className="text-orange-400 text-[10px] mt-1">{dashboard.credit_notes_pending || 0} {t('dashboard.pending')}</Text>
+            </TouchableOpacity>
 
             <View className="flex-1 bg-white rounded-2xl p-4"
               style={{ elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8 }}>
               <Ionicons name="storefront-outline" size={20} color="#8B5CF6" />
-              <Text className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-2 mb-1">Locations</Text>
+              <Text className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-2 mb-1">{t('dashboard.locations')}</Text>
               <Text className="text-gray-900 font-black text-lg">{dashboard.active_locations || 0}</Text>
-              <Text className="text-gray-400 text-[10px] mt-1">Active branches</Text>
+              <Text className="text-gray-400 text-[10px] mt-1">{t('dashboard.activeBranches')}</Text>
             </View>
           </View>
 
@@ -284,8 +295,8 @@ export default function DashboardScreen({ navigation }: any) {
                   <Ionicons name="bar-chart-outline" size={24} color="white" />
                 </View>
                 <View>
-                  <Text className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider">Staff Performance</Text>
-                  <Text className="text-white font-black text-lg">Commission Report</Text>
+                  <Text className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider">{t('dashboard.staffPerformance')}</Text>
+                  <Text className="text-white font-black text-lg">{t('dashboard.commissionReport')}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
@@ -297,9 +308,9 @@ export default function DashboardScreen({ navigation }: any) {
             <View className="bg-white rounded-3xl p-5 mb-4"
               style={{ elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8 }}>
               <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-gray-900 font-black text-base">Top Receivables</Text>
+                <Text className="text-gray-900 font-black text-base">{t('dashboard.topReceivables')}</Text>
                 <TouchableOpacity onPress={() => navigation.navigate('Customers')}>
-                  <Text className="text-indigo-600 text-sm font-bold">View All →</Text>
+                  <Text className="text-indigo-600 text-sm font-bold">{t('dashboard.viewAll')}</Text>
                 </TouchableOpacity>
               </View>
               {receivables.slice(0, 5).map((item: any, idx: number) => (
@@ -327,8 +338,8 @@ export default function DashboardScreen({ navigation }: any) {
             <View className="w-12 h-1.5 bg-gray-200 rounded-full self-center mb-5" />
             <View className="flex-row justify-between items-center mb-6">
               <View>
-                <Text className="text-xs text-gray-400 font-bold uppercase tracking-wider">Analytics</Text>
-                <Text className="text-2xl font-black text-gray-900">Commission Report</Text>
+                <Text className="text-xs text-gray-400 font-bold uppercase tracking-wider">{t('dashboard.analytics')}</Text>
+                <Text className="text-2xl font-black text-gray-900">{t('dashboard.commissionReport')}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowCommissionReport(false)} className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center">
                 <Ionicons name="close" size={20} color="#374151" />
@@ -342,7 +353,7 @@ export default function DashboardScreen({ navigation }: any) {
                   onPress={() => { setCommissionPeriod(p); if (p !== 'custom') loadCommissionReport(p); }}
                   className={`flex-1 py-3 rounded-xl items-center ${commissionPeriod === p ? 'bg-white' : ''}`}
                   style={commissionPeriod === p ? { elevation: 2 } : {}}>
-                  <Text className={`font-bold text-xs uppercase ${commissionPeriod === p ? 'text-gray-900' : 'text-gray-500'}`}>{p}</Text>
+                  <Text className={`font-bold text-xs uppercase ${commissionPeriod === p ? 'text-gray-900' : 'text-gray-500'}`}>{t(`dashboard.${p}`)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -359,7 +370,7 @@ export default function DashboardScreen({ navigation }: any) {
                       </View>
                       <View className="flex-1">
                         <Text className="text-gray-900 font-bold text-sm">{rep.name || 'User'}</Text>
-                        <Text className="text-gray-400 text-xs">${(rep.total_sales || 0).toFixed(0)} sales</Text>
+                        <Text className="text-gray-400 text-xs">${(rep.total_sales || 0).toFixed(0)} {t('dashboard.salesSuffix')}</Text>
                       </View>
                     </View>
                     <Text className="text-indigo-600 font-black text-lg">${(rep.commission_owed || 0).toFixed(2)}</Text>
@@ -368,7 +379,7 @@ export default function DashboardScreen({ navigation }: any) {
                 {reportData.length === 0 && (
                   <View className="items-center py-16">
                     <Ionicons name="file-tray-outline" size={40} color="#D1D5DB" />
-                    <Text className="text-gray-400 font-bold mt-3">No data for this period</Text>
+                    <Text className="text-gray-400 font-bold mt-3">{t('dashboard.noDataPeriod')}</Text>
                   </View>
                 )}
               </ScrollView>

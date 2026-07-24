@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
 import { StockItem, Customer, CartItem } from '../types';
+import { useTranslation } from 'react-i18next';
 import { usePrinter } from '../../hooks/usePrinter';
 // import * as ImagePicker from 'expo-image-picker'; // Camera scan hidden for now
 
@@ -62,7 +63,7 @@ const CartItemComponent = React.memo(
 
       // Check stock availability
       if (newQty > item.product.quantity) {
-        Alert.alert('Stock Limit', `Only ${item.product.quantity} items available`);
+        Alert.alert(t('pos.stockLimit'), `${t('pos.available')}: ${item.product.quantity}`);
         return;
       }
 
@@ -134,13 +135,13 @@ const CartItemComponent = React.memo(
           </View>
           <View>
             <Text className="text-sm text-gray-600">@ ${item.unit_price.toFixed(2)}</Text>
-            <Text className="text-xs text-gray-400">Stock: {item.product.quantity}</Text>
+            <Text className="text-xs text-gray-400">{t('pos.stock')}: {item.product.quantity}</Text>
           </View>
         </View>
 
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center">
-            <Text className="mr-2 text-sm text-gray-600">Discount:</Text>
+            <Text className="mr-2 text-sm text-gray-600">{t('pos.discount')}:</Text>
             <TextInput
               className="w-16 rounded border border-gray-300 px-2 py-1 text-sm"
               value={localDiscount}
@@ -163,6 +164,7 @@ const CartItemComponent = React.memo(
 
 export default function POSScreen({ navigation }: any) {
   const { user, logout } = useAuth();
+  const { t } = useTranslation();
   const { height } = useWindowDimensions();
   const { printReceiptData } = usePrinter();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -206,7 +208,7 @@ export default function POSScreen({ navigation }: any) {
     const locationId = selectedLocationId || user?.location_id;
 
     if (!locationId) {
-      if (!isAdmin) Alert.alert('Error', 'No location assigned to your account');
+      if (!isAdmin) Alert.alert(t('common.error'), t('pos.locationRequired'));
       setIsLoading(false);
       return;
     }
@@ -232,7 +234,7 @@ export default function POSScreen({ navigation }: any) {
       }
     } catch {
       // silently fail
-      Alert.alert('Error', 'Failed to load stock');
+      Alert.alert(t('common.error'), t('common.error'));
     } finally {
       setIsLoading(false);
     }
@@ -275,8 +277,8 @@ export default function POSScreen({ navigation }: any) {
           }
         } else {
           Alert.alert(
-            'Location Required',
-            'Your location for today has not been assigned by an admin. Please contact your manager.'
+            t('pos.locationRequired'),
+            t('pos.locationRequiredMsg')
           );
         }
       }
@@ -297,7 +299,7 @@ export default function POSScreen({ navigation }: any) {
       setSelectedLocationId(locId);
       setShowLocationModal(false);
     } catch (e) {
-      Alert.alert('Error', 'Failed to start session at this location');
+      Alert.alert(t('common.error'), t('pos.startSessionError'));
     } finally {
       setIsLoading(false);
     }
@@ -380,7 +382,7 @@ export default function POSScreen({ navigation }: any) {
 
   const addToCart = (product: StockItem) => {
     if (product.quantity <= 0) {
-      Alert.alert('Out of Stock', 'This product is currently out of stock');
+      Alert.alert(t('pos.stockLimit'), t('pos.cartEmpty')); // Out of stock
       return;
     }
 
@@ -388,7 +390,7 @@ export default function POSScreen({ navigation }: any) {
 
     if (existingItem) {
       if (existingItem.quantity >= product.quantity) {
-        Alert.alert('Error', `Only ${product.quantity} items available in stock`);
+        Alert.alert(t('pos.stockLimit'), `${t('pos.available')}: ${product.quantity}`);
         return;
       }
       updateCartItemQuantity(product.id, existingItem.quantity + 1);
@@ -401,7 +403,7 @@ export default function POSScreen({ navigation }: any) {
         total: product.unit_price,
       };
       setCart([...cart, newItem]);
-      showToast(`${product.name} added to cart`);
+      showToast(`${product.name} ${t('pos.addedToCart')}`);
     }
   };
 
@@ -421,7 +423,7 @@ export default function POSScreen({ navigation }: any) {
           if (item.product.id === productId) {
             const stockItem = stockItems.find((s) => s.id === productId);
             if (stockItem && quantity > stockItem.quantity) {
-              Alert.alert('Error', 'Not enough stock available');
+              Alert.alert(t('common.error'), t('pos.notEnoughStock'));
               return item;
             }
 
@@ -483,7 +485,7 @@ export default function POSScreen({ navigation }: any) {
       };
       const response = await apiService.createSalesInvoice(invoiceData);
       if (response.ok || response.success) {
-        Alert.alert('Saved', 'Invoice saved as draft');
+        Alert.alert(t('pos.confirmed'), t('pos.draftSaved'));
         setCart([]);
         setSelectedCustomer(null);
         setShowCart(false);
@@ -510,12 +512,12 @@ export default function POSScreen({ navigation }: any) {
     }
 
     Alert.alert(
-      'Confirm Sale',
-      `Total: $${calculateTotal().toFixed(2)}\n${selectedCustomer ? `Customer: ${selectedCustomer.name}` : 'Walk-in Customer'}`,
+      t('pos.confirmSale'),
+      `${t('pos.total')}: $${calculateTotal().toFixed(2)}\n${selectedCustomer ? `${t('customers.name')}: ${selectedCustomer.name}` : t('pos.walkInCustomer')}`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Confirm',
+          text: t('common.confirm'),
           onPress: async () => {
             try {
               setIsLoading(true);
@@ -544,15 +546,15 @@ export default function POSScreen({ navigation }: any) {
                 const invoice = response.data;
 
                 // Ask if user wants to print receipt
-                Alert.alert('Success', 'Sale completed successfully!', [
+                Alert.alert(t('common.success'), t('pos.successSale'), [
                   {
-                    text: 'Print Receipt',
+                    text: t('pos.printReceipt'),
                     onPress: async () => {
                       try {
                         setIsPrinting(true);
                         const printData = {
                           invoiceNumber: invoice.invoice_number,
-                          customerName: selectedCustomer?.name || 'Walk-in Customer',
+                          customerName: selectedCustomer?.name || t('pos.walkInCustomer'),
                           items: cart.map(item => ({
                             name: item.product.name,
                             quantity: item.quantity,
@@ -584,7 +586,7 @@ export default function POSScreen({ navigation }: any) {
                     },
                   },
                   {
-                    text: 'Skip',
+                    text: t('pos.skip'),
                     onPress: () => {
                       setCart([]);
                       setSelectedCustomer(null);
@@ -613,9 +615,9 @@ export default function POSScreen({ navigation }: any) {
   // const handleAIScan = async () => { ... };
 
   const clearCart = () => {
-    Alert.alert('Clear Cart', 'Are you sure you want to clear the cart?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: () => setCart([]) },
+    Alert.alert(t('pos.clearCart'), t('pos.clearCartConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.clear'), style: 'destructive', onPress: () => setCart([]) },
     ]);
   };
 
@@ -654,7 +656,7 @@ export default function POSScreen({ navigation }: any) {
     return (
       <View className="flex-1 bg-gray-50 items-center justify-center">
         <ActivityIndicator size="large" color="#3B82F6" />
-        <Text className="mt-4 text-gray-500 font-medium">Loading session...</Text>
+        <Text className="mt-4 text-gray-500 font-medium">{t('pos.loadingSession')}</Text>
       </View>
     );
   }
@@ -675,8 +677,8 @@ export default function POSScreen({ navigation }: any) {
           <SafeAreaView>
             <View className="flex-row items-center justify-between border-b border-gray-100 p-5">
               <View>
-                <Text className="text-xl font-bold text-gray-900">Select Customer</Text>
-                <Text className="mt-1 text-xs text-gray-500">Search or choose a customer</Text>
+                <Text className="text-xl font-bold text-gray-900">{t('pos.selectCustomer')}</Text>
+                <Text className="mt-1 text-xs text-gray-500">{t('pos.searchByPhone')}</Text>
               </View>
               <TouchableOpacity
                 onPress={() => { setShowCustomerModal(false); setCustomerSearchQuery(''); }}
@@ -691,7 +693,7 @@ export default function POSScreen({ navigation }: any) {
                 <Ionicons name="search" size={18} color="#9CA3AF" />
                 <TextInput
                   className="flex-1 ml-2 text-base text-gray-900"
-                  placeholder="Search by name or phone..."
+                  placeholder={t('pos.searchByPhone')}
                   placeholderTextColor="#9CA3AF"
                   value={customerSearchQuery}
                   onChangeText={handleCustomerSearch}
@@ -727,8 +729,8 @@ export default function POSScreen({ navigation }: any) {
                     <Ionicons name="person-outline" size={24} color="#6B7280" />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-base font-bold text-gray-900">Walk-in Customer</Text>
-                    <Text className="mt-0.5 text-sm text-gray-500">No customer information</Text>
+                    <Text className="text-base font-bold text-gray-900">{t('pos.walkInCustomer')}</Text>
+                    <Text className="mt-0.5 text-sm text-gray-500">{t('pos.noInfo')}</Text>
                   </View>
                   {!selectedCustomer && <Ionicons name="checkmark-circle" size={24} color="#10B981" />}
                 </View>
@@ -769,7 +771,7 @@ export default function POSScreen({ navigation }: any) {
                           <View className="mt-1 flex-row items-center">
                             <Ionicons name="wallet-outline" size={14} color="#F59E0B" />
                             <Text className="ml-1 text-sm font-semibold text-orange-600">
-                              Balance: ${customer.balance.toFixed(2)}
+                              {t('common.balance')}: ${customer.balance.toFixed(2)}
                             </Text>
                           </View>
                         )}
@@ -781,8 +783,8 @@ export default function POSScreen({ navigation }: any) {
               ) : (
                 <View className="items-center p-12">
                   <Ionicons name="people-outline" size={64} color="#D1D5DB" />
-                  <Text className="mt-4 text-base text-gray-400">No customers found</Text>
-                  <Text className="mt-1 text-sm text-gray-400">Add customers to see them here</Text>
+                  <Text className="mt-4 text-base text-gray-400">{t('customers.noCustomers')}</Text>
+                  <Text className="mt-1 text-sm text-gray-400">{t('customers.addFirst')}</Text>
                 </View>
               )}
             </ScrollView>
@@ -1007,9 +1009,9 @@ export default function POSScreen({ navigation }: any) {
           ListEmptyComponent={
             <View className="items-center p-16">
               <Text className="mb-4 text-6xl">📦</Text>
-              <Text className="mb-2 text-lg font-bold text-gray-900">No Products Found</Text>
+              <Text className="mb-2 text-lg font-bold text-gray-900">{t('pos.noProducts')}</Text>
               <Text className="text-center text-gray-500">
-                Try adjusting your search or check back later
+                {t('pos.adjustSearch')}
               </Text>
             </View>
           }

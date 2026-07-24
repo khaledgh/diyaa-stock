@@ -11,6 +11,7 @@ import {
     ScrollView,
     KeyboardAvoidingView,
     Platform,
+    useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api.service';
 import { StockItem, Vendor, CartItem } from '../types';
 import * as ImagePicker from 'expo-image-picker';
+import { useTranslation } from 'react-i18next';
 
 // Parse decimal input (comma or dot)
 const parseDecimal = (text: string): number => {
@@ -26,7 +28,9 @@ const parseDecimal = (text: string): number => {
 };
 
 export default function PurchaseInvoiceScreen({ navigation }: any) {
+    console.log('--- PurchaseInvoiceScreen: Rendering ---');
     const { user } = useAuth();
+    const { t } = useTranslation();
     const [stockItems, setStockItems] = useState<StockItem[]>([]);
     const [vendors, setVendors] = useState<Vendor[]>([]);
     const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
@@ -45,11 +49,41 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
     const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
     const [tempQty, setTempQty] = useState('1');
     const [tempPrice, setTempPrice] = useState('');
-    // Track raw quantity text per cart item (allows typing "1." without losing the dot)
     const [quantityTextMap, setQuantityTextMap] = useState<Record<number, string>>({});
+    const [vendorSearchResults, setVendorSearchResults] = useState<Vendor[]>([]);
+    const [isSearchingVendors, setIsSearchingVendors] = useState(false);
+    const vendorSearchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
     const isAdmin = user?.role === 'admin';
+    const { height } = useWindowDimensions();
+
+    const searchVendorsFromServer = useCallback(async (query: string) => {
+        if (!query.trim()) {
+            setVendorSearchResults([]);
+            setIsSearchingVendors(false);
+            return;
+        }
+        setIsSearchingVendors(true);
+        try {
+            const response = await apiService.getVendors({ search: query });
+            const data = response.data || [];
+            setVendorSearchResults(Array.isArray(data) ? data : []);
+        } catch {
+            // silently fail
+        } finally {
+            setIsSearchingVendors(false);
+        }
+    }, []);
+
+    const handleVendorSearch = (text: string) => {
+        setVendorSearchQuery(text);
+        if (vendorSearchTimeoutRef.current) clearTimeout(vendorSearchTimeoutRef.current);
+        vendorSearchTimeoutRef.current = setTimeout(() => {
+            searchVendorsFromServer(text);
+        }, 400);
+    };
 
     const loadInitialData = useCallback(async () => {
+        console.log('--- PurchaseInvoiceScreen: loadInitialData START ---');
         setIsLoading(true);
         try {
             const locationId = selectedLocationId || user?.location_id;
@@ -118,6 +152,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
     }, [user?.location_id, user?.id, selectedLocationId, isAdmin]);
 
     useEffect(() => {
+        console.log('--- PurchaseInvoiceScreen: useEffect [loadInitialData] ---');
         loadInitialData();
     }, [loadInitialData]);
 
@@ -270,11 +305,11 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                 // Try going back if pushed onto stack, otherwise just stay on reset form
                 try { navigation.goBack(); } catch (_e) { /* tab mode — form already reset */ }
             } else {
-                Alert.alert('Error', res.message || 'Submission failed');
+                Alert.alert(t('common.error'), res.message || t('history.submissionFailed'));
             }
         } catch {
             // silently fail
-            Alert.alert('Error', 'Communication failure');
+            Alert.alert(t('common.error'), t('history.submissionFailed'));
         } finally {
             setIsSubmitting(false);
         }
@@ -313,12 +348,12 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                 <View className="w-20 h-20 bg-orange-100 rounded-full items-center justify-center mb-6">
                     <Ionicons name="lock-closed" size={40} color="#F97316" />
                 </View>
-                <Text className="text-xl font-bold text-gray-900 text-center">Location Not Assigned</Text>
+                <Text className="text-xl font-bold text-gray-900 text-center">{t('purchase.locationNotAssigned')}</Text>
                 <Text className="text-gray-500 text-center mt-3 leading-6">
-                    Your operating location for today must be set by an Administrator.
+                    {t('purchase.locationNotAssignedDesc')}
                 </Text>
                 <TouchableOpacity onPress={loadSessionInfo} className="mt-8 bg-white border border-gray-200 px-6 py-3 rounded-full">
-                    <Text className="text-gray-600 font-bold">Check Again</Text>
+                    <Text className="text-gray-600 font-bold">{t('purchase.checkAgain')}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -334,7 +369,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                     <TouchableOpacity onPress={() => navigation.goBack()}>
                         <Ionicons name="arrow-back" size={24} color="#374151" />
                     </TouchableOpacity>
-                    <Text className="text-xl font-bold text-gray-900">New Purchase</Text>
+                    <Text className="text-xl font-bold text-gray-900">{t('purchase.newPurchase')}</Text>
                     <View style={{ width: 32 }} />
                 </View>
             </SafeAreaView>
@@ -356,10 +391,10 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                             </View>
                             <View>
                                 <Text className={`text-[10px] font-black uppercase tracking-[1px] ${selectedVendor ? 'text-emerald-600' : 'text-indigo-600'}`}>
-                                    {selectedVendor ? 'Selected Vendor' : 'Step 1: Choose Vendor'}
+                                    {selectedVendor ? t('purchase.selectedVendor') : t('purchase.step1')}
                                 </Text>
                                 <Text className="text-lg font-black text-slate-900 tracking-tight">
-                                    {selectedVendor ? selectedVendor.name : 'Select a Vendor'}
+                                    {selectedVendor ? selectedVendor.name : t('purchase.chooseVendor')}
                                 </Text>
                             </View>
                         </View>
@@ -381,10 +416,10 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                             </View>
                             <View>
                                 <Text className={`text-[10px] font-black uppercase tracking-[1px] ${selectedLocationId ? 'text-blue-600' : 'text-indigo-600'}`}>
-                                    {selectedLocationId ? 'Selected Location' : 'Step 2: Add to Location'}
+                                    {selectedLocationId ? t('purchase.selectedLocation') : t('purchase.step2')}
                                 </Text>
                                 <Text className="text-lg font-black text-slate-900 tracking-tight">
-                                    {locations.find(l => l.id === selectedLocationId)?.name || 'Select a Location'}
+                                    {locations.find(l => l.id === selectedLocationId)?.name || t('purchase.chooseLocation')}
                                 </Text>
                             </View>
                         </View>
@@ -396,26 +431,26 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
 
                 {/* Items Section Header */}
                 <View className="flex-row items-center justify-between mb-3 px-1">
-                    <Text className="text-lg font-bold text-gray-900">Purchase Items</Text>
+                    <Text className="text-lg font-bold text-gray-900">{t('purchase.items')}</Text>
                     <View className="flex-row items-center gap-2">
                         {cart.length > 0 && (
                             <TouchableOpacity
-                                onPress={() => Alert.alert('Clear All', 'Remove all items from the list?', [
-                                    { text: 'Cancel', style: 'cancel' },
-                                    { text: 'Clear', style: 'destructive', onPress: () => setCart([]) },
+                                onPress={() => Alert.alert(t('purchase.clearAll'), t('purchase.clearAllConfirm'), [
+                                    { text: t('common.cancel'), style: 'cancel' },
+                                    { text: t('purchase.clearAll'), style: 'destructive', onPress: () => setCart([]) },
                                 ])}
                                 className="flex-row items-center bg-red-50 border border-red-200 px-3 py-2 rounded-xl"
                             >
                                 <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                                <Text className="text-red-500 font-bold ml-1">Clear</Text>
+                                <Text className="text-red-500 font-bold ml-1">{t('common.delete')}</Text>
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity
                             onPress={() => {
                                 if (!selectedVendor) {
-                                    Alert.alert('Vendor Required', 'Please select a vendor first.', [
-                                        { text: 'Select Vendor', onPress: () => setShowVendorModal(true) },
-                                        { text: 'Cancel', style: 'cancel' }
+                                    Alert.alert(t('purchase.vendorRequired'), t('purchase.vendorRequiredDesc'), [
+                                        { text: t('purchase.chooseVendor'), onPress: () => setShowVendorModal(true) },
+                                        { text: t('common.cancel'), style: 'cancel' }
                                     ]);
                                     return;
                                 }
@@ -424,7 +459,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                             className="flex-row items-center bg-blue-600 px-4 py-2 rounded-xl"
                         >
                             <Ionicons name="add" size={18} color="white" />
-                            <Text className="text-white font-bold ml-1">Add</Text>
+                            <Text className="text-white font-bold ml-1">{t('common.add')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -433,7 +468,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                 {cart.length === 0 ? (
                     <View className="bg-white rounded-3xl p-10 items-center border border-dashed border-gray-300">
                         <Ionicons name="cart-outline" size={48} color="#D1D5DB" />
-                        <Text className="text-gray-400 mt-4 text-center">No items added to this purchase yet.</Text>
+                        <Text className="text-gray-400 mt-4 text-center">{t('purchase.noItems')}</Text>
                     </View>
                 ) : (
                     cart.map((item, index) => (
@@ -450,7 +485,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
 
                             <View className="flex-row items-center justify-between">
                                 <View className="flex-1 mr-4">
-                                    <Text className="text-xs text-gray-400 mb-1">UNIT PRICE</Text>
+                                    <Text className="text-xs text-gray-400 mb-1">{t('purchase.unitPrice').toUpperCase()}</Text>
                                     <TextInput
                                         className="border border-gray-200 rounded-lg px-3 py-2 text-gray-900 font-bold"
                                         keyboardType="decimal-pad"
@@ -522,7 +557,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
             <View className="bg-white border-t border-gray-100" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 8 }}>
                 <View className="px-4 py-2 flex-row items-center justify-between">
                     <View>
-                        <Text className="text-gray-400 text-xs">TOTAL ({cart.length} items)</Text>
+                        <Text className="text-gray-400 text-xs">{t('pos.total').toUpperCase()} ({cart.length} {t('purchase.items').toLowerCase()})</Text>
                         <Text className="text-xl font-black text-blue-600">${calculateTotal().toFixed(2)}</Text>
                     </View>
                     <TouchableOpacity
@@ -536,7 +571,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                         ) : (
                             <>
                                 <Ionicons name="checkmark-done" size={20} color="white" />
-                                <Text className="text-white font-bold text-base ml-2">Submit</Text>
+                                <Text className="text-white font-bold text-base ml-2">{t('purchase.submit')}</Text>
                             </>
                         )}
                     </TouchableOpacity>
@@ -547,8 +582,8 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
             <Modal visible={showVendorModal} animationType="slide" transparent onRequestClose={() => setShowVendorModal(false)}>
                 <TouchableOpacity activeOpacity={1} onPress={() => setShowVendorModal(false)} className="flex-1" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }} />
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '70%' }}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: height * 0.8 }}
                 >
                     <SafeAreaView edges={['bottom']}>
                         <View className="p-6">
@@ -557,7 +592,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                 <View className="w-10 h-1 bg-gray-300 rounded-full" />
                             </View>
                             <View className="flex-row justify-between items-center mb-4">
-                                <Text className="text-xl font-bold text-gray-900">Select Vendor</Text>
+                                <Text className="text-xl font-bold text-gray-900">{t('purchase.chooseVendor')}</Text>
                                 <TouchableOpacity onPress={() => setShowVendorModal(false)}>
                                     <Ionicons name="close" size={24} color="#9CA3AF" />
                                 </TouchableOpacity>
@@ -567,56 +602,58 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                             <View className="bg-gray-100 rounded-xl px-4 py-2 flex-row items-center mb-4">
                                 <Ionicons name="search" size={20} color="#9CA3AF" />
                                 <TextInput
-                                    placeholder="Search vendors..."
+                                    placeholder={t('purchase.searchVendors')}
                                     className="flex-1 ml-2 text-gray-900"
                                     value={vendorSearchQuery}
-                                    onChangeText={setVendorSearchQuery}
+                                    onChangeText={handleVendorSearch}
                                 />
-                                {vendorSearchQuery.length > 0 && (
-                                    <TouchableOpacity onPress={() => setVendorSearchQuery('')}>
+                                {isSearchingVendors && <ActivityIndicator size="small" color="#4F46E5" />}
+                                {vendorSearchQuery.length > 0 && !isSearchingVendors && (
+                                    <TouchableOpacity onPress={() => { setVendorSearchQuery(''); setVendorSearchResults([]); }}>
                                         <Ionicons name="close-circle" size={20} color="#9CA3AF" />
                                     </TouchableOpacity>
                                 )}
                             </View>
                         </View>
 
-                        <ScrollView showsVerticalScrollIndicator={false} className="px-6" style={{ maxHeight: 400 }}>
+                        <ScrollView 
+                            showsVerticalScrollIndicator={false} 
+                            className="px-6" 
+                            style={{ maxHeight: height * 0.5 }}
+                            keyboardShouldPersistTaps="handled"
+                        >
                             {(() => {
-                                const filteredVendors = vendors.filter(v => {
-                                    const query = vendorSearchQuery.toLowerCase();
-                                    return (
-                                        v.name?.toLowerCase().includes(query) ||
-                                        v.company_name?.toLowerCase().includes(query) ||
-                                        v.phone?.toLowerCase().includes(query)
-                                    );
-                                });
+                                const displayedVendors = vendorSearchQuery.trim()
+                                    ? vendorSearchResults
+                                    : vendors;
 
-                                if (vendors.length === 0) {
+                                if (vendors.length === 0 && !vendorSearchQuery) {
                                     return (
                                         <View className="py-10 items-center">
                                             <Ionicons name="business-outline" size={48} color="#D1D5DB" />
-                                            <Text className="text-gray-400 mt-4 text-center">No vendors available</Text>
-                                            <Text className="text-gray-400 text-sm text-center mt-2">Add vendors in settings first</Text>
+                                            <Text className="text-gray-400 mt-4 text-center">{t('purchase.noVendors')}</Text>
+                                            <Text className="text-gray-400 text-sm text-center mt-2">{t('purchase.addVendorsFirst')}</Text>
                                         </View>
                                     );
                                 }
 
-                                if (filteredVendors.length === 0) {
+                                if (displayedVendors.length === 0) {
                                     return (
                                         <View className="py-10 items-center">
                                             <Ionicons name="search-outline" size={48} color="#D1D5DB" />
-                                            <Text className="text-gray-400 mt-4 text-center">No vendors found</Text>
+                                            <Text className="text-gray-400 mt-4 text-center">{t('purchase.noVendorsFound')}</Text>
                                         </View>
                                     );
                                 }
 
-                                return filteredVendors.map(v => (
+                                return displayedVendors.map(v => (
                                     <TouchableOpacity
                                         key={v.id}
                                         onPress={() => { 
                                             setSelectedVendor(v); 
                                             setShowVendorModal(false);
                                             setVendorSearchQuery('');
+                                            setVendorSearchResults([]);
                                         }}
                                         className="py-4 border-b border-gray-100 flex-row items-center justify-between"
                                     >
@@ -650,7 +687,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                 <View className="flex-1 justify-center p-6" style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}>
                     <View className="bg-white rounded-3xl p-6 h-3/4">
                         <View className="flex-row justify-between items-center mb-4">
-                            <Text className="text-xl font-bold text-gray-900">Add Product</Text>
+                            <Text className="text-xl font-bold text-gray-900">{t('purchase.addProduct')}</Text>
                             <TouchableOpacity onPress={() => { setSelectedProduct(null); setShowItemModal(false); }}>
                                 <Ionicons name="close" size={24} color="#9CA3AF" />
                             </TouchableOpacity>
@@ -659,7 +696,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                         <View className="bg-gray-100 rounded-xl px-4 py-2 flex-row items-center mb-4">
                             <Ionicons name="search" size={20} color="#9CA3AF" />
                             <TextInput
-                                placeholder="Product name or SKU..."
+                                placeholder={t('purchase.searchProducts')}
                                 className="flex-1 ml-2 text-gray-900"
                                 value={searchQuery}
                                 onChangeText={setSearchQuery}
@@ -700,7 +737,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                 <Text className="text-xs text-gray-500 mb-4">SKU: {selectedProduct.sku}</Text>
 
                                 <View className="mb-4">
-                                    <Text className="text-xs text-gray-400 font-bold mb-1">QUANTITY</Text>
+                                    <Text className="text-xs text-gray-400 font-bold mb-1">{t('purchase.quantity').toUpperCase()}</Text>
                                     <View className="flex-row items-center">
                                         <TouchableOpacity
                                             onPress={() => {
@@ -731,7 +768,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                 </View>
 
                                 <View className="mb-5">
-                                    <Text className="text-xs text-gray-400 font-bold mb-1">UNIT PRICE ($)</Text>
+                                    <Text className="text-xs text-gray-400 font-bold mb-1">{t('purchase.unitPrice').toUpperCase()} ($)</Text>
                                     <TextInput
                                         className="border border-gray-200 rounded-xl px-4 py-3 text-lg font-bold text-gray-900"
                                         keyboardType="decimal-pad"
@@ -746,13 +783,13 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                                         onPress={() => setSelectedProduct(null)}
                                         className="flex-1 h-12 items-center justify-center bg-gray-100 rounded-xl"
                                     >
-                                        <Text className="text-gray-700 font-bold">Cancel</Text>
+                                        <Text className="text-gray-700 font-bold">{t('common.cancel')}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         onPress={confirmAddToCart}
                                         className="flex-1 h-12 items-center justify-center bg-blue-600 rounded-xl"
                                     >
-                                        <Text className="text-white font-bold">Add to Cart</Text>
+                                        <Text className="text-white font-bold">{t('purchase.addToCart')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -768,7 +805,7 @@ export default function PurchaseInvoiceScreen({ navigation }: any) {
                     <SafeAreaView edges={['bottom']}>
                         <View className="p-6">
                             <View className="flex-row justify-between items-center mb-4">
-                                <Text className="text-xl font-bold text-gray-900">Select Storage Location</Text>
+                                <Text className="text-xl font-bold text-gray-900">{t('purchase.selectStorage')}</Text>
                                 <TouchableOpacity onPress={() => setShowLocationModal(false)}>
                                     <Ionicons name="close" size={24} color="#9CA3AF" />
                                 </TouchableOpacity>

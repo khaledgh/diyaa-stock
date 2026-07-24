@@ -12,10 +12,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import apiService from '../services/api.service';
 import { User } from '../types';
 
 export default function UserManagementScreen({ navigation }: any) {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,7 +43,7 @@ export default function UserManagementScreen({ navigation }: any) {
       setUsers(usersRes.data || []);
       setLocations(locationsRes.data || []);
     } catch {
-      Alert.alert('Error', 'Failed to load data');
+      Alert.alert(t('common.error'), t('history.errorLoading'));
     } finally {
       setLoading(false);
     }
@@ -67,7 +69,7 @@ export default function UserManagementScreen({ navigation }: any) {
 
     const rate = parseFloat(commissionRate);
     if (isNaN(rate) || rate < 0 || rate > 100) {
-      Alert.alert('Invalid Rate', 'Commission rate must be between 0 and 100');
+      Alert.alert(t('common.error'), t('users.invalidRate'));
       return;
     }
 
@@ -84,11 +86,11 @@ export default function UserManagementScreen({ navigation }: any) {
         commission_rate: rate,
       });
       
-      Alert.alert('Success', 'Commission rate updated successfully');
+      Alert.alert(t('common.success'), t('users.successRate'));
       setEditingUser(null);
       await loadUsers();
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to update commission rate');
+      Alert.alert(t('common.error'), error.response?.data?.message || t('common.error'));
     } finally {
       setSaving(false);
     }
@@ -97,26 +99,26 @@ export default function UserManagementScreen({ navigation }: any) {
   const handleChangePassword = async () => {
     if (!passwordUser) return;
     if (!newPassword || newPassword.length < 4) {
-      Alert.alert('Error', 'Password must be at least 4 characters');
+      Alert.alert(t('common.error'), t('login.passwordLength'));
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert(t('common.error'), t('common.error'));
       return;
     }
     try {
       setSavingPassword(true);
       const res = await apiService.updateUser(passwordUser.id, { password: newPassword });
       if (res.ok || res.success) {
-        Alert.alert('Success', `Password updated for ${passwordUser.full_name}`);
+        Alert.alert(t('common.success'), t('users.successPassword', { name: passwordUser.full_name }));
         setPasswordUser(null);
         setNewPassword('');
         setConfirmPassword('');
       } else {
-        Alert.alert('Error', res.message || 'Failed to update password');
+        Alert.alert(t('common.error'), res.message || t('common.error'));
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to update password');
+      Alert.alert(t('common.error'), err?.message || t('common.error'));
     } finally {
       setSavingPassword(false);
     }
@@ -134,15 +136,15 @@ export default function UserManagementScreen({ navigation }: any) {
         location_mode: locationEditingUser.location_mode // preserve current mode or handle it
       });
       if (res.ok || res.success) {
-        Alert.alert('Success', 'Location updated successfully');
+        Alert.alert(t('common.success'), t('users.successLocation'));
         setShowLocationModal(false);
         setLocationEditingUser(null);
         await loadUsers();
       } else {
-        Alert.alert('Error', res.message || 'Failed to update location');
+        Alert.alert(t('common.error'), res.message || t('common.error'));
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to update location');
+      Alert.alert(t('common.error'), err?.message || t('common.error'));
     } finally {
       setUpdatingLocation(false);
     }
@@ -164,7 +166,7 @@ export default function UserManagementScreen({ navigation }: any) {
       <SafeAreaView edges={['top']} className="flex-1 bg-white">
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#3B82F6" />
-          <Text className="text-gray-500 mt-4">Loading users...</Text>
+          <Text className="text-gray-500 mt-4">{t('users.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -177,7 +179,7 @@ export default function UserManagementScreen({ navigation }: any) {
           <TouchableOpacity onPress={() => navigation.goBack()} className="mr-3">
             <Ionicons name="arrow-back" size={24} color="#000" />
           </TouchableOpacity>
-          <Text className="text-gray-900 text-xl font-bold">User Management</Text>
+          <Text className="text-gray-900 text-xl font-bold">{t('users.title')}</Text>
         </View>
       </View>
 
@@ -188,7 +190,7 @@ export default function UserManagementScreen({ navigation }: any) {
       >
         <View className="p-4">
           <Text className="text-sm text-gray-500 mb-4">
-            {users.length} {users.length === 1 ? 'user' : 'users'}
+            {t('users.count', { count: users.length })}
           </Text>
 
           {users.map((user) => (
@@ -214,7 +216,7 @@ export default function UserManagementScreen({ navigation }: any) {
                     {user.location_id && (
                       <View className="ml-2 bg-gray-100 px-3 py-1 rounded-full">
                         <Text className="text-xs text-gray-700">
-                          Location {user.location_name || user.location_id}
+                          {t('users.location')} {user.location_name || user.location_id}
                         </Text>
                       </View>
                     )}
@@ -222,21 +224,29 @@ export default function UserManagementScreen({ navigation }: any) {
                 </View>
               </View>
 
-              <View className="border-t border-gray-100 pt-3 mt-2 flex-row items-center justify-between">
+              <View className="border-t border-gray-100 pt-3 mt-2 flex-row items-center justify-between flex-wrap">
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('Main', { screen: 'History', params: { userId: user.id, userName: user.full_name, type: 'sales' } })}
+                  className="flex-row items-center bg-green-50 border border-green-200 px-3 py-2 rounded-lg mb-2"
+                >
+                  <Ionicons name="receipt" size={16} color="#059669" />
+                  <Text className="text-green-700 text-xs font-semibold ml-1">{t('users.salesHistory')}</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity
                   onPress={() => { setPasswordUser(user); setNewPassword(''); setConfirmPassword(''); }}
-                  className="flex-row items-center bg-yellow-50 border border-yellow-200 px-3 py-2 rounded-lg"
+                  className="flex-row items-center bg-yellow-50 border border-yellow-200 px-3 py-2 rounded-lg mb-2"
                 >
                   <Ionicons name="lock-closed" size={16} color="#F59E0B" />
-                  <Text className="text-yellow-700 text-xs font-semibold ml-1">Password</Text>
+                  <Text className="text-yellow-700 text-xs font-semibold ml-1">{t('common.password')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={() => { setLocationEditingUser(user); setShowLocationModal(true); }}
-                  className="flex-row items-center bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg"
+                  className="flex-row items-center bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg mb-2"
                 >
                   <Ionicons name="location" size={16} color="#2563EB" />
-                  <Text className="text-blue-700 text-xs font-semibold ml-1">Location</Text>
+                  <Text className="text-blue-700 text-xs font-semibold ml-1">{t('users.location')}</Text>
                 </TouchableOpacity>
                 {user.role === 'sales' && (
                   <View className="flex-row items-center">
@@ -246,7 +256,7 @@ export default function UserManagementScreen({ navigation }: any) {
                       onPress={() => openEditCommission(user)}
                       className="bg-blue-600 px-3 py-2 rounded-lg ml-2"
                     >
-                      <Text className="text-white text-xs font-semibold">Edit Rate</Text>
+                      <Text className="text-white text-xs font-semibold">{t('users.editRate')}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -271,7 +281,7 @@ export default function UserManagementScreen({ navigation }: any) {
               keyboardShouldPersistTaps="handled"
             >
               <View className="flex-row items-center justify-between mb-6">
-                <Text className="text-xl font-bold text-gray-900">Edit Commission Rate</Text>
+                <Text className="text-xl font-bold text-gray-900">{t('users.editCommission')}</Text>
                 <TouchableOpacity onPress={() => setEditingUser(null)}>
                   <Ionicons name="close" size={24} color="#9CA3AF" />
                 </TouchableOpacity>
@@ -288,7 +298,7 @@ export default function UserManagementScreen({ navigation }: any) {
 
                   <View className="mb-6">
                     <Text className="text-sm text-gray-700 font-semibold mb-2">
-                      Commission Rate (%)
+                      {t('users.commissionRate')}
                     </Text>
                     <View className="bg-gray-100 rounded-xl px-4 py-3 flex-row items-center">
                       <Ionicons name="cash-outline" size={20} color="#6B7280" />
@@ -303,7 +313,7 @@ export default function UserManagementScreen({ navigation }: any) {
                       <Text className="text-gray-500 text-base">%</Text>
                     </View>
                     <Text className="text-xs text-gray-500 mt-2">
-                      Enter a value between 0 and 100
+                      {t('users.rateRange')}
                     </Text>
                   </View>
 
@@ -313,7 +323,7 @@ export default function UserManagementScreen({ navigation }: any) {
                       disabled={saving}
                       className="flex-1 bg-gray-100 py-4 rounded-xl"
                     >
-                      <Text className="text-gray-700 text-center font-semibold">Cancel</Text>
+                      <Text className="text-gray-700 text-center font-semibold">{t('common.cancel')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={saveCommissionRate}
@@ -323,7 +333,7 @@ export default function UserManagementScreen({ navigation }: any) {
                       {saving ? (
                         <ActivityIndicator color="#fff" />
                       ) : (
-                        <Text className="text-white text-center font-semibold">Save</Text>
+                        <Text className="text-white text-center font-semibold">{t('common.save')}</Text>
                       )}
                     </TouchableOpacity>
                   </View>
@@ -342,28 +352,28 @@ export default function UserManagementScreen({ navigation }: any) {
       >
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
           <View className="bg-white rounded-3xl p-6">
-            <Text className="text-xl font-bold text-gray-900 mb-1">Change Password</Text>
+            <Text className="text-xl font-bold text-gray-900 mb-1">{t('users.changePassword')}</Text>
             {passwordUser && (
               <Text className="text-sm text-gray-500 mb-4">{passwordUser.full_name}</Text>
             )}
             <View className="mb-4">
-              <Text className="text-xs text-gray-500 font-bold mb-1">NEW PASSWORD</Text>
+              <Text className="text-xs text-gray-500 font-bold mb-1">{t('users.newPassword')}</Text>
               <TextInput
                 className="border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
                 secureTextEntry
                 value={newPassword}
                 onChangeText={setNewPassword}
-                placeholder="Enter new password"
+                placeholder={t('users.passwordPlaceholder')}
               />
             </View>
             <View className="mb-6">
-              <Text className="text-xs text-gray-500 font-bold mb-1">CONFIRM PASSWORD</Text>
+              <Text className="text-xs text-gray-500 font-bold mb-1">{t('users.confirmPassword')}</Text>
               <TextInput
                 className="border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
                 secureTextEntry
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                placeholder="Confirm new password"
+                placeholder={t('users.confirmPlaceholder')}
               />
             </View>
             <View className="flex-row gap-3">
@@ -371,14 +381,14 @@ export default function UserManagementScreen({ navigation }: any) {
                 onPress={() => { setPasswordUser(null); setNewPassword(''); setConfirmPassword(''); }}
                 className="flex-1 h-12 items-center justify-center bg-gray-100 rounded-xl"
               >
-                <Text className="text-gray-700 font-bold">Cancel</Text>
+                <Text className="text-gray-700 font-bold">{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleChangePassword}
                 disabled={savingPassword}
                 className={`flex-1 h-12 items-center justify-center rounded-xl ${savingPassword ? 'bg-yellow-300' : 'bg-yellow-500'}`}
               >
-                {savingPassword ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold">Update</Text>}
+                {savingPassword ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold">{t('common.update')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -396,7 +406,7 @@ export default function UserManagementScreen({ navigation }: any) {
           <SafeAreaView edges={['bottom']} className="bg-white rounded-t-3xl" style={{ maxHeight: '80%' }}>
             <View className="p-6 border-b border-gray-100 flex-row justify-between items-center">
               <View>
-                <Text className="text-xl font-bold text-gray-900">Assign Location</Text>
+                <Text className="text-xl font-bold text-gray-900">{t('users.assignLocation')}</Text>
                 <Text className="text-sm text-gray-500">{locationEditingUser?.full_name}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowLocationModal(false)}>
@@ -405,17 +415,17 @@ export default function UserManagementScreen({ navigation }: any) {
             </View>
             
             <View className="px-6 py-4 border-b border-gray-100">
-               <Text className="text-xs font-bold text-gray-400 uppercase mb-3">Login Strategy</Text>
+               <Text className="text-xs font-bold text-gray-400 uppercase mb-3">{t('users.loginStrategy')}</Text>
                <View className="flex-row bg-gray-100 p-1 rounded-2xl">
                   <TouchableOpacity 
                     onPress={() => setLocationEditingUser(prev => prev ? {...prev, location_mode: 'automatic'} : null)}
                     className={`flex-1 py-3 rounded-xl items-center ${locationEditingUser?.location_mode === 'automatic' ? 'bg-white shadow-sm' : ''}`}>
-                    <Text className={`font-bold ${locationEditingUser?.location_mode === 'automatic' ? 'text-indigo-600' : 'text-gray-500'}`}>Fixed</Text>
+                    <Text className={`font-bold ${locationEditingUser?.location_mode === 'automatic' ? 'text-indigo-600' : 'text-gray-500'}`}>{t('users.fixed')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     onPress={() => setLocationEditingUser(prev => prev ? {...prev, location_mode: 'manual'} : null)}
                     className={`flex-1 py-3 rounded-xl items-center ${locationEditingUser?.location_mode === 'manual' ? 'bg-white shadow-sm' : ''}`}>
-                    <Text className={`font-bold ${locationEditingUser?.location_mode === 'manual' ? 'text-indigo-600' : 'text-gray-500'}`}>Manual Choice</Text>
+                    <Text className={`font-bold ${locationEditingUser?.location_mode === 'manual' ? 'text-indigo-600' : 'text-gray-500'}`}>{t('users.manualChoice')}</Text>
                   </TouchableOpacity>
                </View>
             </View>
@@ -427,7 +437,7 @@ export default function UserManagementScreen({ navigation }: any) {
                 className={`p-4 rounded-2xl mb-3 flex-row justify-between items-center ${locationEditingUser?.location_id === null ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-100'}`}
               >
                 <Text className={`font-bold ${locationEditingUser?.location_id === null ? 'text-blue-700' : 'text-gray-700'}`}>
-                  None (Unassigned)
+                  {t('users.none')}
                 </Text>
                 {locationEditingUser?.location_id === null && <Ionicons name="checkmark-circle" size={20} color="#2563EB" />}
               </TouchableOpacity>

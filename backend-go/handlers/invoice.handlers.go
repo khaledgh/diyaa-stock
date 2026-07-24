@@ -90,6 +90,7 @@ func (ih *InvoiceHandler) GetAllHandler(c echo.Context) error {
 		"customer_id":    c.QueryParam("customer_id"),
 		"vendor_id":      c.QueryParam("vendor_id"),
 		"location_id":    c.QueryParam("location_id"),
+		"created_by":     c.QueryParam("user_id"),
 		"from_date":      c.QueryParam("from_date"),
 		"to_date":        c.QueryParam("to_date"),
 	}
@@ -502,7 +503,8 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 			UnitPrice       float64 `json:"unit_price"`
 			DiscountPercent float64 `json:"discount_percent"`
 		} `json:"items"`
-		Status *string `json:"status"`
+		Status  *string `json:"status"`
+		Channel string  `json:"channel"`
 	}
 
 	if err := c.Bind(&req); err != nil {
@@ -516,6 +518,11 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 	user, err := GetUserContext(c)
 	if err != nil {
 		return ResponseError(c, err)
+	}
+
+	channel := req.Channel
+	if channel == "" {
+		channel = "web"
 	}
 
 	// Calculate total
@@ -567,6 +574,7 @@ func (ih *InvoiceHandler) CreateSalesHandler(c echo.Context) error {
 		CreatedBy:      user.ID,
 		Items:          items,
 		Status:         status,
+		Channel:        channel,
 	}
 
 	createdInvoice, err := ih.SalesInvoiceServices.Create(invoice)

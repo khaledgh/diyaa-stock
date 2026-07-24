@@ -297,6 +297,9 @@ func (rh *ReportHandler) LocationSalesReportHandler(c echo.Context) error {
 func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 	dashboard := make(map[string]interface{})
 
+	channel := c.QueryParam("channel")
+	locationID := c.QueryParam("location_id")
+
 	// Total products
 	var totalProducts int64
 	rh.db.Table("products").Where("is_active = ?", true).Count(&totalProducts)
@@ -316,11 +319,18 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 		Count int     `json:"count"`
 		Total float64 `json:"total"`
 	}
-	rh.db.Raw(`
-		SELECT COUNT(*) as count, SUM(total_amount) as total
-		FROM sales_invoices
-		WHERE deleted_at IS NULL AND DATE(created_at) = CURDATE()
-	`).Scan(&todaySales)
+	{
+		query := rh.db.Table("sales_invoices").
+			Select("COUNT(*) as count, SUM(total_amount) as total").
+			Where("deleted_at IS NULL AND DATE(created_at) = CURDATE()")
+		if channel != "" {
+			query = query.Where("channel = ?", channel)
+		}
+		if locationID != "" {
+			query = query.Where("location_id = ?", locationID)
+		}
+		query.Scan(&todaySales)
+	}
 	dashboard["today_sales_count"] = todaySales.Count
 	dashboard["today_sales_total"] = todaySales.Total
 
@@ -342,11 +352,18 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 
 	// Pending payments (Receivables)
 	var pendingPayments float64
-	rh.db.Raw(`
-		SELECT COALESCE(SUM(total_amount - paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = sales_invoices.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total
-		FROM sales_invoices
-		WHERE deleted_at IS NULL
-	`).Scan(&pendingPayments)
+	{
+		query := rh.db.Table("sales_invoices").
+			Select("COALESCE(SUM(total_amount - paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = sales_invoices.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total").
+			Where("deleted_at IS NULL")
+		if channel != "" {
+			query = query.Where("channel = ?", channel)
+		}
+		if locationID != "" {
+			query = query.Where("location_id = ?", locationID)
+		}
+		query.Scan(&pendingPayments)
+	}
 	dashboard["pending_payments"] = pendingPayments
 
 	// Payables

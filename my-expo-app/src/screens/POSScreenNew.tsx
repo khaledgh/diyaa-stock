@@ -23,6 +23,7 @@ import apiService from '../services/api.service';
 import { StockItem, Customer, CartItem, Category } from '../types';
 import { usePrinter } from '../../hooks/usePrinter';
 import QuantityModal from '../components/QuantityModal';
+import { useTranslation } from 'react-i18next';
 // AsyncStorage removed - not currently used
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -47,6 +48,7 @@ export default function POSScreenNew({ navigation }: any) {
   const { user, logout } = useAuth();
   const { height } = useWindowDimensions();
   const { printReceiptData } = usePrinter();
+  const { t } = useTranslation();
 
   // Data
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -80,6 +82,7 @@ export default function POSScreenNew({ navigation }: any) {
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
   const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
+  const [quantityTextMap, setQuantityTextMap] = useState<{ [key: number]: string }>({});
 
   const isAdmin = user?.role === 'admin';
   const categoryListRef = useRef<ScrollView>(null);
@@ -95,18 +98,23 @@ export default function POSScreenNew({ navigation }: any) {
     try {
       const response = await apiService.getLocationStock(locationId);
       if (response.ok || response.success) {
-        const transformed = (response.data || []).map((item: any) => ({
-          id: item.product_id,
-          name: item.name_en || item.name_ar || 'Unknown',
-          sku: item.sku,
-          barcode: item.barcode,
-          category_name: item.category_name_en || item.category_name_ar || '',
-          category_id: item.category_id,
-          unit_price: parseFloat(item.unit_price) || 0,
-          quantity: parseFloat(item.quantity) || 0,
-          location_type: item.location_type,
-          location_id: item.location_id,
-        }));
+        const transformed = (response.data || []).map((item: any) => {
+          const rawName = item.name_ar || item.name || 'Unknown';
+          const isUnknown = rawName.toLowerCase() === 'unknown';
+          return {
+            id: item.product_id || item.id,
+            name: isUnknown ? (item.name_en || item.name_ar || item.name || 'Unknown') : rawName,
+            name_en: isUnknown ? null : (item.name_en || null),
+            sku: item.sku,
+            barcode: item.barcode,
+            category_name: item.category_name_en || item.category_name_ar || '',
+            category_id: item.category_id,
+            unit_price: parseFloat(item.unit_price || item.price) || 0,
+            quantity: parseFloat(item.quantity) || 0,
+            location_type: item.location_type,
+            location_id: item.location_id,
+          };
+        });
         setStockItems(transformed);
       }
     } catch {
@@ -301,15 +309,26 @@ export default function POSScreenNew({ navigation }: any) {
 
       // Check stock limit for NEW items or if increasing quantity
       if (qty > item.quantity) {
-        showToast(`Only ${item.quantity} units available in stock`);
-        // If it already exists, keep current qty, otherwise don't add
-        return existing ? prev : prev;
+        if (item.quantity <= 0) {
+          showToast(t('pos.outOfStock') || 'Out of stock');
+          return existing ? prev : prev;
+        }
+        
+        // If they are already at max stock, show message and don't increase
+        if (existing && existing.quantity >= item.quantity) {
+          showToast(`${t('pos.only')} ${item.quantity} ${t('pos.available')}`);
+          return prev;
+        }
+        
+        // Otherwise, adjust to max available stock
+        showToast(`${t('pos.adjustedTo')} ${item.quantity}`);
+        qty = item.quantity;
       }
 
       // Determine price and discount (prioritize overrides, then existing cart values, then base product price)
       const finalPrice = priceOverride !== undefined ? priceOverride : (existing ? existing.unit_price : item.unit_price);
       const finalDiscount = discountOverride !== undefined ? discountOverride : (existing ? existing.discount_percent : 0);
-      const total = qty * finalPrice * (1 - finalDiscount / 100);
+      const total = Math.round((qty * finalPrice * (1 - finalDiscount / 100)) * 100) / 100;
 
       if (existing) {
         return prev.map((c) =>
@@ -342,7 +361,7 @@ export default function POSScreenNew({ navigation }: any) {
     setCart((prev) =>
       prev.map((c) =>
         c.product.id === productId
-          ? { ...c, discount_percent: discount, total: c.quantity * c.unit_price * (1 - discount / 100) }
+          ? { ...c, discount_percent: discount, total: Math.round((c.quantity * c.unit_price * (1 - discount / 100)) * 100) / 100 }
           : c
       )
     );
@@ -364,8 +383,8 @@ export default function POSScreenNew({ navigation }: any) {
     ]);
   };
 
-  const calculateTotal = () => cart.reduce((sum, item) => sum + item.total, 0);
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const calculateTotal = () => Math.round(cart.reduce((sum, item) => sum + item.total, 0) * 100) / 100;
+  const totalItems = Math.round(cart.reduce((sum, item) => sum + item.quantity, 0) * 100) / 100;
 
   // ─── Checkout ───────────────────────────────────────────────────────────
   const handleCheckout = async () => {
@@ -502,7 +521,7 @@ export default function POSScreenNew({ navigation }: any) {
     return (
       <View className="flex-1 bg-gray-50 items-center justify-center">
         <ActivityIndicator size="large" color="#3B82F6" />
-        <Text className="text-gray-500 mt-4">Loading products...</Text>
+        <Text className="text-gray-500 mt-4">{t('common.loading')}</Text>
       </View>
     );
   }
@@ -514,8 +533,8 @@ export default function POSScreenNew({ navigation }: any) {
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFF' }}>
           <View className="bg-white px-5 py-4 border-b border-gray-100">
-            <Text className="text-2xl font-bold text-gray-900">Start Session</Text>
-            <Text className="text-sm text-gray-500 mt-1">Choose where you are working today</Text>
+            <Text className="text-2xl font-bold text-gray-900">{t('pos.startSession')}</Text>
+            <Text className="text-sm text-gray-500 mt-1">{t('pos.chooseWorkingLocation')}</Text>
           </View>
         </SafeAreaView>
         <ScrollView className="flex-1 p-5">
@@ -553,7 +572,7 @@ export default function POSScreenNew({ navigation }: any) {
           ) : (
             <View className="items-center py-20">
               <Ionicons name="alert-circle-outline" size={64} color="#D1D5DB" />
-              <Text className="text-gray-500 text-lg font-bold mt-4">No Locations Assigned</Text>
+              <Text className="text-gray-500 text-lg font-bold mt-4">{t('pos.noLocationsAssigned')}</Text>
               <Text className="text-gray-400 text-center mt-2 px-10">
                 You are not specifically assigned to any location. Please contact your manager.
               </Text>
@@ -570,7 +589,7 @@ export default function POSScreenNew({ navigation }: any) {
         <View className="w-20 h-20 bg-orange-100 rounded-full items-center justify-center mb-6">
           <Ionicons name="lock-closed" size={40} color="#F97316" />
         </View>
-        <Text className="text-xl font-bold text-gray-900 text-center">Location Not Assigned</Text>
+        <Text className="text-xl font-bold text-gray-900 text-center">{t('pos.locationNotAssigned')}</Text>
         <Text className="text-gray-500 text-center mt-3 leading-6">
           Your operating location for today must be set by an Administrator.
           Please ask your manager to assign your station.
@@ -579,7 +598,7 @@ export default function POSScreenNew({ navigation }: any) {
           onPress={loadSessionInfo}
           className="mt-8 bg-white border border-gray-200 px-6 py-3 rounded-full flex-row items-center">
           <Ionicons name="refresh" size={18} color="#4B5563" className="mr-2" />
-          <Text className="text-gray-600 font-bold ml-2">Check Again</Text>
+          <Text className="text-gray-600 font-bold ml-2">{t('pos.checkAgain')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -592,16 +611,16 @@ export default function POSScreenNew({ navigation }: any) {
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFF' }}>
           <View className="bg-white px-5 py-4" style={{ elevation: 2 }}>
-            <Text className="text-2xl font-bold text-gray-900">Point of Sale</Text>
-            <Text className="text-sm text-gray-500 mt-1">Select a location to continue</Text>
+            <Text className="text-2xl font-bold text-gray-900">{t('pos.title')}</Text>
+            <Text className="text-sm text-gray-500 mt-1">{t('pos.selectLocationToContinue')}</Text>
           </View>
         </SafeAreaView>
         <View className="flex-1 items-center justify-center p-6">
           <View className="w-20 h-20 items-center justify-center rounded-full bg-blue-100 mb-6">
             <Ionicons name="location" size={40} color="#2563EB" />
           </View>
-          <Text className="text-xl font-bold text-gray-900 mb-2">Choose Location</Text>
-          <Text className="text-sm text-gray-500 text-center mb-8">Select a branch to load products</Text>
+          <Text className="text-xl font-bold text-gray-900 mb-2">{t('common.chooseLocation')}</Text>
+          <Text className="text-sm text-gray-500 text-center mb-8">{t('pos.selectBranchToLoadProducts')}</Text>
           <View className="w-full">
             {locations.length > 0 ? (
               locations.map((loc) => (
@@ -656,7 +675,14 @@ export default function POSScreenNew({ navigation }: any) {
 
         {/* Product info */}
         <View className="flex-1 mr-2">
-          <Text className="text-sm font-bold text-gray-900" numberOfLines={2}>{item.name}</Text>
+          <Text className="text-sm font-bold text-gray-900" numberOfLines={1}>
+            {item.name?.toLowerCase() === 'unknown' ? (item.name_en || item.name_ar || item.name) : item.name}
+          </Text>
+          {item.name?.toLowerCase() !== 'unknown' && (item.name_en || item.name_ar) && (
+            <Text className="text-[10px] text-gray-500 font-semibold" numberOfLines={1}>
+              {item.name_en || item.name_ar}
+            </Text>
+          )}
           <View className="flex-row items-center mt-0.5">
             <Text className="text-base font-black text-blue-600">${item.unit_price.toFixed(2)}</Text>
             <View className={`rounded-full px-1.5 py-0.5 ml-2 ${outOfStock ? 'bg-red-100' : 'bg-green-50'}`}>
@@ -695,8 +721,9 @@ export default function POSScreenNew({ navigation }: any) {
                   showToast("Please select a customer first");
                   return;
                 }
+                const displayName = item.name?.toLowerCase() === 'unknown' ? (item.name_en || item.name_ar || item.name) : item.name;
                 setCartQty(item, qty + 1);
-                if (qty === 0) showToast(`${item.name} added`);
+                if (qty === 0) showToast(`${displayName} ${t('pos.added')}`);
               }}
               className={`w-12 h-12 rounded-2xl items-center justify-center ${selectedCustomer ? 'bg-blue-600' : 'bg-blue-300'}`}
               style={{ elevation: 4 }}>
@@ -720,7 +747,7 @@ export default function POSScreenNew({ navigation }: any) {
         <View className="bg-white px-4 pt-2 pb-1" style={{ elevation: 2 }}>
           {/* Top row: title + logout */}
           <View className="flex-row items-center justify-between mb-2">
-            <Text className="text-lg font-black text-gray-900">Sales</Text>
+            <Text className="text-lg font-black text-gray-900">{t('nav.sales')}</Text>
             <TouchableOpacity
               onPress={logout}
               className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
@@ -753,7 +780,7 @@ export default function POSScreenNew({ navigation }: any) {
                 onPress={() => setSelectedCategory(ALL_CATEGORY)}
                 className={`rounded-full px-3 py-1.5 border ${selectedCategory === ALL_CATEGORY ? 'border-blue-600 bg-blue-600' : 'border-gray-200 bg-white'}`}>
                 <Text className={`text-[11px] font-bold ${selectedCategory === ALL_CATEGORY ? 'text-white' : 'text-gray-600'}`}>
-                  All
+                  {t('pos.all')}
                 </Text>
               </TouchableOpacity>
               {categoryNames.map((name) => (
@@ -781,10 +808,10 @@ export default function POSScreenNew({ navigation }: any) {
                 </View>
                 <View>
                   <Text className={`text-[9px] font-bold uppercase tracking-[0.5px] ${selectedCustomer ? 'text-emerald-600' : 'text-indigo-500'}`}>
-                    {selectedCustomer ? 'Customer' : 'Select Customer'}
+                    {selectedCustomer ? t('pos.customer') : t('pos.selectCustomer')}
                   </Text>
                   <Text className="text-sm font-black text-slate-900">
-                    {selectedCustomer ? selectedCustomer.name : 'Tap to choose'}
+                    {selectedCustomer ? selectedCustomer.name : t('pos.tapToChoose')}
                   </Text>
                 </View>
               </View>
@@ -800,7 +827,7 @@ export default function POSScreenNew({ navigation }: any) {
               <Ionicons name="search" size={18} color={searchQuery ? "#3B82F6" : "#94A3B8"} />
               <TextInput
                 className="flex-1 ml-2 text-sm font-medium text-gray-900"
-                placeholder="Search products..."
+                placeholder={t('pos.searchProducts')}
                 placeholderTextColor="#94A3B8"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -841,8 +868,9 @@ export default function POSScreenNew({ navigation }: any) {
                         showToast('Please select a customer first');
                         return;
                       }
+                      const displayName = item.name?.toLowerCase() === 'unknown' ? (item.name_en || item.name_ar || item.name) : item.name;
                       setCartQty(item, cartQty + 1);
-                      if (cartQty === 0) showToast(`${item.name} added`);
+                      if (cartQty === 0) showToast(`${displayName} added`);
                     }}
                     disabled={outOfStock}
                     className="w-1/3 p-1.5"
@@ -858,7 +886,14 @@ export default function POSScreenNew({ navigation }: any) {
                            </View>
                          )}
                        </View>
-                       <Text className="text-xs font-bold text-slate-900 mb-1" numberOfLines={2}>{item.name}</Text>
+                       <Text className="text-xs font-bold text-slate-900 mb-0.5" numberOfLines={1}>
+                         {item.name?.toLowerCase() === 'unknown' ? (item.name_en || item.name_ar || item.name) : item.name}
+                       </Text>
+                       {item.name?.toLowerCase() !== 'unknown' && (item.name_en || item.name_ar) && (
+                         <Text className="text-[9px] text-slate-400 font-semibold mb-1" numberOfLines={1}>
+                           {item.name_en || item.name_ar}
+                         </Text>
+                       )}
                        <Text className="text-sm font-black text-blue-600">${item.unit_price.toFixed(2)}</Text>
                        <View className={`rounded-full px-1.5 py-0.5 mt-1 self-start ${outOfStock ? 'bg-red-100' : 'bg-green-50'}`}>
                          <Text className={`text-[8px] font-bold ${outOfStock ? 'text-red-600' : 'text-green-600'}`}>
@@ -875,14 +910,14 @@ export default function POSScreenNew({ navigation }: any) {
         ListEmptyComponent={
           <View className="items-center p-16">
             <Ionicons name="cube-outline" size={64} color="#D1D5DB" />
-            <Text className="text-lg font-bold text-gray-400 mt-4">No Products Found</Text>
+            <Text className="text-lg font-bold text-gray-400 mt-4">{t('pos.noProducts')}</Text>
           </View>
         }
       />
 
-      {/* ── Floating Cart Bar (pinned just above tab bar) ──────────── */}
+      {/* ── Floating Cart Bar (pinned at bottom of content area) ──────────── */}
       {cart.length > 0 && (
-        <View style={{ position: 'absolute', bottom: 2, left: 0, right: 0 }}>
+        <View style={{ position: 'absolute', bottom: 12, left: 0, right: 0 }}>
           <TouchableOpacity
             onPress={() => setShowCartModal(true)}
             className="mx-3 flex-row items-center justify-between rounded-2xl px-4 py-3"
@@ -898,7 +933,7 @@ export default function POSScreenNew({ navigation }: any) {
               </View>
             </View>
             <View className="bg-white rounded-xl px-5 py-2.5" style={{ elevation: 2 }}>
-              <Text className="text-blue-700 font-black text-sm">View Cart</Text>
+              <Text className="text-blue-700 font-black text-sm">{t('pos.viewCart')}</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -987,14 +1022,14 @@ export default function POSScreenNew({ navigation }: any) {
                   <Ionicons name="arrow-back" size={20} color="#374151" />
                 </TouchableOpacity>
                 <View>
-                  <Text className="text-lg font-black text-gray-900">Your Cart</Text>
+                  <Text className="text-lg font-black text-gray-900">{t('pos.yourCart')}</Text>
                   <Text className="text-[11px] text-slate-400 font-semibold">{cart.length} item{cart.length !== 1 ? 's' : ''} • {totalItems} units</Text>
                 </View>
               </View>
               {cart.length > 0 && (
                 <TouchableOpacity onPress={clearCart} className="flex-row items-center bg-red-50 border border-red-100 px-3 py-2 rounded-xl">
                   <Ionicons name="trash-outline" size={14} color="#EF4444" />
-                  <Text className="text-[11px] font-bold text-red-500 ml-1">Clear</Text>
+                  <Text className="text-[11px] font-bold text-red-500 ml-1">{t('pos.clear')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -1009,7 +1044,7 @@ export default function POSScreenNew({ navigation }: any) {
                 <Ionicons name="person" size={16} color={selectedCustomer ? '#10B981' : '#2563EB'} />
               </View>
               <View>
-                <Text className="text-[9px] font-bold text-slate-400 uppercase">Customer</Text>
+                <Text className="text-[9px] font-bold text-slate-400 uppercase">{t('pos.customer')}</Text>
                 <Text className="font-bold text-slate-900 text-sm">
                   {selectedCustomer ? selectedCustomer.name : 'Walk-in Customer'}
                 </Text>
@@ -1031,8 +1066,8 @@ export default function POSScreenNew({ navigation }: any) {
               <View className="w-24 h-24 rounded-full bg-slate-100 items-center justify-center mb-4">
                 <Ionicons name="cart-outline" size={48} color="#CBD5E1" />
               </View>
-              <Text className="text-lg font-bold text-slate-400">Cart is empty</Text>
-              <Text className="text-sm text-slate-300 mt-1">Add products to get started</Text>
+              <Text className="text-lg font-bold text-slate-400">{t('pos.cartEmpty')}</Text>
+              <Text className="text-sm text-slate-300 mt-1">{t('pos.addProductsToGetStarted')}</Text>
             </View>
           ) : (
             <FlatList
@@ -1047,7 +1082,9 @@ export default function POSScreenNew({ navigation }: any) {
                       <Ionicons name="cube-outline" size={18} color="#3B82F6" />
                     </View>
                     <View className="flex-1">
-                      <Text className="font-bold text-slate-900 text-sm" numberOfLines={1}>{item.product.name}</Text>
+                      <Text className="font-bold text-slate-900 text-sm" numberOfLines={1}>
+                        {item.product.name?.toLowerCase() === 'unknown' ? (item.product.name_en || item.product.name_ar || item.product.name) : item.product.name}
+                      </Text>
                       <Text className="text-[11px] text-slate-400 font-semibold">@ ${item.unit_price.toFixed(2)} each</Text>
                     </View>
                     <Text className="text-lg font-black text-slate-900">${item.total.toFixed(2)}</Text>
@@ -1056,34 +1093,54 @@ export default function POSScreenNew({ navigation }: any) {
                   <View className="flex-row items-center justify-between px-4 pb-3 pt-1">
                     <View className="flex-row items-center">
                       <TouchableOpacity
-                        onPress={() => setCartQty(item.product, item.quantity - 1)}
+                        onPress={() => {
+                          const newQty = item.quantity - 1;
+                          setQuantityTextMap(prev => { const n = { ...prev }; delete n[item.product.id]; return n; });
+                          setCartQty(item.product, newQty);
+                        }}
                         className="w-8 h-8 rounded-lg bg-slate-100 items-center justify-center">
                         <Ionicons name="remove" size={16} color="#64748B" />
                       </TouchableOpacity>
                       <TextInput
                         className="w-12 text-center text-sm font-black text-slate-900 mx-1"
-                        value={item.quantity.toString()}
+                        value={quantityTextMap[item.product.id] !== undefined ? quantityTextMap[item.product.id] : item.quantity.toString()}
                         onChangeText={(t) => {
-                          const val = parseDecimal(t);
-                          if (val >= 0) setCartQty(item.product, val);
+                          setQuantityTextMap(prev => ({ ...prev, [item.product.id]: t }));
+                          const normalized = t.replace(',', '.');
+                          if (!normalized.endsWith('.') && normalized !== '') {
+                            const val = parseFloat(normalized);
+                            if (!isNaN(val) && val >= 0) setCartQty(item.product, val);
+                          }
+                        }}
+                        onBlur={() => {
+                          const raw = quantityTextMap[item.product.id];
+                          if (raw !== undefined) {
+                            const val = parseFloat(raw.replace(',', '.'));
+                            if (!isNaN(val) && val >= 0) setCartQty(item.product, val);
+                            setQuantityTextMap(prev => { const n = { ...prev }; delete n[item.product.id]; return n; });
+                          }
                         }}
                         keyboardType="decimal-pad"
                         selectTextOnFocus
                       />
                       <TouchableOpacity
-                        onPress={() => setCartQty(item.product, item.quantity + 1)}
-                        className="w-8 h-8 rounded-lg bg-blue-600 items-center justify-center">
-                        <Ionicons name="add" size={16} color="#FFF" />
+                        onPress={() => {
+                          const newQty = item.quantity + 1;
+                          setQuantityTextMap(prev => { const n = { ...prev }; delete n[item.product.id]; return n; });
+                          setCartQty(item.product, newQty);
+                        }}
+                        className="w-8 h-8 rounded-lg bg-slate-100 items-center justify-center">
+                        <Ionicons name="add" size={16} color="#64748B" />
                       </TouchableOpacity>
                     </View>
                     <View className="flex-row items-center gap-2">
                       <TouchableOpacity 
                         onPress={() => openItemEditModal(item)}
                         className="bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-100">
-                        <Text className="text-[9px] font-black text-indigo-600">EDIT</Text>
+                        <Text className="text-[9px] font-black text-indigo-600">{t('pos.edit')}</Text>
                       </TouchableOpacity>
                       <View className="flex-row items-center bg-slate-50 rounded-lg px-2 py-1">
-                        <Text className="text-[10px] text-slate-400 mr-0.5">Disc</Text>
+                        <Text className="text-[10px] text-slate-400 mr-0.5">{t('pos.disc')}</Text>
                         <TextInput
                           className="w-8 text-center text-[10px] font-bold text-slate-700"
                           value={item.discount_percent.toString()}
@@ -1108,7 +1165,7 @@ export default function POSScreenNew({ navigation }: any) {
             <View className="bg-white border-t border-slate-100 px-4 pt-3 pb-2" style={{ elevation: 8 }}>
               {/* Total */}
               <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-sm font-bold text-slate-500">Total</Text>
+                <Text className="text-sm font-bold text-slate-500">{t('pos.total')}</Text>
                 <Text className="text-2xl font-black text-slate-900">${calculateTotal().toFixed(2)}</Text>
               </View>
 
@@ -1119,7 +1176,7 @@ export default function POSScreenNew({ navigation }: any) {
                   className={`flex-1 items-center rounded-lg py-2 ${paymentType === 'paid' ? 'bg-white' : ''}`}
                   style={paymentType === 'paid' ? { elevation: 2 } : {}}>
                   <Text className={`text-xs font-black ${paymentType === 'paid' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    ✓ Fully Paid
+                    ✓ {t('pos.fullyPaid')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1127,7 +1184,7 @@ export default function POSScreenNew({ navigation }: any) {
                   className={`flex-1 items-center rounded-lg py-2 ${paymentType === 'partial' ? 'bg-white' : ''}`}
                   style={paymentType === 'partial' ? { elevation: 2 } : {}}>
                   <Text className={`text-xs font-black ${paymentType === 'partial' ? 'text-orange-500' : 'text-slate-400'}`}>
-                    ◐ Partial
+                    ◐ {t('pos.partial')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1137,7 +1194,7 @@ export default function POSScreenNew({ navigation }: any) {
                   <Text className="mr-2 text-base font-black text-slate-300">$</Text>
                   <TextInput
                     className="flex-1 text-base font-bold text-slate-900"
-                    placeholder="Amount paid..."
+                    placeholder={t('pos.amountPaidPlaceholder')}
                     placeholderTextColor="#CBD5E1"
                     value={partialAmount}
                     onChangeText={setPartialAmount}
@@ -1158,7 +1215,7 @@ export default function POSScreenNew({ navigation }: any) {
                 ) : (
                   <View className="flex-row items-center justify-center">
                     <Ionicons name="checkmark-circle" size={22} color="#FFF" />
-                    <Text className="ml-2 text-white font-black text-base">Complete Sale</Text>
+                    <Text className="ml-2 text-white font-black text-base">{t('pos.completeSale')}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -1184,8 +1241,8 @@ export default function POSScreenNew({ navigation }: any) {
               {/* Title row */}
               <View className="flex-row items-center justify-between px-5 pb-3">
                 <View>
-                  <Text className="text-lg font-black text-slate-900">Select Customer</Text>
-                  <Text className="text-[11px] text-slate-400 font-semibold">{customers.length} customers available</Text>
+                  <Text className="text-lg font-black text-slate-900">{t('pos.selectCustomer')}</Text>
+                  <Text className="text-[11px] text-slate-400 font-semibold">{customers.length} {t('pos.customersAvailable')}</Text>
                 </View>
                 <TouchableOpacity onPress={() => { setShowCustomerModal(false); setCustomerSearchQuery(''); }} className="w-9 h-9 rounded-xl bg-slate-100 items-center justify-center">
                   <Ionicons name="close" size={18} color="#64748B" />
@@ -1198,7 +1255,7 @@ export default function POSScreenNew({ navigation }: any) {
                   <Ionicons name="search" size={18} color={customerSearchQuery.trim() ? '#3B82F6' : '#94A3B8'} />
                   <TextInput
                     className="flex-1 ml-2.5 text-sm font-semibold text-gray-900"
-                    placeholder="Search by name or phone..."
+                    placeholder={t('pos.searchByPhone')}
                     placeholderTextColor="#94A3B8"
                     value={customerSearchQuery}
                     onChangeText={handleCustomerSearch}
@@ -1207,7 +1264,7 @@ export default function POSScreenNew({ navigation }: any) {
                 </View>
               </View>
 
-              <ScrollView className="px-4 pb-4" showsVerticalScrollIndicator={false}>
+              <ScrollView className="px-4 pb-4" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {/* Walk-in */}
                 <TouchableOpacity
                   onPress={() => { setSelectedCustomer(null); setShowCustomerModal(false); setCustomerSearchQuery(''); }}
@@ -1216,7 +1273,7 @@ export default function POSScreenNew({ navigation }: any) {
                   <View className={`mr-3 w-10 h-10 rounded-xl items-center justify-center ${!selectedCustomer ? 'bg-emerald-100' : 'bg-slate-100'}`}>
                     <Ionicons name="walk-outline" size={18} color={!selectedCustomer ? '#10B981' : '#64748B'} />
                   </View>
-                  <Text className={`text-sm font-bold flex-1 ${!selectedCustomer ? 'text-emerald-700' : 'text-slate-700'}`}>Walk-in Customer</Text>
+                  <Text className={`text-sm font-bold flex-1 ${!selectedCustomer ? 'text-emerald-700' : 'text-slate-700'}`}>{t('pos.walkInCustomer')}</Text>
                   {!selectedCustomer && <Ionicons name="checkmark-circle" size={20} color="#10B981" />}
                 </TouchableOpacity>
 
@@ -1244,7 +1301,7 @@ export default function POSScreenNew({ navigation }: any) {
                     <View className="w-16 h-16 rounded-full bg-slate-100 items-center justify-center mb-3">
                       <Ionicons name="people-outline" size={32} color="#CBD5E1" />
                     </View>
-                    <Text className="text-slate-400 font-bold">No customers found</Text>
+                    <Text className="text-slate-400 font-bold">{t('pos.noCustomersFound')}</Text>
                   </View>
                 )}
               </ScrollView>
@@ -1282,8 +1339,8 @@ export default function POSScreenNew({ navigation }: any) {
             <View className="w-16 h-16 rounded-full bg-blue-50 items-center justify-center mb-4">
               <ActivityIndicator size="large" color="#1D4ED8" />
             </View>
-            <Text className="text-slate-900 font-black text-lg">Printing Receipt</Text>
-            <Text className="text-slate-400 text-sm mt-1 font-medium">Please wait...</Text>
+            <Text className="text-slate-900 font-black text-lg">{t('pos.printingReceipt')}</Text>
+            <Text className="text-slate-400 text-sm mt-1 font-medium">{t('pos.pleaseWait')}</Text>
           </View>
         </View>
       )}

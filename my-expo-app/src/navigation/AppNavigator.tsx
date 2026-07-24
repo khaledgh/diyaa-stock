@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { View, Dimensions, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 import LoginScreen from '../screens/LoginScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import POSScreen from '../screens/POSScreenNew';
@@ -15,56 +16,89 @@ import CreateCreditNoteScreen from '../screens/CreateCreditNoteScreen';
 import UserManagementScreen from '../screens/UserManagementScreen';
 import CustomerScreen from '../screens/CustomerScreen';
 import CustomerDetailScreen from '../screens/CustomerDetailScreen';
+import StockScreen from '../screens/StockScreen';
+import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 import LocationSessionModal from '../components/LocationSessionModal';
-// import AIInvoiceScreen from '../screens/AIInvoiceScreen'; // Hidden for now
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
-function TabIcon({ name, color, size }: { name: string; color: string; size: number }) {
-  return <Ionicons name={name as any} size={size} color={color} />;
+// ─── Custom Tab Bar ─────────────────────────────────────────────────────────
+// Full control over layout — no React Navigation internal padding/margins
+function CustomTabBar({ state, descriptors, navigation, activeColor }: any) {
+  const insets = useSafeAreaInsets();
+  // Ensure tab labels/icons never clash with system nav bar
+  const bottomSafe = Math.max(insets.bottom, 4);
+
+  // Filter out hidden tabs (ones with tabBarButton: () => null)
+  const visibleRoutes = state.routes.filter((_: any, i: number) => {
+    const { options } = descriptors[state.routes[i].key];
+    return options.tabBarButton !== null && typeof options.tabBarButton !== 'function';
+  });
+
+  return (
+    <View style={[styles.tabBarOuter, { paddingBottom: bottomSafe }]}>
+      <View style={styles.tabBarInner}>
+        {visibleRoutes.map((route: any) => {
+          const realIndex = state.routes.findIndex((r: any) => r.key === route.key);
+          const { options } = descriptors[route.key];
+          const isFocused = state.index === realIndex;
+          const color = isFocused ? activeColor : '#94A3B8';
+
+          const onPress = () => {
+            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate(route.name, route.params);
+            }
+          };
+
+          const iconName = options.tabBarIcon?.({ color, size: 24, focused: isFocused });
+          const label = typeof options.tabBarLabel === 'string'
+            ? options.tabBarLabel
+            : typeof options.title === 'string'
+              ? options.title
+              : route.name;
+
+          return (
+            <TouchableOpacity
+              key={route.key}
+              onPress={onPress}
+              activeOpacity={0.7}
+              style={styles.tabItem}
+            >
+              {iconName}
+              <Text style={[styles.tabLabel, { color }]} numberOfLines={1}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
 }
 
-// Admin sees: Dashboard, Purchase, AI Invoice, History, Profile
+// ─── Admin Navigator ────────────────────────────────────────────────────────
 function AdminTabs() {
-  const insets = useSafeAreaInsets();
-  const bottomPadding = Math.max(insets.bottom, 10);
+  const { t } = useTranslation();
+
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        lazy: true,
-        tabBarActiveTintColor: '#2563EB',
-        tabBarInactiveTintColor: '#94A3B8',
-        tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 0,
-          height: 56 + bottomPadding,
-          paddingBottom: bottomPadding,
-          paddingTop: 6,
-          elevation: 20,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-          marginTop: 2,
-        },
-      }}
+      backBehavior="history"
+      tabBar={(props) => <CustomTabBar {...props} activeColor="#2563EB" />}
+      screenOptions={{ headerShown: false, lazy: true }}
     >
       <Tab.Screen
         name="Dashboard"
         component={DashboardScreen}
         options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? 'home' : 'home-outline'} color={color} size={22} />
+          tabBarLabel: t('nav.home'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -72,9 +106,9 @@ function AdminTabs() {
         name="Sales"
         component={POSScreen}
         options={{
-          tabBarLabel: 'Sales',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? 'cart' : 'cart-outline'} color={color} size={24} />
+          tabBarLabel: t('nav.sales'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'cart' : 'cart-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -82,9 +116,9 @@ function AdminTabs() {
         name="Purchase"
         component={PurchaseInvoiceScreen}
         options={{
-          tabBarLabel: 'Purchase',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? 'cube' : 'cube-outline'} color={color} size={24} />
+          tabBarLabel: t('nav.purchase'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'cube' : 'cube-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -92,9 +126,9 @@ function AdminTabs() {
         name="History"
         component={HistoryScreen}
         options={{
-          tabBarLabel: 'History',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? 'receipt' : 'receipt-outline'} color={color} size={22} />
+          tabBarLabel: t('nav.history'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -102,9 +136,9 @@ function AdminTabs() {
         name="Customers"
         component={CustomerScreen}
         options={{
-          tabBarLabel: 'Customers',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? 'people-circle' : 'people-circle-outline'} color={color} size={24} />
+          tabBarLabel: t('nav.customers'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -112,9 +146,9 @@ function AdminTabs() {
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? 'person' : 'person-outline'} color={color} size={22} />
+          tabBarLabel: t('nav.profile'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -122,43 +156,23 @@ function AdminTabs() {
   );
 }
 
-// Sales/CashVan sees: Dashboard, Sales POS, History, Profile
+// ─── Sales Navigator ────────────────────────────────────────────────────────
 function SalesTabs() {
-  const insets = useSafeAreaInsets();
-  const bottomPadding = Math.max(insets.bottom, 10);
+  const { t } = useTranslation();
+
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        lazy: true,
-        tabBarActiveTintColor: '#059669',
-        tabBarInactiveTintColor: '#94A3B8',
-        tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 0,
-          height: 56 + bottomPadding,
-          paddingBottom: bottomPadding,
-          paddingTop: 6,
-          elevation: 20,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-          marginTop: 2,
-        },
-      }}
+      backBehavior="history"
+      tabBar={(props) => <CustomTabBar {...props} activeColor="#059669" />}
+      screenOptions={{ headerShown: false, lazy: true }}
     >
       <Tab.Screen
         name="Dashboard"
         component={DashboardScreen}
         options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? 'home' : 'home-outline'} color={color} size={22} />
+          tabBarLabel: t('nav.home'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -166,9 +180,9 @@ function SalesTabs() {
         name="Sales"
         component={POSScreen}
         options={{
-          tabBarLabel: 'Sales',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? 'cart' : 'cart-outline'} color={color} size={24} />
+          tabBarLabel: t('nav.sales'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'cart' : 'cart-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -176,9 +190,9 @@ function SalesTabs() {
         name="History"
         component={HistoryScreen}
         options={{
-          tabBarLabel: 'History',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? 'receipt' : 'receipt-outline'} color={color} size={22} />
+          tabBarLabel: t('nav.history'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -186,9 +200,9 @@ function SalesTabs() {
         name="Customers"
         component={CustomerScreen}
         options={{
-          tabBarLabel: 'Customers',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? 'people-circle' : 'people-circle-outline'} color={color} size={24} />
+          tabBarLabel: t('nav.customers'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -196,9 +210,9 @@ function SalesTabs() {
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: ({ color, size, focused }) => (
-            <TabIcon name={focused ? 'person' : 'person-outline'} color={color} size={22} />
+          tabBarLabel: t('nav.profile'),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -206,23 +220,39 @@ function SalesTabs() {
   );
 }
 
-function MainTabs() {
-  const { user } = useAuth();
+// ─── Root Navigator ─────────────────────────────────────────────────────────
+export default function AppNavigator() {
+  const { isAuthenticated, isLoading, user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const [showLocationModal, setShowLocationModal] = useState(!isAdmin);
-  const [, setSessionLocationName] = useState<string | null>(null);
+  const [showLocationModal, setShowLocationModal] = useState(!isAdmin && isAuthenticated);
+
+  if (isLoading) return null;
 
   return (
     <View style={{ flex: 1 }}>
-      {isAdmin ? <AdminTabs /> : <SalesTabs />}
-      {!isAdmin && user?.id && (
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!isAuthenticated ? (
+          <Stack.Screen name="Login" component={LoginScreen} />
+        ) : (
+          <>
+            <Stack.Screen name="Main" component={isAdmin ? AdminTabs : SalesTabs} />
+            <Stack.Screen name="PurchaseInvoice" component={PurchaseInvoiceScreen} />
+            <Stack.Screen name="EditInvoice" component={EditInvoiceScreen} />
+            <Stack.Screen name="CreditNoteList" component={CreditNoteListScreen} />
+            <Stack.Screen name="CreateCreditNote" component={CreateCreditNoteScreen} />
+            <Stack.Screen name="UserManagement" component={UserManagementScreen} />
+            <Stack.Screen name="CustomerDetail" component={CustomerDetailScreen} />
+            <Stack.Screen name="Stock" component={StockScreen} />
+            <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
+          </>
+        )}
+      </Stack.Navigator>
+
+      {isAuthenticated && showLocationModal && (
         <LocationSessionModal
           visible={showLocationModal}
-          userId={user.id}
-          onSessionSelected={(_locId, locName) => {
-            setSessionLocationName(locName);
-            setShowLocationModal(false);
-          }}
+          userId={user?.id || 0}
+          onSessionSelected={() => setShowLocationModal(false)}
           onDismiss={() => setShowLocationModal(false)}
         />
       )}
@@ -230,29 +260,40 @@ function MainTabs() {
   );
 }
 
-export default function AppNavigator() {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return null;
-  }
-
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {!isAuthenticated ? (
-        <Stack.Screen name="Login" component={LoginScreen} />
-      ) : (
-        <>
-          <Stack.Screen name="Main" component={MainTabs} />
-          <Stack.Screen name="PurchaseInvoice" component={PurchaseInvoiceScreen} />
-          <Stack.Screen name="EditInvoice" component={EditInvoiceScreen} />
-          <Stack.Screen name="CreditNoteList" component={CreditNoteListScreen} />
-          <Stack.Screen name="CreateCreditNote" component={CreateCreditNoteScreen} />
-          <Stack.Screen name="UserManagement" component={UserManagementScreen} />
-          <Stack.Screen name="Customers" component={CustomerScreen} />
-          <Stack.Screen name="CustomerDetail" component={CustomerDetailScreen} />
-        </>
-      )}
-    </Stack.Navigator>
-  );
-}
+// ─── Styles ─────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  tabBarOuter: {
+    // NO absolute positioning — sits in normal layout flow
+    // so screen content is NEVER covered by the tab bar
+    width: SCREEN_WIDTH,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+  },
+  tabBarInner: {
+    flexDirection: 'row',
+    width: SCREEN_WIDTH,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+});

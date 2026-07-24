@@ -15,9 +15,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import apiService from '../services/api.service';
+import { useTranslation } from 'react-i18next';
 import { Customer } from '../types';
 
 export default function CustomerScreen({ navigation }: any) {
+  const { t } = useTranslation();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,7 +44,7 @@ export default function CustomerScreen({ navigation }: any) {
       const data = response.data || [];
       setCustomers(Array.isArray(data) ? data : []);
     } catch {
-      Alert.alert('Error', 'Failed to load customers');
+      Alert.alert(t('common.error'), t('common.error'));
     } finally {
       setIsLoading(false);
     }
@@ -86,7 +88,7 @@ export default function CustomerScreen({ navigation }: any) {
 
   const handleSave = async () => {
     if (!formName.trim()) {
-      Alert.alert('Error', 'Customer name is required');
+      Alert.alert(t('common.error'), t('customers.nameRequired'));
       return;
     }
 
@@ -106,17 +108,17 @@ export default function CustomerScreen({ navigation }: any) {
 
       if (editingCustomer) {
         await apiService.updateCustomer(editingCustomer.id, data);
-        Alert.alert('Success', 'Customer updated');
+        Alert.alert(t('common.success'), t('customers.successUpdated'));
       } else {
         await apiService.createCustomer(data);
-        Alert.alert('Success', 'Customer created');
+        Alert.alert(t('common.success'), t('customers.successCreated'));
       }
 
       setShowAddModal(false);
       resetForm();
       await loadCustomers();
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to save customer');
+      Alert.alert(t('common.error'), error.response?.data?.message || t('common.error'));
     } finally {
       setSaving(false);
     }
@@ -150,8 +152,8 @@ export default function CustomerScreen({ navigation }: any) {
                 <Ionicons name="arrow-back" size={24} color="#374151" />
               </TouchableOpacity>
               <View>
-                <Text className="text-xl font-bold text-gray-900">Customers</Text>
-                <Text className="text-xs text-gray-500">{customers.length} total</Text>
+                <Text className="text-xl font-bold text-gray-900">{t('customers.title')}</Text>
+                <Text className="text-xs text-gray-500">{customers.length} {t('customers.total')}</Text>
               </View>
             </View>
             <TouchableOpacity
@@ -159,7 +161,7 @@ export default function CustomerScreen({ navigation }: any) {
               className="flex-row items-center bg-blue-600 rounded-xl px-4 py-2.5"
               style={{ elevation: 3 }}>
               <Ionicons name="add" size={18} color="#FFF" />
-              <Text className="text-white font-semibold text-sm ml-1">Add</Text>
+              <Text className="text-white font-semibold text-sm ml-1">{t('common.add')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -168,7 +170,7 @@ export default function CustomerScreen({ navigation }: any) {
             <Ionicons name="search" size={18} color="#9CA3AF" />
             <TextInput
               className="flex-1 ml-2 text-base text-gray-900"
-              placeholder="Search customers..."
+              placeholder={t('customers.searchPlaceholder')}
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -237,8 +239,8 @@ export default function CustomerScreen({ navigation }: any) {
           ListEmptyComponent={
             <View className="items-center p-16">
               <Ionicons name="people-outline" size={64} color="#D1D5DB" />
-              <Text className="text-lg font-bold text-gray-400 mt-4">No Customers</Text>
-              <Text className="text-gray-400 text-center mt-1">{'Tap "Add" to create your first customer'}</Text>
+              <Text className="text-lg font-bold text-gray-400 mt-4">{t('customers.noCustomers')}</Text>
+              <Text className="text-gray-400 text-center mt-1">{t('customers.addFirst')}</Text>
             </View>
           }
         />
@@ -253,7 +255,7 @@ export default function CustomerScreen({ navigation }: any) {
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
               <Text className="text-xl font-bold text-gray-900">
-                {editingCustomer ? 'Edit Customer' : 'New Customer'}
+                {editingCustomer ? t('customers.editCustomer') : t('customers.newCustomer')}
               </Text>
             </View>
             <TouchableOpacity
@@ -263,7 +265,7 @@ export default function CustomerScreen({ navigation }: any) {
               {saving ? (
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
-                <Text className="text-white font-bold text-sm">Save</Text>
+                <Text className="text-white font-bold text-sm">{t('common.save')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -271,7 +273,7 @@ export default function CustomerScreen({ navigation }: any) {
           <ScrollView className="flex-1 p-5" keyboardShouldPersistTaps="handled">
             {/* Name */}
             <View className="mb-4">
-              <Text className="text-sm font-semibold text-gray-700 mb-1.5">Name *</Text>
+              <Text className="text-sm font-semibold text-gray-700 mb-1.5">{t('customers.name')} *</Text>
               <TextInput
                 className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
                 placeholder="Customer name"
@@ -284,7 +286,7 @@ export default function CustomerScreen({ navigation }: any) {
 
             {/* Phone */}
             <View className="mb-4">
-              <Text className="text-sm font-semibold text-gray-700 mb-1.5">Phone</Text>
+              <Text className="text-sm font-semibold text-gray-700 mb-1.5">{t('customers.phone')}</Text>
               <TextInput
                 className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
                 placeholder="Phone number"
@@ -297,7 +299,7 @@ export default function CustomerScreen({ navigation }: any) {
 
             {/* Email */}
             <View className="mb-4">
-              <Text className="text-sm font-semibold text-gray-700 mb-1.5">Email</Text>
+              <Text className="text-sm font-semibold text-gray-700 mb-1.5">{t('customers.email')}</Text>
               <TextInput
                 className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
                 placeholder="Email address"
@@ -311,7 +313,7 @@ export default function CustomerScreen({ navigation }: any) {
 
             {/* Address */}
             <View className="mb-4">
-              <Text className="text-sm font-semibold text-gray-700 mb-1.5">Address</Text>
+              <Text className="text-sm font-semibold text-gray-700 mb-1.5">{t('customers.address')}</Text>
               <TextInput
                 className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
                 placeholder="Address"
@@ -325,7 +327,7 @@ export default function CustomerScreen({ navigation }: any) {
 
             {/* Tax Number */}
             <View className="mb-4">
-              <Text className="text-sm font-semibold text-gray-700 mb-1.5">Tax Number</Text>
+              <Text className="text-sm font-semibold text-gray-700 mb-1.5">{t('customers.taxNumber')}</Text>
               <TextInput
                 className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
                 placeholder="Tax number (optional)"
@@ -337,7 +339,7 @@ export default function CustomerScreen({ navigation }: any) {
 
             {/* Opening Balance */}
             <View className="mb-4">
-              <Text className="text-sm font-semibold text-gray-700 mb-1.5">Opening Balance</Text>
+              <Text className="text-sm font-semibold text-gray-700 mb-1.5">{t('customers.openingBalance')}</Text>
               <TextInput
                 className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900"
                 placeholder="0.00"
@@ -346,7 +348,7 @@ export default function CustomerScreen({ navigation }: any) {
                 onChangeText={setFormOpeningBalance}
                 keyboardType="decimal-pad"
               />
-              <Text className="text-xs text-gray-400 mt-1">Enter positive for amount owed by customer</Text>
+              <Text className="text-xs text-gray-400 mt-1">{t('customers.openingBalanceHint')}</Text>
             </View>
           </ScrollView>
         </SafeAreaView>

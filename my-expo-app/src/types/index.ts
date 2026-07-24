@@ -78,7 +78,8 @@ export interface CartItem {
 export interface Invoice {
   id: number;
   invoice_number: string;
-  invoice_type: 'sales' | 'purchase';
+  credit_note_number?: string;
+  invoice_type: 'sales' | 'purchase' | 'credit_note';
   customer_id?: number;
   customer_name?: string;
   customer?: { id: number; name: string; balance?: number; phone?: string };
@@ -87,13 +88,14 @@ export interface Invoice {
   vendor?: { id: number; name: string; balance?: number };
   location_id: number;
   location?: { id: number; name: string };
+  location_name?: string;
   subtotal: number;
   tax_amount: number;
   discount_amount: number;
   total_amount: number;
   paid_amount: number;
   payment_status: 'paid' | 'unpaid' | 'partial';
-  status?: 'draft' | 'finalized';
+  status?: 'draft' | 'finalized' | 'approved' | 'cancelled' | 'pending';
   created_at: string;
   created_by_user?: { id: number; full_name: string };
   items?: InvoiceItem[];

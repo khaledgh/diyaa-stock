@@ -24,7 +24,7 @@ import { PrintableReceiptData } from '../utils/receiptImagePrinter';
 import { captureRef } from 'react-native-view-shot';
 import { decodePNG } from '../utils/pngDecoder';
 import ReceiptBitmapView from './ReceiptBitmapView';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 // Import Bluetooth Classic (SPP) — this printer uses Classic BT, NOT BLE
 let RNBluetoothClassic: any = null;
@@ -61,6 +61,8 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
   const [btEnabled, setBtEnabled] = useState(false);
   const [receiptData, setReceiptData] = useState<PrintableReceiptData | null>(null);
   const [template, setTemplate] = useState<any>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [statusText, setStatusText] = useState('');
   const receiptViewRef = useRef<View>(null);
 
   // -------------------- PERMISSIONS --------------------
@@ -274,7 +276,13 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
     };
 
     init();
-    
+
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (hideUI) return;
+
     const fetchTemplate = async () => {
       try {
         const response = await apiService.getDefaultTemplate('invoice');
@@ -287,14 +295,13 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
             custom_texts: typeof t.custom_texts === 'string' ? JSON.parse(t.custom_texts) : t.custom_texts,
           });
         }
-      } catch (err) {
-        console.log('Template fetch error:', err);
+      } catch {
+        // Ignore template fetch failures; receipt rendering has safe defaults.
       }
     };
-    fetchTemplate();
 
-    return () => { cancelled = true; };
-  }, []);
+    fetchTemplate();
+  }, [hideUI]);
 
   const enableBluetooth = async () => {
     if (!RNBluetoothClassic) {
@@ -450,6 +457,9 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
     }
 
     try {
+      setIsPrinting(true);
+      setStatusText('Rendering invoice...');
+
       // 1. Render the receipt view
       setReceiptData(data);
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -458,12 +468,12 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
         throw new Error('Receipt view ref not ready');
       }
 
+      setStatusText('Capturing image...');
       // 2. Capture as PNG at native device resolution (no width override).
       // On a 3x device, a 384 CSS-px view captures as ~1152px PNG.
       // The downsampling code (step 5) maps it to exactly 384 printer dots.
       // DO NOT pass width — it causes the capture to render at 1x scale,
       // making content only fill ~1/3 of the paper.
-      console.log('📸 Capturing at native resolution...');
       const tmpUri = await captureRef(receiptViewRef.current, {
         format: 'png',
         quality: 1,
@@ -471,18 +481,21 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
       });
       console.log('📸 Captured:', tmpUri);
 
+      setStatusText('Reading file...');
       // 3. Read as base64
       const b64 = await FileSystem.readAsStringAsync(tmpUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
       console.log('📄 Base64 length:', b64.length);
 
+      setStatusText('Decoding PNG image...');
       // 4. Decode PNG to RGBA pixels
       const png = decodePNG(b64);
       if (!png) throw new Error('PNG decode failed');
       const { width: imgW, height: imgH, pixels } = png;
       console.log(`📷 Image: ${imgW}x${imgH}`);
 
+      setStatusText('Processing bitmap...');
       // 5. Convert to 1-bit monochrome at printerWidth
       const outW = printerWidth;
       const scaleX = imgW / outW;
@@ -529,6 +542,7 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
 
       console.log(`🔍 Dark dots: ${darkCount}, mono size: ${mono.length}`);
 
+      setStatusText('Sending to printer...');
       // 6. Send using ESC * line-by-line (24 dots high per stripe)
       // ESC * 33 nL nH [data]  — 24-dot double-density
       // nL nH = number of columns (low/high byte) = PRINTER_WIDTH
@@ -598,6 +612,9 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
       console.error('❌ printReceiptData error:', error);
       setReceiptData(null);
       throw error;
+    } finally {
+      setIsPrinting(false);
+      setStatusText('');
     }
   };
 
@@ -616,8 +633,26 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
     </View>
   );
 
+  const loaderModal = isPrinting && (
+    <Modal transparent animationType="fade" visible={true}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ backgroundColor: '#FFFFFF', padding: 28, borderRadius: 20, alignItems: 'center', minWidth: 240, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 6 }}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={{ marginTop: 18, fontSize: 15, fontWeight: '600', color: '#1E293B', textAlign: 'center' }}>
+            {statusText || 'Processing...'}
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  );
+
   if (hideUI) {
-    return bitmapView;
+    return (
+      <>
+        {bitmapView}
+        {loaderModal}
+      </>
+    );
   }
 
   const deviceAddress = connectedDevice?.address || connectedDevice?.id || '';
@@ -625,6 +660,7 @@ const PrinterDemo = forwardRef(function PrinterDemo({ hideUI, onClose }: { hideU
   return (
     <>
     {bitmapView}
+    {loaderModal}
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#fff' }}>
         {onClose && (
