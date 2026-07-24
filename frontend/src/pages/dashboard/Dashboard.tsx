@@ -28,9 +28,11 @@ import {
 } from 'recharts';
 import { useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { usePermissions } from '@/hooks/usePermissions';
 
 export default function Dashboard() {
   const { t } = useTranslation();
+  const { isSales } = usePermissions();
   const [showLowStockAlert, setShowLowStockAlert] = useState(true);
 
   const { data: dashboardData, isLoading } = useQuery({
@@ -52,12 +54,24 @@ export default function Dashboard() {
   const receivables = dashboardData?.pending_payments || 0;
   const payables = dashboardData?.payables || 0;
 
+  const cards = isSales() ? [
+    { title: "Today's Sales", val: dashboardData?.today_sales_total || 0, icon: DollarSign, color: 'text-blue-600' },
+    { title: "Today's Collections", val: dashboardData?.today_collections || 0, icon: Wallet, color: 'text-indigo-600' },
+    { title: 'Pending Receivables', val: receivables, icon: TrendingUp, color: 'text-green-600' },
+    { title: 'Monthly Collections', val: dashboardData?.monthly_collections || 0, icon: DollarSign, color: 'text-purple-600' }
+  ] : [
+    { title: 'Monthly Collections', val: dashboardData?.monthly_collections || 0, icon: DollarSign, color: 'text-blue-600' },
+    { title: 'Pending Receivables', val: receivables, icon: TrendingUp, color: 'text-green-600' },
+    { title: 'Total Payables', val: payables, icon: TrendingDown, color: 'text-red-600' },
+    { title: 'Active Locations', val: dashboardData?.active_locations || 0, icon: Users, color: 'text-purple-600', isCurrency: false }
+  ];
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t('dashboard.title')}</h1>
-          <p className="text-muted-foreground">Overview of your system activity</p>
+          <p className="text-muted-foreground">Overview of your activity</p>
         </div>
         <div className="flex gap-2">
           <Link to="/sales/new">
@@ -66,16 +80,18 @@ export default function Dashboard() {
               New Sale
             </Button>
           </Link>
-          <Link to="/inventory">
-            <Button variant="outline">
-              <Package className="mr-2 h-4 w-4" />
-              Inventory
-            </Button>
-          </Link>
+          {!isSales() && (
+            <Link to="/inventory">
+              <Button variant="outline" className="h-10">
+                <Package className="mr-2 h-4 w-4" />
+                Inventory
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
-      {showLowStockAlert && dashboardData?.low_stock_count > 0 && (
+      {showLowStockAlert && !isSales() && dashboardData?.low_stock_count > 0 && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Low Stock Warning</AlertTitle>
@@ -90,12 +106,7 @@ export default function Dashboard() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[
-          { title: 'Monthly Collections', val: dashboardData?.monthly_collections || 0, icon: DollarSign, color: 'text-blue-600' },
-          { title: 'Pending Receivables', val: receivables, icon: TrendingUp, color: 'text-green-600' },
-          { title: 'Total Payables', val: payables, icon: TrendingDown, color: 'text-red-600' },
-          { title: 'Active Locations', val: dashboardData?.active_locations || 0, icon: Users, color: 'text-purple-600', isCurrency: false }
-        ].map((item, i) => (
+        {cards.map((item, i) => (
           <Card key={i}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{item.title}</CardTitle>
@@ -136,38 +147,58 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
-              <Link to="/sales/invoices">
+              <Link to="/invoices/sales">
                 <Button variant="outline" className="w-full h-24 flex-col gap-2">
                   <FileText className="h-6 w-6" />
                   <span>Sales Log</span>
                 </Button>
               </Link>
-              <Link to="/inventory">
+              {isSales() ? (
+                <Link to="/pos">
+                  <Button variant="outline" className="w-full h-24 flex-col gap-2">
+                    <Plus className="h-6 w-6" />
+                    <span>POS</span>
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/inventory">
+                  <Button variant="outline" className="w-full h-24 flex-col gap-2">
+                    <Package className="h-6 w-6" />
+                    <span>Inventory</span>
+                  </Button>
+                </Link>
+              )}
+              <Link to={isSales() ? "/customers" : "/finance/receivables"}>
                 <Button variant="outline" className="w-full h-24 flex-col gap-2">
-                  <Package className="h-6 w-6" />
-                  <span>Inventory</span>
+                  {isSales() ? <Users className="h-6 w-6" /> : <Wallet className="h-6 w-6" />}
+                  <span>{isSales() ? "Customers" : "Receivables"}</span>
                 </Button>
               </Link>
-              <Link to="/finance/receivables">
-                <Button variant="outline" className="w-full h-24 flex-col gap-2">
-                  <Wallet className="h-6 w-6" />
-                  <span>Receivables</span>
-                </Button>
-              </Link>
-              <Link to="/reports">
-                <Button variant="outline" className="w-full h-24 flex-col gap-2">
-                  <BarChart3 className="h-6 w-6" />
-                  <span>Reports</span>
-                </Button>
-              </Link>
+              {isSales() ? (
+                <Link to="/credit-notes">
+                  <Button variant="outline" className="w-full h-24 flex-col gap-2">
+                    <FileText className="h-6 w-6" />
+                    <span>Credit Notes</span>
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/reports">
+                  <Button variant="outline" className="w-full h-24 flex-col gap-2">
+                    <BarChart3 className="h-6 w-6" />
+                    <span>Reports</span>
+                  </Button>
+                </Link>
+              )}
             </div>
 
             <div className="p-4 bg-muted rounded-lg border">
                <h4 className="text-sm font-medium mb-2">Total Inventory Value</h4>
                <p className="text-3xl font-bold">{formatCurrency(dashboardData?.inventory_value || 0)}</p>
-               <Link to="/reports/inventory-valuation" className="text-xs text-blue-600 hover:underline mt-2 inline-block">
-                 Full valuation report &rarr;
-               </Link>
+               {!isSales() && (
+                 <Link to="/reports/inventory-valuation" className="text-xs text-blue-600 hover:underline mt-2 inline-block">
+                   Full valuation report &rarr;
+                 </Link>
+               )}
             </div>
           </CardContent>
         </Card>

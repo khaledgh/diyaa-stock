@@ -289,7 +289,7 @@ export default function ProfileScreen({ navigation }: any) {
 
           {/* App Info */}
           <View className="items-center py-4">
-            <Text className="text-gray-400 text-xs">DaftarStock</Text>
+            <Text className="text-gray-400 text-xs">{t('app.name')}</Text>
             <Text className="text-gray-400 text-xs mt-1">Version 1.0.0</Text>
           </View>
         </View>

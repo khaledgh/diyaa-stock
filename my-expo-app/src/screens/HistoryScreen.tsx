@@ -71,8 +71,10 @@ export default function HistoryScreen({ navigation, route }: any) {
       };
 
       if (!isAdmin) {
-        // Sales users only see their own invoices from their location
-        invoiceParams.location_id = user?.location_id;
+        // Sales users see their own invoices (and optionally filter by selectedLocationId)
+        if (selectedLocationId) {
+          invoiceParams.location_id = selectedLocationId;
+        }
         invoiceParams.user_id = user?.id;
       } else {
         if (selectedLocationId) {
@@ -109,8 +111,8 @@ export default function HistoryScreen({ navigation, route }: any) {
             paid_amount: parseFloat(inv.paid_amount || 0) || 0,
           }));
 
-          // Client-side location filter fallback (in case backend doesn't filter purchases by location)
-          if (isAdmin && selectedLocationId && invoicesData.length > 0) {
+          // Client-side location filter fallback (in case backend doesn't filter by location)
+          if (selectedLocationId && invoicesData.length > 0) {
             const filtered = invoicesData.filter((inv: any) =>
               inv.location_id === selectedLocationId || inv.location?.id === selectedLocationId
             );
@@ -131,14 +133,17 @@ export default function HistoryScreen({ navigation, route }: any) {
   }, [transactionType, isAdmin, user?.id, user?.location_id, selectedLocationId, route.params?.userId, t]);
 
   const loadLocations = useCallback(async () => {
-    if (!isAdmin) return;
-    try {
-      const resp = await apiService.getLocations();
-      if (resp.data) setLocations(resp.data);
-    } catch {
-      // silently fail
+    if (isAdmin) {
+      try {
+        const resp = await apiService.getLocations();
+        if (resp.data) setLocations(resp.data);
+      } catch {
+        // silently fail
+      }
+    } else if (user?.locations) {
+      setLocations(user.locations);
     }
-  }, [isAdmin]);
+  }, [isAdmin, user?.locations]);
 
   useEffect(() => {
     loadLocations();
@@ -334,8 +339,8 @@ export default function HistoryScreen({ navigation, route }: any) {
           </View>
         </View>
 
-        {/* Admin Location Filter */}
-        {isAdmin && locations.length > 0 && (
+        {/* Location Filter */}
+        {((isAdmin && locations.length > 0) || (!isAdmin && locations.length > 1)) && (
           <View className="mb-4">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-1">
               <TouchableOpacity

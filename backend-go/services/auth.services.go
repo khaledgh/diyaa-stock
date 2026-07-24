@@ -53,6 +53,7 @@ func (s *AuthService) CheckEmail(email string) (models.User, error) {
 	if user.Location != nil {
 		user.LocationName = user.Location.Name
 	}
+	s.loadUserLocations(&user)
 
 	return user, nil
 }
@@ -116,6 +117,7 @@ func (s *AuthService) GetUser(tokenString string) (*models.User, error) {
 	if user.Location != nil {
 		user.LocationName = user.Location.Name
 	}
+	s.loadUserLocations(&user)
 
 	return &user, nil
 }
@@ -161,3 +163,16 @@ func (as *AuthService) GenerateCookie(name, value, action string) *http.Cookie {
 		}
 	}
 }
+
+// loadUserLocations loads multi-location assignments from user_locations junction table
+func (s *AuthService) loadUserLocations(user *models.User) {
+	var userLocations []models.UserLocation
+	s.DB.Where("user_id = ?", user.ID).Preload("Location").Find(&userLocations)
+	user.Locations = make([]models.Location, 0, len(userLocations))
+	user.LocationIDs = make([]uint, 0, len(userLocations))
+	for _, ul := range userLocations {
+		user.Locations = append(user.Locations, ul.Location)
+		user.LocationIDs = append(user.LocationIDs, ul.LocationID)
+	}
+}
+

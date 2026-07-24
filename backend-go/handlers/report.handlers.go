@@ -130,6 +130,11 @@ func (rh *ReportHandler) StockMovementsReportHandler(c echo.Context) error {
 }
 
 func (rh *ReportHandler) ReceivablesReportHandler(c echo.Context) error {
+	user, err := GetUserContext(c)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
 	query := `
 		SELECT 
 			i.id,
@@ -146,11 +151,18 @@ func (rh *ReportHandler) ReceivablesReportHandler(c echo.Context) error {
 		LEFT JOIN customers c ON i.customer_id = c.id
 		LEFT JOIN locations l ON i.location_id = l.id
 		WHERE i.deleted_at IS NULL AND (i.total_amount - i.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = i.id AND status = 'approved' AND deleted_at IS NULL), 0)) > 0
-		ORDER BY i.created_at DESC
 	`
 
+	var args []interface{}
+	if user.Role == "sales" {
+		query += " AND i.created_by = ?"
+		args = append(args, user.ID)
+	}
+
+	query += " ORDER BY i.created_at DESC"
+
 	var receivables []map[string]interface{}
-	if err := rh.db.Raw(query).Scan(&receivables).Error; err != nil {
+	if err := rh.db.Raw(query, args...).Scan(&receivables).Error; err != nil {
 		return ResponseError(c, err)
 	}
 
@@ -295,6 +307,11 @@ func (rh *ReportHandler) LocationSalesReportHandler(c echo.Context) error {
 }
 
 func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
+	user, err := GetUserContext(c)
+	if err != nil {
+		return ResponseError(c, err)
+	}
+
 	dashboard := make(map[string]interface{})
 
 	channel := c.QueryParam("channel")
@@ -307,11 +324,20 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 
 	// Total inventory value
 	var inventoryValue float64
-	rh.db.Raw(`
+	inventoryQuery := `
 		SELECT SUM(s.quantity * p.cost_price) as value
 		FROM stocks s
 		JOIN products p ON s.product_id = p.id
-	`).Scan(&inventoryValue)
+	`
+	var inventoryArgs []interface{}
+	if locationID != "" {
+		inventoryQuery += " WHERE s.location_id = ?"
+		inventoryArgs = append(inventoryArgs, locationID)
+	} else if user.Role == "sales" && user.LocationID != nil {
+		inventoryQuery += " WHERE s.location_id = ?"
+		inventoryArgs = append(inventoryArgs, *user.LocationID)
+	}
+	rh.db.Raw(inventoryQuery, inventoryArgs...).Scan(&inventoryValue)
 	dashboard["inventory_value"] = inventoryValue
 
 	// Today's sales
@@ -329,6 +355,9 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 		if locationID != "" {
 			query = query.Where("location_id = ?", locationID)
 		}
+		if user.Role == "sales" {
+			query = query.Where("created_by = ?", user.ID)
+		}
 		query.Scan(&todaySales)
 	}
 	dashboard["today_sales_count"] = todaySales.Count
@@ -336,7 +365,7 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 
 	// Today's collections (Payments)
 	var todayCollections float64
-	rh.db.Raw(`
+	todayCollectionsQuery := `
 		SELECT COALESCE(SUM(p.amount), 0)
 		FROM payments p
 		LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
@@ -347,7 +376,13 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 			(p.invoice_type = 'sales' AND si.deleted_at IS NULL) OR
 			(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL)
 		)
-	`).Scan(&todayCollections)
+	`
+	var todayCollectionsArgs []interface{}
+	if user.Role == "sales" {
+		todayCollectionsQuery += " AND p.created_by = ?"
+		todayCollectionsArgs = append(todayCollectionsArgs, user.ID)
+	}
+	rh.db.Raw(todayCollectionsQuery, todayCollectionsArgs...).Scan(&todayCollections)
 	dashboard["today_collections"] = todayCollections
 
 	// Pending payments (Receivables)
@@ -362,27 +397,43 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 		if locationID != "" {
 			query = query.Where("location_id = ?", locationID)
 		}
+		if user.Role == "sales" {
+			query = query.Where("created_by = ?", user.ID)
+		}
 		query.Scan(&pendingPayments)
 	}
 	dashboard["pending_payments"] = pendingPayments
 
 	// Payables
 	var payables float64
-	rh.db.Raw(`
-		SELECT COALESCE(SUM(total_amount - paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = purchase_invoices.id AND type = 'purchase' AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total
-		FROM purchase_invoices
-		WHERE deleted_at IS NULL
-	`).Scan(&payables)
+	if user.Role == "sales" {
+		payables = 0
+	} else {
+		rh.db.Raw(`
+			SELECT COALESCE(SUM(total_amount - paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = purchase_invoices.id AND type = 'purchase' AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total
+			FROM purchase_invoices
+			WHERE deleted_at IS NULL
+		`).Scan(&payables)
+	}
 	dashboard["payables"] = payables
 
 	// Low stock products
 	var lowStockCount int64
-	rh.db.Raw(`
+	lowStockQuery := `
 		SELECT COUNT(DISTINCT s.product_id) as count
 		FROM stocks s
 		JOIN products p ON s.product_id = p.id
 		WHERE s.quantity <= COALESCE(p.min_stock_level, 10)
-	`).Scan(&lowStockCount)
+	`
+	var lowStockArgs []interface{}
+	if locationID != "" {
+		lowStockQuery += " AND s.location_id = ?"
+		lowStockArgs = append(lowStockArgs, locationID)
+	} else if user.Role == "sales" && user.LocationID != nil {
+		lowStockQuery += " AND s.location_id = ?"
+		lowStockArgs = append(lowStockArgs, *user.LocationID)
+	}
+	rh.db.Raw(lowStockQuery, lowStockArgs...).Scan(&lowStockCount)
 	dashboard["low_stock_count"] = lowStockCount
 
 	// Active locations
@@ -397,7 +448,7 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 		ApprovedCount int64   `json:"approved_count"`
 		TotalAmount   float64 `json:"total_amount"`
 	}
-	rh.db.Raw(`
+	creditNotesQuery := `
 		SELECT
 			COUNT(*) as total_count,
 			COUNT(CASE WHEN status = 'draft' THEN 1 END) as pending_count,
@@ -405,7 +456,13 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 			COALESCE(SUM(CASE WHEN status = 'approved' THEN total_amount ELSE 0 END), 0) as total_amount
 		FROM credit_notes
 		WHERE deleted_at IS NULL
-	`).Scan(&creditNotes)
+	`
+	var creditNotesArgs []interface{}
+	if user.Role == "sales" {
+		creditNotesQuery += " AND created_by = ?"
+		creditNotesArgs = append(creditNotesArgs, user.ID)
+	}
+	rh.db.Raw(creditNotesQuery, creditNotesArgs...).Scan(&creditNotes)
 	dashboard["credit_notes_total"] = creditNotes.TotalCount
 	dashboard["credit_notes_pending"] = creditNotes.PendingCount
 	dashboard["credit_notes_approved"] = creditNotes.ApprovedCount
@@ -416,7 +473,7 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 		TotalRevenue float64 `json:"total_revenue"`
 		TopProducts  int64   `json:"top_products"`
 	}
-	rh.db.Raw(`
+	productRevenueQuery := `
 		SELECT
 			COALESCE(SUM(ii.total), 0) as total_revenue,
 			COUNT(DISTINCT ii.product_id) as top_products
@@ -425,13 +482,19 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 		WHERE i.deleted_at IS NULL 
 		AND MONTH(i.created_at) = MONTH(CURDATE())
 		AND YEAR(i.created_at) = YEAR(CURDATE())
-	`).Scan(&productRevenue)
+	`
+	var productRevenueArgs []interface{}
+	if user.Role == "sales" {
+		productRevenueQuery += " AND i.created_by = ?"
+		productRevenueArgs = append(productRevenueArgs, user.ID)
+	}
+	rh.db.Raw(productRevenueQuery, productRevenueArgs...).Scan(&productRevenue)
 	dashboard["product_revenue"] = productRevenue.TotalRevenue
 	dashboard["top_products_count"] = productRevenue.TopProducts
 
 	// Monthly collections
 	var monthlyCollections float64
-	rh.db.Raw(`
+	monthlyCollectionsQuery := `
 		SELECT COALESCE(SUM(p.amount), 0)
 		FROM payments p
 		LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
@@ -443,19 +506,30 @@ func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
 			(p.invoice_type = 'sales' AND si.deleted_at IS NULL) OR
 			(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL)
 		)
-	`).Scan(&monthlyCollections)
+	`
+	var monthlyCollectionsArgs []interface{}
+	if user.Role == "sales" {
+		monthlyCollectionsQuery += " AND p.created_by = ?"
+		monthlyCollectionsArgs = append(monthlyCollectionsArgs, user.ID)
+	}
+	rh.db.Raw(monthlyCollectionsQuery, monthlyCollectionsArgs...).Scan(&monthlyCollections)
 	dashboard["monthly_collections"] = monthlyCollections
 
 	// Recent sales chart (last 7 days)
 	var salesChart []map[string]interface{}
-	rh.db.Raw(`
+	salesChartQuery := `
 		SELECT DATE(created_at) as date, SUM(total_amount) as total
 		FROM sales_invoices
 		WHERE deleted_at IS NULL 
 		AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-		GROUP BY DATE(created_at)
-		ORDER BY date ASC
-	`).Scan(&salesChart)
+	`
+	var salesChartArgs []interface{}
+	if user.Role == "sales" {
+		salesChartQuery += " AND created_by = ?"
+		salesChartArgs = append(salesChartArgs, user.ID)
+	}
+	salesChartQuery += " GROUP BY DATE(created_at) ORDER BY date ASC"
+	rh.db.Raw(salesChartQuery, salesChartArgs...).Scan(&salesChart)
 	dashboard["sales_chart"] = salesChart
 
 	return ResponseOK(c, dashboard, "data")

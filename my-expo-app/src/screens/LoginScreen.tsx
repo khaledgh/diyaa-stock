@@ -108,12 +108,12 @@ export default function LoginScreen() {
             }}
           >
             <Image
-              source={require('../../assets/ic_launcher.png')}
+              source={require('../../assets/ic_launcher copy.png')}
               style={{ width: 80, height: 80 }}
               resizeMode="contain"
             />
           </View>
-          <Text className="text-3xl font-bold text-gray-900 mb-1">DaftarStock</Text>
+          <Text className="text-3xl font-bold text-gray-900 mb-1">{t('app.name')}</Text>
           <Text className="text-gray-500 text-base">{t('login.signInToAccount')}</Text>
         </View>
 
