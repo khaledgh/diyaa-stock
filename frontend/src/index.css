@@ -37,6 +37,12 @@
     --sidebar-bg: 210 29% 24%;
     --sidebar-hover: 210 29% 30%;
     --sidebar-active: 210 78% 39%;
+
+    /* Chart series (validated categorical slots 1-2) */
+    --chart-1: #2a78d6;
+    --chart-2: #eb6834;
+    --chart-grid: #e5e7eb;
+    --chart-axis: #6b7280;
   }
 
   .dark {
@@ -63,6 +69,11 @@
     --sidebar-bg: 222 47% 8%;
     --sidebar-hover: 222 47% 14%;
     --sidebar-active: 210 78% 55%;
+
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-grid: #263247;
+    --chart-axis: #9aa4b2;
   }
 }
 

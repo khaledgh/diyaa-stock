@@ -89,6 +89,11 @@ export default function ReportsHub() {
       description: 'Analyze sales performance',
       reports: [
         {
+          name: 'Sales Reps & Commissions',
+          href: '/reports/sales-reps',
+          description: 'Per-rep sales, collections, products & commission owed'
+        },
+        {
           name: 'Sales by Customer',
           href: '/reports/sales-by-customer',
           description: 'Customer sales breakdown'

@@ -53,6 +53,8 @@ import SalesByItem from './pages/reports/SalesByItem';
 import LocationSalesReport from './pages/reports/LocationSalesReport';
 import ProfitLoss from './pages/reports/ProfitLoss';
 import PaymentsReport from './pages/reports/PaymentsReport';
+import SalesRepsReport from './pages/reports/SalesRepsReport';
+import SalesRepDetail from './pages/reports/SalesRepDetail';
 
 // Settings Pages
 import Settings from './pages/settings/Settings';
@@ -151,6 +153,8 @@ function App() {
             <Route path="reports/inventory-valuation" element={<InventoryValuation />} />
             <Route path="reports/location-sales" element={<LocationSalesReport />} />
             <Route path="reports/payments" element={<PaymentsReport />} />
+            <Route path="reports/sales-reps" element={<SalesRepsReport />} />
+            <Route path="reports/sales-reps/:id" element={<SalesRepDetail />} />
 
             {/* Settings */}
             <Route path="settings" element={<Settings />} />

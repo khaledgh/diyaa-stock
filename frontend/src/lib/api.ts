@@ -150,6 +150,8 @@ export const reportApi = {
   salesByCustomer: (params?: any) => api.get('/reports/sales-by-customer', { params }),
   salesByItem: (params?: any) => api.get('/reports/sales-by-item', { params }),
   profitLoss: (params?: any) => api.get('/reports/profit-loss', { params }),
+  salesReps: (params?: any) => api.get('/reports/sales-reps', { params }),
+  salesRepDetail: (id: number, params?: any) => api.get(`/reports/sales-reps/${id}`, { params }),
 };
 
 export const userApi = {

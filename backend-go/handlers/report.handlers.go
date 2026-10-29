@@ -39,12 +39,12 @@ func (rh *ReportHandler) SalesReportHandler(c echo.Context) error {
 			i.payment_status,
 			c.name as customer_name,
 			l.name as location_name,
-			u.full_name as created_by_name
+			CONCAT_WS(' ', u.first_name, u.last_name) as created_by_name
 		FROM sales_invoices i
 		LEFT JOIN customers c ON i.customer_id = c.id
 		LEFT JOIN locations l ON i.location_id = l.id
 		LEFT JOIN users u ON i.created_by = u.id
-		WHERE i.deleted_at IS NULL AND DATE(i.created_at) BETWEEN ? AND ?
+		WHERE i.deleted_at IS NULL AND i.status <> 'draft' AND DATE(i.created_at) BETWEEN ? AND ?
 	`
 
 	args := []interface{}{fromDate, toDate}
@@ -64,12 +64,8 @@ func (rh *ReportHandler) SalesReportHandler(c echo.Context) error {
 	// Calculate summary
 	var totalSales, totalPaid float64
 	for _, sale := range sales {
-		if amt, ok := sale["total_amount"].(float64); ok {
-			totalSales += amt
-		}
-		if amt, ok := sale["paid_amount"].(float64); ok {
-			totalPaid += amt
-		}
+		totalSales += ToFloat64(sale["total_amount"])
+		totalPaid += ToFloat64(sale["paid_amount"])
 	}
 
 	summary := map[string]interface{}{
@@ -105,7 +101,7 @@ func (rh *ReportHandler) StockMovementsReportHandler(c echo.Context) error {
 			p.name_en,
 			p.name_ar,
 			p.sku,
-			u.full_name as created_by_name
+			CONCAT_WS(' ', u.first_name, u.last_name) as created_by_name
 		FROM stock_movements sm
 		JOIN products p ON sm.product_id = p.id
 		LEFT JOIN users u ON sm.created_by = u.id
@@ -142,7 +138,7 @@ func (rh *ReportHandler) ReceivablesReportHandler(c echo.Context) error {
 			i.created_at,
 			i.total_amount,
 			i.paid_amount,
-			(i.total_amount - i.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = i.id AND status = 'approved' AND deleted_at IS NULL), 0)) as balance,
+			(i.total_amount - i.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = i.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)) as balance,
 			i.payment_status,
 			c.name as customer_name,
 			c.phone as customer_phone,
@@ -150,7 +146,7 @@ func (rh *ReportHandler) ReceivablesReportHandler(c echo.Context) error {
 		FROM sales_invoices i
 		LEFT JOIN customers c ON i.customer_id = c.id
 		LEFT JOIN locations l ON i.location_id = l.id
-		WHERE i.deleted_at IS NULL AND (i.total_amount - i.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = i.id AND status = 'approved' AND deleted_at IS NULL), 0)) > 0
+		WHERE i.deleted_at IS NULL AND i.status <> 'draft' AND (i.total_amount - i.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = i.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)) > 0
 	`
 
 	var args []interface{}
@@ -169,9 +165,7 @@ func (rh *ReportHandler) ReceivablesReportHandler(c echo.Context) error {
 	// Calculate summary
 	var totalReceivable float64
 	for _, item := range receivables {
-		if balance, ok := item["balance"].(float64); ok {
-			totalReceivable += balance
-		}
+		totalReceivable += ToFloat64(item["balance"])
 	}
 
 	summary := map[string]interface{}{
@@ -209,11 +203,11 @@ func (rh *ReportHandler) ProductPerformanceReportHandler(c echo.Context) error {
 			SUM(ii.total) as total_revenue,
 			COUNT(DISTINCT i.id) as invoice_count
 		FROM products p
-		LEFT JOIN sales_invoice_items ii ON p.id = ii.product_id
-		LEFT JOIN sales_invoices i ON ii.invoice_id = i.id
-			AND i.deleted_at IS NULL
-			AND DATE(i.created_at) BETWEEN ? AND ?
+		JOIN sales_invoice_items ii ON p.id = ii.product_id
+		JOIN sales_invoices i ON ii.invoice_id = i.id
 		LEFT JOIN categories c ON p.category_id = c.id
+		WHERE i.deleted_at IS NULL AND i.status <> 'draft'
+			AND DATE(i.created_at) BETWEEN ? AND ?
 		GROUP BY p.id
 		ORDER BY total_sold DESC
 		LIMIT 50
@@ -242,11 +236,11 @@ func (rh *ReportHandler) LocationSalesReportHandler(c echo.Context) error {
 		SELECT
 			l.id as location_id,
 			l.name as location_name,
-			COUNT(DISTINCT i.id) as invoice_count,
-			COALESCE(SUM(i.total_amount), 0) as total_sales,
-			COALESCE(SUM(i.paid_amount), 0) as total_paid,
-			COALESCE(SUM(i.total_amount - i.paid_amount), 0) as total_unpaid,
-			COALESCE(SUM(ii.quantity * (ii.unit_price - p.cost_price)), 0) as gross_profit,
+			COALESCE(inv.invoice_count, 0) as invoice_count,
+			COALESCE(inv.total_sales, 0) as total_sales,
+			COALESCE(inv.total_paid, 0) as total_paid,
+			COALESCE(inv.total_sales - inv.total_paid, 0) as total_unpaid,
+			COALESCE(itm.gross_profit, 0) as gross_profit,
 			COALESCE((
 				SELECT SUM(cn.total_amount) 
 				FROM credit_notes cn 
@@ -256,20 +250,30 @@ func (rh *ReportHandler) LocationSalesReportHandler(c echo.Context) error {
 				AND cn.deleted_at IS NULL
 				AND DATE(cn.credit_note_date) BETWEEN ? AND ?
 			), 0) as total_credit_notes,
-			COUNT(DISTINCT ii.product_id) as products_sold
+			COALESCE(itm.products_sold, 0) as products_sold
 		FROM locations l
-		LEFT JOIN sales_invoices i ON l.id = i.location_id
-			AND i.deleted_at IS NULL
-			AND DATE(i.created_at) BETWEEN ? AND ?
-		LEFT JOIN sales_invoice_items ii ON i.id = ii.invoice_id
-		LEFT JOIN products p ON ii.product_id = p.id
+		LEFT JOIN (
+			SELECT location_id, COUNT(*) as invoice_count, SUM(total_amount) as total_sales, SUM(paid_amount) as total_paid
+			FROM sales_invoices
+			WHERE deleted_at IS NULL AND status <> 'draft' AND DATE(created_at) BETWEEN ? AND ?
+			GROUP BY location_id
+		) inv ON inv.location_id = l.id
+		LEFT JOIN (
+			SELECT i.location_id,
+				SUM(ii.total - ii.quantity * p.cost_price) as gross_profit,
+				COUNT(DISTINCT ii.product_id) as products_sold
+			FROM sales_invoice_items ii
+			JOIN sales_invoices i ON i.id = ii.invoice_id
+			JOIN products p ON p.id = ii.product_id
+			WHERE i.deleted_at IS NULL AND i.status <> 'draft' AND DATE(i.created_at) BETWEEN ? AND ?
+			GROUP BY i.location_id
+		) itm ON itm.location_id = l.id
 		WHERE l.is_active = true
-		GROUP BY l.id, l.name
 		ORDER BY total_sales DESC
 	`
 
 	var locationSales []map[string]interface{}
-	if err := rh.db.Raw(query, fromDate, toDate, fromDate, toDate).Scan(&locationSales).Error; err != nil {
+	if err := rh.db.Raw(query, fromDate, toDate, fromDate, toDate, fromDate, toDate).Scan(&locationSales).Error; err != nil {
 		return ResponseError(c, err)
 	}
 
@@ -304,235 +308,6 @@ func (rh *ReportHandler) LocationSalesReportHandler(c echo.Context) error {
 	}
 
 	return ResponseOK(c, result, "data")
-}
-
-func (rh *ReportHandler) DashboardReportHandler(c echo.Context) error {
-	user, err := GetUserContext(c)
-	if err != nil {
-		return ResponseError(c, err)
-	}
-
-	dashboard := make(map[string]interface{})
-
-	channel := c.QueryParam("channel")
-	locationID := c.QueryParam("location_id")
-
-	// Total products
-	var totalProducts int64
-	rh.db.Table("products").Where("is_active = ?", true).Count(&totalProducts)
-	dashboard["total_products"] = totalProducts
-
-	// Total inventory value
-	var inventoryValue float64
-	inventoryQuery := `
-		SELECT SUM(s.quantity * p.cost_price) as value
-		FROM stocks s
-		JOIN products p ON s.product_id = p.id
-	`
-	var inventoryArgs []interface{}
-	if locationID != "" {
-		inventoryQuery += " WHERE s.location_id = ?"
-		inventoryArgs = append(inventoryArgs, locationID)
-	} else if user.Role == "sales" && user.LocationID != nil {
-		inventoryQuery += " WHERE s.location_id = ?"
-		inventoryArgs = append(inventoryArgs, *user.LocationID)
-	}
-	rh.db.Raw(inventoryQuery, inventoryArgs...).Scan(&inventoryValue)
-	dashboard["inventory_value"] = inventoryValue
-
-	// Today's sales
-	var todaySales struct {
-		Count int     `json:"count"`
-		Total float64 `json:"total"`
-	}
-	{
-		query := rh.db.Table("sales_invoices").
-			Select("COUNT(*) as count, SUM(total_amount) as total").
-			Where("deleted_at IS NULL AND DATE(created_at) = CURDATE()")
-		if channel != "" {
-			query = query.Where("channel = ?", channel)
-		}
-		if locationID != "" {
-			query = query.Where("location_id = ?", locationID)
-		}
-		if user.Role == "sales" {
-			query = query.Where("created_by = ?", user.ID)
-		}
-		query.Scan(&todaySales)
-	}
-	dashboard["today_sales_count"] = todaySales.Count
-	dashboard["today_sales_total"] = todaySales.Total
-
-	// Today's collections (Payments)
-	var todayCollections float64
-	todayCollectionsQuery := `
-		SELECT COALESCE(SUM(p.amount), 0)
-		FROM payments p
-		LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
-		LEFT JOIN purchase_invoices pi ON p.invoice_id = pi.id AND p.invoice_type = 'purchase'
-		WHERE DATE(p.created_at) = CURDATE()
-		AND (
-			p.invoice_id IS NULL OR p.invoice_id = 0 OR
-			(p.invoice_type = 'sales' AND si.deleted_at IS NULL) OR
-			(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL)
-		)
-	`
-	var todayCollectionsArgs []interface{}
-	if user.Role == "sales" {
-		todayCollectionsQuery += " AND p.created_by = ?"
-		todayCollectionsArgs = append(todayCollectionsArgs, user.ID)
-	}
-	rh.db.Raw(todayCollectionsQuery, todayCollectionsArgs...).Scan(&todayCollections)
-	dashboard["today_collections"] = todayCollections
-
-	// Pending payments (Receivables)
-	var pendingPayments float64
-	{
-		query := rh.db.Table("sales_invoices").
-			Select("COALESCE(SUM(total_amount - paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = sales_invoices.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total").
-			Where("deleted_at IS NULL")
-		if channel != "" {
-			query = query.Where("channel = ?", channel)
-		}
-		if locationID != "" {
-			query = query.Where("location_id = ?", locationID)
-		}
-		if user.Role == "sales" {
-			query = query.Where("created_by = ?", user.ID)
-		}
-		query.Scan(&pendingPayments)
-	}
-	dashboard["pending_payments"] = pendingPayments
-
-	// Payables
-	var payables float64
-	if user.Role == "sales" {
-		payables = 0
-	} else {
-		rh.db.Raw(`
-			SELECT COALESCE(SUM(total_amount - paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE purchase_invoice_id = purchase_invoices.id AND type = 'purchase' AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total
-			FROM purchase_invoices
-			WHERE deleted_at IS NULL
-		`).Scan(&payables)
-	}
-	dashboard["payables"] = payables
-
-	// Low stock products
-	var lowStockCount int64
-	lowStockQuery := `
-		SELECT COUNT(DISTINCT s.product_id) as count
-		FROM stocks s
-		JOIN products p ON s.product_id = p.id
-		WHERE s.quantity <= COALESCE(p.min_stock_level, 10)
-	`
-	var lowStockArgs []interface{}
-	if locationID != "" {
-		lowStockQuery += " AND s.location_id = ?"
-		lowStockArgs = append(lowStockArgs, locationID)
-	} else if user.Role == "sales" && user.LocationID != nil {
-		lowStockQuery += " AND s.location_id = ?"
-		lowStockArgs = append(lowStockArgs, *user.LocationID)
-	}
-	rh.db.Raw(lowStockQuery, lowStockArgs...).Scan(&lowStockCount)
-	dashboard["low_stock_count"] = lowStockCount
-
-	// Active locations
-	var activeLocations int64
-	rh.db.Table("locations").Where("is_active = ?", true).Count(&activeLocations)
-	dashboard["active_locations"] = activeLocations
-
-	// Credit notes statistics
-	var creditNotes struct {
-		TotalCount    int64   `json:"total_count"`
-		PendingCount  int64   `json:"pending_count"`
-		ApprovedCount int64   `json:"approved_count"`
-		TotalAmount   float64 `json:"total_amount"`
-	}
-	creditNotesQuery := `
-		SELECT
-			COUNT(*) as total_count,
-			COUNT(CASE WHEN status = 'draft' THEN 1 END) as pending_count,
-			COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_count,
-			COALESCE(SUM(CASE WHEN status = 'approved' THEN total_amount ELSE 0 END), 0) as total_amount
-		FROM credit_notes
-		WHERE deleted_at IS NULL
-	`
-	var creditNotesArgs []interface{}
-	if user.Role == "sales" {
-		creditNotesQuery += " AND created_by = ?"
-		creditNotesArgs = append(creditNotesArgs, user.ID)
-	}
-	rh.db.Raw(creditNotesQuery, creditNotesArgs...).Scan(&creditNotes)
-	dashboard["credit_notes_total"] = creditNotes.TotalCount
-	dashboard["credit_notes_pending"] = creditNotes.PendingCount
-	dashboard["credit_notes_approved"] = creditNotes.ApprovedCount
-	dashboard["credit_notes_amount"] = creditNotes.TotalAmount
-
-	// Product revenue (top products revenue for current month)
-	var productRevenue struct {
-		TotalRevenue float64 `json:"total_revenue"`
-		TopProducts  int64   `json:"top_products"`
-	}
-	productRevenueQuery := `
-		SELECT
-			COALESCE(SUM(ii.total), 0) as total_revenue,
-			COUNT(DISTINCT ii.product_id) as top_products
-		FROM sales_invoice_items ii
-		JOIN sales_invoices i ON ii.invoice_id = i.id
-		WHERE i.deleted_at IS NULL 
-		AND MONTH(i.created_at) = MONTH(CURDATE())
-		AND YEAR(i.created_at) = YEAR(CURDATE())
-	`
-	var productRevenueArgs []interface{}
-	if user.Role == "sales" {
-		productRevenueQuery += " AND i.created_by = ?"
-		productRevenueArgs = append(productRevenueArgs, user.ID)
-	}
-	rh.db.Raw(productRevenueQuery, productRevenueArgs...).Scan(&productRevenue)
-	dashboard["product_revenue"] = productRevenue.TotalRevenue
-	dashboard["top_products_count"] = productRevenue.TopProducts
-
-	// Monthly collections
-	var monthlyCollections float64
-	monthlyCollectionsQuery := `
-		SELECT COALESCE(SUM(p.amount), 0)
-		FROM payments p
-		LEFT JOIN sales_invoices si ON p.invoice_id = si.id AND p.invoice_type = 'sales'
-		LEFT JOIN purchase_invoices pi ON p.invoice_id = pi.id AND p.invoice_type = 'purchase'
-		WHERE MONTH(p.created_at) = MONTH(CURDATE())
-		AND YEAR(p.created_at) = YEAR(CURDATE())
-		AND (
-			p.invoice_id IS NULL OR p.invoice_id = 0 OR
-			(p.invoice_type = 'sales' AND si.deleted_at IS NULL) OR
-			(p.invoice_type = 'purchase' AND pi.deleted_at IS NULL)
-		)
-	`
-	var monthlyCollectionsArgs []interface{}
-	if user.Role == "sales" {
-		monthlyCollectionsQuery += " AND p.created_by = ?"
-		monthlyCollectionsArgs = append(monthlyCollectionsArgs, user.ID)
-	}
-	rh.db.Raw(monthlyCollectionsQuery, monthlyCollectionsArgs...).Scan(&monthlyCollections)
-	dashboard["monthly_collections"] = monthlyCollections
-
-	// Recent sales chart (last 7 days)
-	var salesChart []map[string]interface{}
-	salesChartQuery := `
-		SELECT DATE(created_at) as date, SUM(total_amount) as total
-		FROM sales_invoices
-		WHERE deleted_at IS NULL 
-		AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-	`
-	var salesChartArgs []interface{}
-	if user.Role == "sales" {
-		salesChartQuery += " AND created_by = ?"
-		salesChartArgs = append(salesChartArgs, user.ID)
-	}
-	salesChartQuery += " GROUP BY DATE(created_at) ORDER BY date ASC"
-	rh.db.Raw(salesChartQuery, salesChartArgs...).Scan(&salesChart)
-	dashboard["sales_chart"] = salesChart
-
-	return ResponseOK(c, dashboard, "data")
 }
 
 // StatementTransaction is a typed struct for statement transactions to avoid map type assertion issues
@@ -862,15 +637,9 @@ func (rh *ReportHandler) InventoryValuationHandler(c echo.Context) error {
 	var totalQuantity float64
 	var totalCostValue, totalRetailValue float64
 	for _, p := range products {
-		if qty, ok := p["total_quantity"].(float64); ok {
-			totalQuantity += qty
-		}
-		if val, ok := p["stock_value"].(float64); ok {
-			totalCostValue += val
-		}
-		if val, ok := p["retail_value"].(float64); ok {
-			totalRetailValue += val
-		}
+		totalQuantity += ToFloat64(p["total_quantity"])
+		totalCostValue += ToFloat64(p["stock_value"])
+		totalRetailValue += ToFloat64(p["retail_value"])
 	}
 
 	summary := map[string]interface{}{
@@ -909,7 +678,7 @@ func (rh *ReportHandler) ReceivablesAgingHandler(c echo.Context) error {
 			COALESCE(SUM(si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND type = 'sales' AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total_outstanding
 		FROM sales_invoices si
 		LEFT JOIN customers c ON si.customer_id = c.id
-		WHERE si.deleted_at IS NULL
+		WHERE si.deleted_at IS NULL AND si.status <> 'draft'
 		GROUP BY si.customer_id, c.name, c.phone
 		HAVING total_outstanding > 0
 		ORDER BY total_outstanding DESC
@@ -923,24 +692,12 @@ func (rh *ReportHandler) ReceivablesAgingHandler(c echo.Context) error {
 	// Calculate summary totals
 	var totalCurrent, total1_15, total16_30, total31_45, totalOver45, grandTotal float64
 	for _, cust := range customers {
-		if v, ok := cust["current_amount"].(float64); ok {
-			totalCurrent += v
-		}
-		if v, ok := cust["days_1_15"].(float64); ok {
-			total1_15 += v
-		}
-		if v, ok := cust["days_16_30"].(float64); ok {
-			total16_30 += v
-		}
-		if v, ok := cust["days_31_45"].(float64); ok {
-			total31_45 += v
-		}
-		if v, ok := cust["days_over_45"].(float64); ok {
-			totalOver45 += v
-		}
-		if v, ok := cust["total_outstanding"].(float64); ok {
-			grandTotal += v
-		}
+		totalCurrent += ToFloat64(cust["current_amount"])
+		total1_15 += ToFloat64(cust["days_1_15"])
+		total16_30 += ToFloat64(cust["days_16_30"])
+		total31_45 += ToFloat64(cust["days_31_45"])
+		totalOver45 += ToFloat64(cust["days_over_45"])
+		grandTotal += ToFloat64(cust["total_outstanding"])
 	}
 
 	summary := map[string]interface{}{
@@ -996,24 +753,12 @@ func (rh *ReportHandler) PayablesAgingHandler(c echo.Context) error {
 	// Calculate summary totals
 	var totalCurrent, total1_15, total16_30, total31_45, totalOver45, grandTotal float64
 	for _, vend := range vendors {
-		if val, ok := vend["current_amount"].(float64); ok {
-			totalCurrent += val
-		}
-		if val, ok := vend["days_1_15"].(float64); ok {
-			total1_15 += val
-		}
-		if val, ok := vend["days_16_30"].(float64); ok {
-			total16_30 += val
-		}
-		if val, ok := vend["days_31_45"].(float64); ok {
-			total31_45 += val
-		}
-		if val, ok := vend["days_over_45"].(float64); ok {
-			totalOver45 += val
-		}
-		if val, ok := vend["total_outstanding"].(float64); ok {
-			grandTotal += val
-		}
+		totalCurrent += ToFloat64(vend["current_amount"])
+		total1_15 += ToFloat64(vend["days_1_15"])
+		total16_30 += ToFloat64(vend["days_16_30"])
+		total31_45 += ToFloat64(vend["days_31_45"])
+		totalOver45 += ToFloat64(vend["days_over_45"])
+		grandTotal += ToFloat64(vend["total_outstanding"])
 	}
 
 	summary := map[string]interface{}{
@@ -1068,7 +813,7 @@ func (rh *ReportHandler) SalesByCustomerHandler(c echo.Context) error {
 			COALESCE(SUM(si.total_amount - si.paid_amount - COALESCE((SELECT SUM(total_amount) FROM credit_notes WHERE sales_invoice_id = si.id AND type = 'sales' AND vendor_id IS NULL AND status = 'approved' AND deleted_at IS NULL), 0)), 0) as total_outstanding
 		FROM sales_invoices si
 		LEFT JOIN customers c ON si.customer_id = c.id
-		WHERE si.deleted_at IS NULL
+		WHERE si.deleted_at IS NULL AND si.status <> 'draft'
 		AND DATE(si.created_at) BETWEEN ? AND ?
 		GROUP BY c.id, c.name
 		ORDER BY total_sales DESC
@@ -1127,7 +872,7 @@ func (rh *ReportHandler) SalesByItemHandler(c echo.Context) error {
 			p.sku,
 			p.name_en as product_name,
 			COALESCE(cat.name_en, 'Uncategorized') as category_name,
-			(COALESCE(SUM(sii.quantity), 0) - COALESCE((
+			(COALESCE(s.qty, 0) - COALESCE((
 				SELECT SUM(cni.quantity)
 				FROM credit_note_items cni
 				JOIN credit_notes cn ON cni.credit_note_id = cn.id
@@ -1137,7 +882,7 @@ func (rh *ReportHandler) SalesByItemHandler(c echo.Context) error {
 				AND cn.deleted_at IS NULL
 				AND DATE(cn.credit_note_date) BETWEEN ? AND ?
 			), 0)) as quantity_sold,
-			(COALESCE(SUM(sii.total), 0) - COALESCE((
+			(COALESCE(s.total, 0) - COALESCE((
 				SELECT SUM(cni.total)
 				FROM credit_note_items cni
 				JOIN credit_notes cn ON cni.credit_note_id = cn.id
@@ -1147,16 +892,23 @@ func (rh *ReportHandler) SalesByItemHandler(c echo.Context) error {
 				AND cn.deleted_at IS NULL
 				AND DATE(cn.credit_note_date) BETWEEN ? AND ?
 			), 0)) as total_sales,
-			COALESCE(AVG(sii.unit_price), 0) as avg_price,
-			COUNT(DISTINCT si.id) as invoice_count
+			COALESCE(s.avg_price, 0) as avg_price,
+			COALESCE(s.invoice_count, 0) as invoice_count
 		FROM products p
-		LEFT JOIN sales_invoice_items sii ON p.id = sii.product_id
-		LEFT JOIN sales_invoices si ON sii.invoice_id = si.id 
-			AND si.deleted_at IS NULL
+		LEFT JOIN (
+			SELECT sii.product_id,
+				SUM(sii.quantity) as qty,
+				SUM(sii.total) as total,
+				AVG(sii.unit_price) as avg_price,
+				COUNT(DISTINCT si.id) as invoice_count
+			FROM sales_invoice_items sii
+			JOIN sales_invoices si ON sii.invoice_id = si.id
+			WHERE si.deleted_at IS NULL AND si.status <> 'draft'
 			AND DATE(si.created_at) BETWEEN ? AND ?
+			GROUP BY sii.product_id
+		) s ON s.product_id = p.id
 		LEFT JOIN categories cat ON p.category_id = cat.id
 		WHERE p.deleted_at IS NULL AND p.is_active = true
-		GROUP BY p.id, p.sku, p.name_en, cat.name_en
 		HAVING quantity_sold > 0 OR total_sales > 0
 		ORDER BY total_sales DESC
 	`
@@ -1207,7 +959,7 @@ func (rh *ReportHandler) ProfitAndLossReportHandler(c echo.Context) error {
 	rh.db.Raw(`
 		SELECT COALESCE(SUM(total_amount), 0)
 		FROM sales_invoices
-		WHERE deleted_at IS NULL
+		WHERE deleted_at IS NULL AND status <> 'draft'
 		AND DATE(created_at) BETWEEN ? AND ?
 	`, fromDate, toDate).Scan(&totalSales)
 
@@ -1230,7 +982,7 @@ func (rh *ReportHandler) ProfitAndLossReportHandler(c echo.Context) error {
 		FROM sales_invoice_items sii
 		JOIN sales_invoices si ON sii.invoice_id = si.id
 		JOIN products p ON sii.product_id = p.id
-		WHERE si.deleted_at IS NULL
+		WHERE si.deleted_at IS NULL AND si.status <> 'draft'
 		AND DATE(si.created_at) BETWEEN ? AND ?
 	`, fromDate, toDate).Scan(&cogs)
 
@@ -1243,7 +995,7 @@ func (rh *ReportHandler) ProfitAndLossReportHandler(c echo.Context) error {
 		WHERE cn.type = 'sales' 
 		AND cn.status = 'approved' 
 		AND cn.deleted_at IS NULL
-		AND DATE(cn.created_at) BETWEEN ? AND ?
+		AND DATE(cn.credit_note_date) BETWEEN ? AND ?
 	`, fromDate, toDate).Scan(&cogsReturns)
 
 	netCogs := cogs - cogsReturns

@@ -153,6 +153,8 @@ func SetupRoutes(e *echo.Echo, store *gorm.DB) {
 	apiGroup.GET("/reports/sales-by-customer", reportHandler.SalesByCustomerHandler)
 	apiGroup.GET("/reports/sales-by-item", reportHandler.SalesByItemHandler)
 	apiGroup.GET("/reports/profit-loss", reportHandler.ProfitAndLossReportHandler)
+	apiGroup.GET("/reports/sales-reps", reportHandler.SalesRepsReportHandler)
+	apiGroup.GET("/reports/sales-reps/:id", reportHandler.SalesRepDetailHandler)
 
 	// PDF Export routes
 	pdfHandler := handlers.NewPDFHandler(store)
