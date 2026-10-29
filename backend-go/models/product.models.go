@@ -4,7 +4,7 @@ import "time"
 
 type Product struct {
 	ID            uint         `json:"id" gorm:"primaryKey"`
-	SKU           string       `json:"sku" gorm:"size:50;unique;not null"`
+	SKU           string       `json:"sku" gorm:"size:50;not null;index"` // optional in the UI, so many products share an empty SKU
 	Barcode       *string      `json:"barcode" gorm:"size:50"`
 	NameEn        string       `json:"name_en" gorm:"size:100;not null"`
 	NameAr        *string      `json:"name_ar" gorm:"size:100"`

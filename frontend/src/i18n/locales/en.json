@@ -1,7 +1,8 @@
 {
   "app": {
     "name": "Stock Management",
-    "welcome": "Welcome"
+    "welcome": "Welcome",
+    "tagline": "Inventory & invoicing"
   },
   "auth": {
     "login": "Login",
@@ -42,7 +43,12 @@
     "sales": "Sales",
     "purchases": "Purchases",
     "banking": "Banking",
-    "warehousing": "Warehousing"
+    "warehousing": "Warehousing",
+    "new-invoice": "New Invoice",
+    "group-overview": "Overview",
+    "group-operations": "Operations",
+    "group-insights": "Insights",
+    "group-administration": "Admin"
   },
   "common": {
     "search": "Search",
@@ -479,5 +485,10 @@
     "date": "Date",
     "method": "Method",
     "allocation": "Allocation"
+  },
+  "header": {
+    "dark-mode": "Dark mode",
+    "light-mode": "Light mode",
+    "language": "Language"
   }
 }

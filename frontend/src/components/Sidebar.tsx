@@ -1,95 +1,126 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  ChevronRight,
+  BarChart3,
+  Boxes,
+  ChevronDown,
+  Landmark,
+  LayoutDashboard,
+  LucideIcon,
   Plus,
+  ScanBarcode,
+  Settings,
+  ShoppingBag,
+  Truck,
+  UsersRound,
+  Warehouse,
   X,
 } from 'lucide-react';
-import {
-  DashboardIcon,
-  PosIcon,
-  ItemsIcon,
-  ProductsIcon,
-  CategoriesIcon,
-  InventoryIcon,
-  TransfersIcon,
-  SalesIcon,
-  CustomersIcon,
-  SalesInvoicesIcon,
-  CreditNotesIcon,
-  PurchasesIcon,
-  VendorsIcon,
-  PurchaseInvoicesIcon,
-  BankingIcon,
-  PaymentsIcon,
-  WarehouseIcon,
-  LocationsIcon,
-  VansIcon,
-  ReportsIcon,
-  UsersSettingsIcon,
-  SettingsIcon,
-} from './NavIcons';
 import { cn } from '@/lib/utils';
-import { Button } from './ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
 
-// Simplified Zoho-style navigation
-const navigation = {
-  main: [
-    { name: 'dashboard', href: '/dashboard', icon: DashboardIcon },
-    { name: 'pos', href: '/pos', icon: PosIcon },
-  ],
-  items: {
-    label: 'items',
-    icon: ItemsIcon,
-    children: [
-      { name: 'products', href: '/products', icon: ProductsIcon },
-      { name: 'categories', href: '/categories', icon: CategoriesIcon },
-      { name: 'inventory', href: '/inventory', icon: InventoryIcon },
-      { name: 'transfers', href: '/transfers', icon: TransfersIcon },
+interface NavLeaf {
+  name: string;
+  href: string;
+  icon?: LucideIcon;
+}
+
+interface NavSection {
+  key: string;
+  label: string;
+  icon: LucideIcon;
+  children: NavLeaf[];
+}
+
+type NavEntry = NavLeaf | NavSection;
+
+interface NavGroup {
+  label: string;
+  entries: NavEntry[];
+}
+
+const navigation: NavGroup[] = [
+  {
+    label: 'overview',
+    entries: [
+      { name: 'dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { name: 'pos', href: '/pos', icon: ScanBarcode },
     ],
   },
-  sales: {
-    label: 'sales',
-    icon: SalesIcon,
-    children: [
-      { name: 'customers', href: '/customers', icon: CustomersIcon },
-      { name: 'sales-invoices', href: '/invoices/sales', icon: SalesInvoicesIcon },
-      { name: 'credit-notes', href: '/credit-notes', icon: CreditNotesIcon },
+  {
+    label: 'operations',
+    entries: [
+      {
+        key: 'items',
+        label: 'items',
+        icon: Boxes,
+        children: [
+          { name: 'products', href: '/products' },
+          { name: 'categories', href: '/categories' },
+          { name: 'inventory', href: '/inventory' },
+          { name: 'transfers', href: '/transfers' },
+        ],
+      },
+      {
+        key: 'sales',
+        label: 'sales',
+        icon: ShoppingBag,
+        children: [
+          { name: 'customers', href: '/customers' },
+          { name: 'sales-invoices', href: '/invoices/sales' },
+          { name: 'credit-notes', href: '/credit-notes' },
+        ],
+      },
+      {
+        key: 'purchases',
+        label: 'purchases',
+        icon: Truck,
+        children: [
+          { name: 'vendors', href: '/vendors' },
+          { name: 'purchase-invoices', href: '/invoices/purchase' },
+        ],
+      },
+      {
+        key: 'banking',
+        label: 'banking',
+        icon: Landmark,
+        children: [
+          { name: 'payments', href: '/payments' },
+          { name: 'expenses', href: '/expenses' },
+        ],
+      },
+      {
+        key: 'locations',
+        label: 'warehousing',
+        icon: Warehouse,
+        children: [
+          { name: 'locations', href: '/locations' },
+          { name: 'vans', href: '/vans' },
+        ],
+      },
     ],
   },
-  purchases: {
-    label: 'purchases',
-    icon: PurchasesIcon,
-    children: [
-      { name: 'vendors', href: '/vendors', icon: VendorsIcon },
-      { name: 'purchase-invoices', href: '/invoices/purchase', icon: PurchaseInvoicesIcon },
+  {
+    label: 'insights',
+    entries: [{ name: 'reports', href: '/reports', icon: BarChart3 }],
+  },
+  {
+    label: 'administration',
+    entries: [
+      { name: 'users', href: '/users', icon: UsersRound },
+      { name: 'settings', href: '/settings', icon: Settings },
     ],
   },
-  banking: {
-    label: 'banking',
-    icon: BankingIcon,
-    children: [
-      { name: 'payments', href: '/payments', icon: PaymentsIcon },
-      { name: 'expenses', href: '/expenses', icon: PaymentsIcon }, // Using PaymentsIcon temporarily, or import a better one
-    ],
-  },
-  locations: {
-    label: 'warehousing',
-    icon: WarehouseIcon,
-    children: [
-      { name: 'locations', href: '/locations', icon: LocationsIcon },
-      { name: 'vans', href: '/vans', icon: VansIcon },
-    ],
-  },
-  reports: [
-    { name: 'reports', href: '/reports', icon: ReportsIcon },
-  ],
-  settings: [
-    { name: 'users', href: '/users', icon: UsersSettingsIcon },
-    { name: 'settings', href: '/settings', icon: SettingsIcon },
-  ],
+];
+
+const isSection = (e: NavEntry): e is NavSection => 'children' in e;
+
+const matchesPath = (pathname: string, href: string) => pathname === href || pathname.startsWith(href + '/');
+
+// Extra paths that belong to a section without being one of its links.
+const sectionAliases: Record<string, string[]> = {
+  banking: ['/payment-allocation', '/transactions'],
 };
 
 interface SidebarProps {
@@ -101,116 +132,101 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { t } = useTranslation();
   const { canView } = usePermissions();
   const location = useLocation();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    items: false,
-    sales: false,
-    purchases: false,
-    banking: false,
-    locations: false,
-  });
+  const sectionIsActive = (section: NavSection) =>
+    section.children.some((c) => matchesPath(location.pathname, c.href)) ||
+    (sectionAliases[section.key] || []).some((p) => matchesPath(location.pathname, p));
 
-  // Auto-expand section based on current path
+  // Open the section that contains the current page whenever the route changes.
   useEffect(() => {
-    const path = location.pathname;
-    const newExpanded = { ...expandedSections };
-
-    if (path.includes('/products') || path.includes('/categories') || path.includes('/inventory') || path.includes('/transfers')) {
-      newExpanded.items = true;
-    }
-    if (path.includes('/customers') || path.includes('/invoices/sales') || path.includes('/credit-notes')) {
-      newExpanded.sales = true;
-    }
-    if (path.includes('/vendors') || path.includes('/invoices/purchase')) {
-      newExpanded.purchases = true;
-    }
-    if (path.includes('/payments') || path.includes('/payment-allocation')) {
-      newExpanded.banking = true;
-    }
-    if (path.includes('/locations') || path.includes('/vans')) {
-      newExpanded.locations = true;
-    }
-
-    setExpandedSections(newExpanded);
-  }, []);
-
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
-
-  const renderNavItem = (item: { name: string; href: string; icon: any }, isNested = false) => {
-    if (!canView(item.name)) return null;
-
-    return (
-      <NavLink
-        key={item.name}
-        to={item.href}
-        onClick={onClose}
-        className={({ isActive }) =>
-          cn(
-            'group flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all',
-            isNested ? 'ml-6 text-xs' : 'my-0.5',
-            isActive
-              ? 'bg-primary/10 text-primary border-r-2 border-primary rounded-r-none'
-              : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-          )
+    navigation.forEach((group) =>
+      group.entries.forEach((entry) => {
+        if (isSection(entry) && sectionIsActive(entry)) {
+          setExpanded((prev) => (prev[entry.key] ? prev : { ...prev, [entry.key]: true }));
         }
-      >
-        <item.icon className={cn(
-          "transition-transform shrink-0",
-          isNested ? "h-3.5 w-3.5" : "h-5 w-5",
-          "group-hover:scale-110"
-        )} />
-        <span className="truncate">{t(`nav.${item.name}`)}</span>
-      </NavLink>
+      })
     );
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
-  const renderSection = (
-    sectionKey: string,
-    section: { label: string; icon: any; children: any[] }
-  ) => {
-    const visibleChildren = section.children.filter(item => canView(item.name));
-    if (visibleChildren.length === 0) return null;
+  const renderLink = (item: NavLeaf, nested = false) => (
+    <NavLink
+      key={item.name}
+      to={item.href}
+      onClick={onClose}
+      className={({ isActive }) =>
+        cn(
+          'group relative flex items-center gap-3 rounded-md text-sm transition-colors',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          nested ? 'py-1.5 ps-3 pe-2' : 'h-9 px-2.5',
+          isActive
+            ? 'bg-primary/10 font-medium text-primary dark:bg-primary/15'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+        )
+      }
+    >
+      {({ isActive }) => (
+        <>
+          {nested && (
+            <span
+              aria-hidden
+              className={cn(
+                'absolute -start-[9.5px] top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full transition-colors',
+                isActive ? 'bg-primary' : 'bg-transparent'
+              )}
+            />
+          )}
+          {item.icon && (
+            <item.icon
+              aria-hidden
+              strokeWidth={1.75}
+              className={cn('h-[18px] w-[18px] shrink-0', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')}
+            />
+          )}
+          <span className="truncate">{t(`nav.${item.name}`)}</span>
+        </>
+      )}
+    </NavLink>
+  );
 
-    const isExpanded = expandedSections[sectionKey];
-    const hasActiveChild = visibleChildren.some(
-      item => location.pathname === item.href || location.pathname.startsWith(item.href + '/')
-    );
+  const renderSection = (section: NavSection) => {
+    const children = section.children.filter((c) => canView(c.name));
+    if (children.length === 0) return null;
+    const open = !!expanded[section.key];
+    const active = sectionIsActive(section);
+    const Icon = section.icon;
 
     return (
-      <div key={sectionKey} className="space-y-0.5">
+      <div key={section.key}>
         <button
-          onClick={() => toggleSection(sectionKey)}
+          type="button"
+          onClick={() => setExpanded((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
+          aria-expanded={open}
           className={cn(
-            'w-full flex items-center justify-between px-3 py-2 text-sm font-semibold rounded-lg transition-colors group',
-            hasActiveChild
-              ? 'text-foreground'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+            'group flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            active ? 'font-medium text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
           )}
         >
-          <div className="flex items-center gap-3">
-            <section.icon className={cn(
-              "h-5 w-5 transition-transform",
-              hasActiveChild && "scale-110"
-            )} />
-            <span className="capitalize">{t(`nav.${section.label}`)}</span>
-          </div>
-          <div className={cn(
-            "transition-transform duration-200",
-            isExpanded ? "rotate-90" : "rotate-0"
-          )}>
-            <ChevronRight className="h-4 w-4 opacity-40 group-hover:opacity-70" />
-          </div>
+          <Icon
+            aria-hidden
+            strokeWidth={1.75}
+            className={cn('h-[18px] w-[18px] shrink-0', active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')}
+          />
+          <span className="flex-1 truncate text-start">{t(`nav.${section.label}`)}</span>
+          <ChevronDown
+            aria-hidden
+            className={cn('h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform duration-200', open ? 'rotate-0' : '-rotate-90 rtl:rotate-90')}
+          />
         </button>
-        {isExpanded && (
-          <div className="mt-0.5 space-y-0.5">
-            {visibleChildren.map(item => renderNavItem(item, true))}
+        <div className={cn('grid transition-[grid-template-rows] duration-200 ease-out', open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}>
+          <div className={cn('overflow-hidden', !open && 'invisible')}>
+            <div className="my-1 ms-[1.3rem] space-y-0.5 border-s border-border ps-2">
+              {children.map((c) => renderLink(c, true))}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     );
   };
@@ -218,86 +234,75 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   return (
     <>
       {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Sidebar */}
       <div
+        aria-hidden
+        onClick={onClose}
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-60 bg-card border-r border-border transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0',
-          isOpen ? 'translate-x-0' : '-translate-x-full'
+          'fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] transition-opacity md:hidden',
+          isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+        )}
+      />
+
+      <aside
+        className={cn(
+          'fixed inset-y-0 start-0 z-50 flex w-64 flex-col border-e bg-card transition-transform duration-200 ease-out',
+          'md:relative md:translate-x-0 md:rtl:translate-x-0',
+          isOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'
         )}
       >
-        <div className="flex flex-col h-full overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between flex-shrink-0 px-4 py-4 border-b">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <ProductsIcon className="h-4 w-4" style={{ stroke: 'white', color: 'white' }} />
-              </div>
-              <h1 className="text-base font-bold text-foreground">{t('app.name')}</h1>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="md:hidden h-8 w-8"
-              title="Close menu"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Quick Action */}
-          <div className="px-3 py-3 border-b">
-            <NavLink
-              to="/invoices/new"
-              onClick={onClose}
-              className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md font-medium text-sm transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              New Invoice
-            </NavLink>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto">
-            {/* Main */}
-            <div className="space-y-0.5">
-              {navigation.main
-                .filter(item => canView(item.name))
-                .map(item => renderNavItem(item))}
-            </div>
-
-            {/* Sections */}
-            <div className="space-y-2">
-              {renderSection('items', navigation.items)}
-              {renderSection('sales', navigation.sales)}
-              {renderSection('purchases', navigation.purchases)}
-              {renderSection('banking', navigation.banking)}
-              {renderSection('locations', navigation.locations)}
-            </div>
-
-            {/* Reports */}
-            <div className="space-y-0.5">
-              {navigation.reports
-                .filter(item => canView(item.name))
-                .map(item => renderNavItem(item))}
-            </div>
-
-            {/* Settings */}
-            <div className="pt-3 border-t space-y-0.5">
-              {navigation.settings
-                .filter(item => canView(item.name))
-                .map(item => renderNavItem(item))}
-            </div>
-          </nav>
+        {/* Brand */}
+        <div className="flex h-16 shrink-0 items-center justify-between gap-2 px-4">
+          <NavLink to="/dashboard" onClick={onClose} className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-[hsl(210_78%_30%)] text-primary-foreground shadow-sm ring-1 ring-inset ring-white/10">
+              <Boxes className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold leading-tight text-foreground">{t('app.name')}</span>
+              <span className="block truncate text-xs leading-tight text-muted-foreground">{t('app.tagline')}</span>
+            </span>
+          </NavLink>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('common.close')}
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
-      </div>
+
+        {/* Primary action */}
+        <div className="px-3 pb-2">
+          <NavLink
+            to="/invoices/new"
+            onClick={onClose}
+            className="flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            {t('nav.new-invoice')}
+          </NavLink>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-3" aria-label="Main">
+          {navigation.map((group) => {
+            const visible = group.entries.filter((e) =>
+              isSection(e) ? e.children.some((c) => canView(c.name)) : canView(e.name)
+            );
+            if (visible.length === 0) return null;
+            return (
+              <div key={group.label}>
+                <p className="mb-1.5 px-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                  {t(`nav.group-${group.label}`)}
+                </p>
+                <div className="space-y-0.5">
+                  {visible.map((e) => (isSection(e) ? renderSection(e) : renderLink(e)))}
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+      </aside>
     </>
   );
 }

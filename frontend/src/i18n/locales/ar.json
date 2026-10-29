@@ -1,7 +1,8 @@
 {
   "app": {
     "name": "إدارة المخزون",
-    "welcome": "مرحباً"
+    "welcome": "مرحباً",
+    "tagline": "المخزون والفواتير"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -42,7 +43,12 @@
     "sales": "المبيعات",
     "purchases": "المشتريات",
     "banking": "البنوك",
-    "warehousing": "التخزين"
+    "warehousing": "التخزين",
+    "new-invoice": "فاتورة جديدة",
+    "group-overview": "نظرة عامة",
+    "group-operations": "العمليات",
+    "group-insights": "التحليلات",
+    "group-administration": "الإدارة"
   },
   "common": {
     "search": "بحث",
@@ -77,7 +83,8 @@
     "to": "إلى",
     "quantity": "الكمية",
     "price": "السعر",
-    "amount": "المبلغ"
+    "amount": "المبلغ",
+    "close": "إغلاق"
   },
   "products": {
     "title": "المنتجات",
@@ -472,5 +479,10 @@
     "date": "التاريخ",
     "method": "الطريقة",
     "allocation": "التوزيع"
+  },
+  "header": {
+    "dark-mode": "الوضع الداكن",
+    "light-mode": "الوضع الفاتح",
+    "language": "اللغة"
   }
 }

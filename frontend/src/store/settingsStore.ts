@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import i18n from '@/i18n/config';
 
 interface SettingsState {
   language: 'en' | 'ar';
@@ -20,6 +21,7 @@ export const useSettingsStore = create<SettingsState>()(
         const direction = lang === 'ar' ? 'rtl' : 'ltr';
         document.documentElement.dir = direction;
         document.documentElement.lang = lang;
+        if (i18n.language !== lang) i18n.changeLanguage(lang);
         set({ language: lang, direction });
       },
       setTheme: (theme) => {
