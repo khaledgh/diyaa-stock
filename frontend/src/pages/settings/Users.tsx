@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Edit, Trash2, Search, Shield, UserPlus, Briefcase, Settings2, Clock } from 'lucide-react';
+import { Edit, Trash2, Shield, UserPlus, Briefcase, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ColumnDef, DataTable, FilterSelect } from '@/components/data-table/DataTable';
+import { ActiveBadge, BadgeTone, Page, PageHeader, RowAction, RowActions, StatusBadge } from '@/components/layout/Page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -16,20 +15,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { userApi, sessionApi, locationApi } from '@/lib/api';
+import { DatePicker } from '@/components/ui/date-picker';
 
 export default function Users() {
-  const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [formData, setFormData] = useState({
@@ -91,10 +83,10 @@ export default function Users() {
   });
 
   const { data: users, isLoading } = useQuery({
-    queryKey: ['users', searchTerm],
+    queryKey: ['users'],
     queryFn: async () => {
       try {
-        const response = await userApi.getAll({ search: searchTerm });
+        const response = await userApi.getAll();
         return response.data.data || [];
       } catch (error) {
         console.error('Failed to fetch users:', error);
@@ -218,236 +210,168 @@ export default function Users() {
     }
   };
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
-      case 'manager':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      case 'sales':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'employee':
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
-    }
-  };
+  const roleTone: Record<string, BadgeTone> = { admin: 'violet', manager: 'blue', sales: 'green', employee: 'amber' };
+  const roles = Array.from(new Set((users || []).map((u: any) => u.role).filter(Boolean))) as string[];
+  const filteredUsers = (users || []).filter((u: any) => (!roleFilter || u.role === roleFilter) && (!statusFilter || (statusFilter === 'active' ? u.is_active : !u.is_active)));
+  const sessionFor = (userId: number) => activeSessions?.find((sess: any) => sess.user_id === userId);
 
-  return (
-    <div className="space-y-6 p-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                <Shield className="h-8 w-8 text-purple-600" />
-                User Management
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">Manage system users and their roles</p>
-            </div>
-            <Button onClick={() => handleOpenDialog()} size="lg" className="shadow-lg">
-              <UserPlus className="mr-2 h-5 w-5" />
-              Add User
-            </Button>
+  const columns: ColumnDef<any>[] = [
+    {
+      id: 'name',
+      header: 'Name',
+      alwaysVisible: true,
+      value: (u) => u.full_name,
+      cell: (u) => (
+        <div className="flex items-center gap-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+            {(u.full_name || u.email || '?').split(' ').map((x: string) => x[0]).slice(0, 2).join('').toUpperCase()}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate font-medium">{u.full_name}</p>
+            <p className="truncate text-xs text-muted-foreground">{u.email}</p>
           </div>
         </div>
-
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-white dark:from-slate-900 dark:to-slate-950">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Settings2 className="h-4 w-4 text-indigo-600" />
-              Location Mode Settings
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-4">
-              <p className="text-xs text-muted-foreground italic">
-                Control how sales reps select their operating location.
-              </p>
-              <div className="flex items-center gap-2 p-1 bg-white dark:bg-slate-800 rounded-lg border border-indigo-100 dark:border-slate-700 shadow-sm">
-                <Button
-                  variant={locationMode === 'automatic' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="flex-1 text-xs h-8"
-                  onClick={() => updateModeMutation.mutate('automatic')}
-                >
-                  User Choice
-                </Button>
-                <Button
-                  variant={locationMode === 'manual' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="flex-1 text-xs h-8"
-                  onClick={() => updateModeMutation.mutate('manual')}
-                >
-                  Admin Set
-                </Button>
-              </div>
-              <div className="text-[10px] text-muted-foreground">
-                {locationMode === 'automatic'
-                  ? '✓ Sales reps choose their location daily on the mobile app'
-                  : '✓ Admins must assign today\'s location for each sales rep'}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-0 shadow-lg">
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Search users..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-11"
-              />
-            </div>
+      ),
+    },
+    { id: 'phone', header: 'Phone', defaultHidden: true, value: (u) => u.phone, cell: (u) => <span className="text-muted-foreground" dir="ltr">{u.phone || '—'}</span> },
+    { id: 'position', header: 'Position', defaultHidden: true, value: (u) => u.position, cell: (u) => <span className="text-muted-foreground">{u.position || '—'}</span> },
+    { id: 'role', header: 'Role', value: (u) => u.role, cell: (u) => <StatusBadge tone={roleTone[u.role] || 'gray'} dot={false}>{u.role}</StatusBadge> },
+    {
+      id: 'locations',
+      header: 'Locations',
+      sortable: false,
+      value: (u) => (u.locations || []).map((l: any) => l.name).join(', ') || u.location_name,
+      cell: (u) =>
+        u.locations?.length ? (
+          <div className="flex flex-wrap gap-1">
+            {u.locations.map((l: any) => (
+              <span key={l.id} className="rounded bg-muted px-1.5 py-0.5 text-xs">{l.name}</span>
+            ))}
           </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8">{t('common.loading')}</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Position</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Today's Session</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Commission</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
-                      No users found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  users?.map((user: any) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.full_name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.phone || '-'}</TableCell>
-                      <TableCell>{user.position || '-'}</TableCell>
-                      <TableCell>
-                        {user.locations && user.locations.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {user.locations.map((loc: any) => (
-                              <span key={loc.id} className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
-                                {loc.name}
-                              </span>
-                            ))}
-                          </div>
-                        ) : user.location_name ? (
-                          <span className="text-sm text-blue-600">{user.location_name}</span>
-                        ) : (
-                          <span className="text-sm text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {user.role === 'sales' || user.role === 'employee' ? (
-                          <div className="flex items-center gap-2">
-                            {(() => {
-                              const session = activeSessions?.find((s: any) => s.user_id === user.id);
-                              if (session) {
-                                return (
-                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1 lg:pr-3 py-0.5">
-                                    <Clock className="h-3 w-3" />
-                                    <span className="max-w-[80px] truncate">{session.location?.name}</span>
-                                  </Badge>
-                                );
-                              }
-                              return (
-                                <span className="text-xs text-gray-400 italic">No session</span>
-                              );
-                            })()}
-                            {locationMode === 'manual' && (
-                              <select
-                                className="text-[10px] border rounded px-1 h-6 bg-white dark:bg-slate-900 outline-none focus:ring-1 focus:ring-indigo-500"
-                                value=""
-                                onChange={(e) => {
-                                  if (e.target.value) {
-                                    setSessionMutation.mutate({
-                                      userId: user.id,
-                                      locationId: Number(e.target.value),
-                                    });
-                                  }
-                                }}
-                              >
-                                <option value="">Assign Today</option>
-                                {locations?.map((l: any) => (
-                                  <option key={l.id} value={l.id}>{l.name}</option>
-                                ))}
-                              </select>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)}`}>
-                          {user.role}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {user.role === 'sales' && user.commission_rate ? (
-                          <span className="inline-flex items-center gap-1 text-sm font-semibold text-green-700 dark:text-green-400">
-                            <Briefcase className="h-3.5 w-3.5" />
-                            {user.commission_rate}%
-                          </span>
-                        ) : (
-                          <span className="text-sm text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${user.is_active
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                            }`}
-                        >
-                          {user.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenDialog(user)}
-                            title="Edit"
-                          >
-                            <Edit className="h-4 w-4 text-blue-600" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(user.id)}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+        ) : (
+          <span className="text-muted-foreground">{u.location_name || '—'}</span>
+        ),
+    },
+    {
+      id: 'session',
+      header: "Today's location",
+      sortable: false,
+      cell: (u) => {
+        if (u.role !== 'sales' && u.role !== 'employee') return <span className="text-muted-foreground/50">—</span>;
+        const session = sessionFor(u.id);
+        return (
+          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            {session ? (
+              <StatusBadge tone="green">{session.location?.name}</StatusBadge>
+            ) : (
+              <span className="text-xs text-muted-foreground">Not started</span>
+            )}
+            {locationMode === 'manual' && (
+              <select
+                aria-label="Assign today's location"
+                className="h-7 rounded-md border bg-background px-1.5 text-xs"
+                value=""
+                onChange={(e) => e.target.value && setSessionMutation.mutate({ userId: u.id, locationId: Number(e.target.value) })}
+              >
+                <option value="">Assign…</option>
+                {locations?.map((l: any) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'commission',
+      header: 'Commission',
+      align: 'end',
+      value: (u) => (u.role === 'sales' ? Number(u.commission_rate || 0) : null),
+      cell: (u) => (u.role === 'sales' && u.commission_rate ? <span className="tabular-nums font-medium">{u.commission_rate}%</span> : <span className="text-muted-foreground/50">—</span>),
+    },
+    { id: 'status', header: 'Status', value: (u) => (u.is_active ? 1 : 0), cell: (u) => <ActiveBadge active={!!u.is_active} /> },
+    {
+      id: 'actions',
+      header: '',
+      alwaysVisible: true,
+      sortable: false,
+      align: 'end',
+      cell: (u) => (
+        <RowActions>
+          <RowAction label="Edit" icon={Edit} onClick={() => handleOpenDialog(u)} />
+          <RowAction label="Delete" icon={Trash2} tone="danger" onClick={() => handleDelete(u.id)} />
+        </RowActions>
+      ),
+    },
+  ];
+
+  return (
+    <Page>
+      <PageHeader
+        icon={Shield}
+        title="Users"
+        description="People who can sign in, their roles and locations"
+        actions={
+          <>
+            <div className="inline-flex items-center gap-2 rounded-md border bg-card px-2 py-1 text-xs" title={locationMode === 'automatic' ? 'Sales reps choose their location daily on the mobile app' : "Admins assign today's location for each sales rep"}>
+              <Settings2 className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              <span className="text-muted-foreground">Rep location:</span>
+              <div className="inline-flex rounded bg-muted p-0.5" role="group" aria-label="Location mode">
+                {([
+                  ['automatic', 'Rep chooses'],
+                  ['manual', 'Admin assigns'],
+                ] as const).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => updateModeMutation.mutate(mode)}
+                    className={`rounded px-2 py-0.5 font-medium ${locationMode === mode ? 'bg-card shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Button onClick={() => handleOpenDialog()}>
+              <UserPlus className="me-1.5 h-4 w-4" />
+              Add User
+            </Button>
+          </>
+        }
+      />
+
+      <DataTable
+        data={filteredUsers}
+        columns={columns}
+        rowKey={(u) => u.id}
+        loading={isLoading}
+        defaultSort={{ id: 'name', dir: 'asc' }}
+        searchPlaceholder="Search name, email, phone…"
+        onRowClick={(u) => handleOpenDialog(u)}
+        storageKey="users"
+        exportFileName="users"
+        emptyTitle="No users found"
+        activeFilterCount={(roleFilter ? 1 : 0) + (statusFilter ? 1 : 0)}
+        onResetFilters={() => {
+          setRoleFilter('');
+          setStatusFilter('');
+        }}
+        filters={
+          <>
+            <FilterSelect label="Role" value={roleFilter} onChange={setRoleFilter} options={roles.map((r) => ({ value: r, label: r }))} />
+            <FilterSelect
+              label="Status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+              ]}
+            />
+          </>
+        }
+      />
 
       {/* User Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -586,13 +510,7 @@ export default function Users() {
 
                   <div className="space-y-2">
                     <Label htmlFor="hire_date">Hire Date</Label>
-                    <Input
-                      id="hire_date"
-                      type="date"
-                      value={formData.hire_date}
-                      onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })}
-                      className="h-11"
-                    />
+                    <DatePicker id="hire_date" clearable value={formData.hire_date || ''} onChange={(v) => setFormData({ ...formData, hire_date: v })} />
                   </div>
 
                   <div className="space-y-2">
@@ -730,6 +648,6 @@ export default function Users() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </Page>
   );
 }

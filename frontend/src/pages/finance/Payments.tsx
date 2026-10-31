@@ -1,17 +1,24 @@
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { CreditCard, Receipt, ExternalLink } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
+import { CreditCard } from 'lucide-react';
 import { paymentApi } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
+import { ColumnDef, DataTable, FilterSelect } from '@/components/data-table/DataTable';
+import { Page, PageHeader, StatStrip, StatusBadge } from '@/components/layout/Page';
+
+const isDeleted = (p: any) => p.invoice_number === 'Invoice Deleted';
+const invoiceLink = (p: any) =>
+  p.invoice_type === 'sales' ? `/invoices/sales/${p.invoice_id}` : p.invoice_type === 'purchase' ? `/invoices/purchase/${p.invoice_id}` : null;
 
 export default function Payments() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [type, setType] = useState('');
+  const [method, setMethod] = useState('');
 
-  const { data: payments, isLoading } = useQuery({
+  const { data: payments = [], isLoading } = useQuery({
     queryKey: ['payments'],
     queryFn: async () => {
       const response = await paymentApi.getAll();
@@ -19,117 +26,121 @@ export default function Payments() {
     },
   });
 
-  const totalPayments = payments?.reduce((sum: number, payment: any) => sum + Number(payment.amount), 0) || 0;
+  const methods = useMemo(() => Array.from(new Set(payments.map((p: any) => p.payment_method).filter(Boolean))) as string[], [payments]);
+  const filtered = useMemo(
+    () => payments.filter((p: any) => (!type || (p.invoice_type || 'deleted') === type) && (!method || p.payment_method === method)),
+    [payments, type, method]
+  );
 
-  const getInvoiceLink = (payment: any) => {
-    if (payment.invoice_type === 'sales') {
-      return `/invoices/sales/${payment.invoice_id}`;
-    }
-    if (payment.invoice_type === 'purchase') {
-      return `/invoices/purchase/${payment.invoice_id}`;
-    }
-    return '#';
-  };
+  const live = payments.filter((p: any) => !isDeleted(p));
+  const received = live.filter((p: any) => p.invoice_type === 'sales').reduce((s: number, p: any) => s + Math.abs(Number(p.amount)), 0);
+  const paid = live.filter((p: any) => p.invoice_type === 'purchase').reduce((s: number, p: any) => s + Math.abs(Number(p.amount)), 0);
+
+  const columns: ColumnDef<any>[] = [
+    { id: 'date', header: t('common.date') || 'Date', value: (p) => p.created_at, cell: (p) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(p.created_at)}</span> },
+    {
+      id: 'type',
+      header: 'Direction',
+      value: (p) => p.invoice_type || 'deleted',
+      cell: (p) =>
+        !p.invoice_type ? (
+          <StatusBadge tone="gray">Deleted</StatusBadge>
+        ) : p.invoice_type === 'sales' ? (
+          <StatusBadge tone="green">Received</StatusBadge>
+        ) : (
+          <StatusBadge tone="blue">Paid out</StatusBadge>
+        ),
+    },
+    {
+      id: 'invoice',
+      header: 'Invoice',
+      alwaysVisible: true,
+      value: (p) => p.invoice_number || `#${p.invoice_id}`,
+      cell: (p) =>
+        isDeleted(p) ? (
+          <span className="italic text-muted-foreground line-through">Invoice deleted</span>
+        ) : (
+          <span className="font-medium text-primary">{p.invoice_number || `#${p.invoice_id}`}</span>
+        ),
+    },
+    {
+      id: 'method',
+      header: t('payments.paymentMethod') || 'Method',
+      value: (p) => p.payment_method,
+      cell: (p) => (
+        <span className="inline-flex items-center gap-1.5 capitalize text-muted-foreground">
+          <CreditCard className="h-3.5 w-3.5" aria-hidden />
+          {p.payment_method?.replace('_', ' ') || '—'}
+        </span>
+      ),
+    },
+    { id: 'reference', header: t('payments.referenceNumber') || 'Reference', defaultHidden: true, value: (p) => p.reference_number, cell: (p) => <span className="font-mono text-xs">{p.reference_number || '—'}</span> },
+    { id: 'created_by', header: 'Recorded by', value: (p) => p.created_by_name, cell: (p) => <span className="text-muted-foreground">{p.created_by_name || '—'}</span> },
+    {
+      id: 'amount',
+      header: t('common.amount') || 'Amount',
+      align: 'end',
+      value: (p) => Number(p.amount),
+      cell: (p) => (
+        <span className={`tabular-nums font-semibold ${isDeleted(p) ? 'text-muted-foreground line-through' : p.invoice_type === 'sales' ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
+          {formatCurrency(Math.abs(Number(p.amount)))}
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">{t('payments.title') || 'Payments'}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t('payments.subtitle') || 'Track all payment transactions'}
-          </p>
-        </div>
-        <div className="bg-primary/10 px-4 py-2 rounded-lg">
-          <p className="text-sm text-muted-foreground">Total Payments</p>
-          <p className="text-2xl font-bold text-primary">{formatCurrency(totalPayments)}</p>
-        </div>
-      </div>
+    <Page>
+      <PageHeader icon={CreditCard} title={t('payments.title') || 'Payments'} description={t('payments.subtitle') || 'Every payment received from customers and paid to vendors'} />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <Receipt className="h-5 w-5" />
-            <h2 className="text-lg font-semibold">{t('payments.recentPayments') || 'Recent Payments'}</h2>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8">{t('common.loading') || 'Loading...'}</div>
-          ) : (
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('common.date') || 'Date'}</TableHead>
-                    <TableHead className="hidden md:table-cell">Invoice Type</TableHead>
-                    <TableHead className="hidden md:table-cell">Invoice #</TableHead>
-                    <TableHead className="text-right">{t('common.amount') || 'Amount'}</TableHead>
-                    <TableHead className="hidden sm:table-cell">{t('payments.paymentMethod') || 'Method'}</TableHead>
-                    <TableHead className="hidden lg:table-cell">{t('payments.referenceNumber') || 'Reference'}</TableHead>
-                    <TableHead className="hidden xl:table-cell">Created By</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payments?.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No payments found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    payments?.map((payment: any) => (
-                      <TableRow
-                        key={payment.id}
-                        className={payment.invoice_number === 'Invoice Deleted' ? 'text-red-500 line-through opacity-70 hover:bg-red-50/50' : ''}
-                      >
-                        <TableCell>{formatDateTime(payment.created_at)}</TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {payment.invoice_type ? (
-                            <Badge variant={payment.invoice_type === 'sales' ? 'default' : 'outline'} className="capitalize">
-                              {payment.invoice_type}
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive" className="bg-red-100 text-red-600 border-red-200">Deleted</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {payment.invoice_number === 'Invoice Deleted' ? (
-                            <span className="font-medium italic">Invoice Deleted</span>
-                          ) : (
-                            <Link
-                              to={getInvoiceLink(payment)}
-                              className="flex items-center gap-1 text-primary hover:underline font-mono text-sm"
-                            >
-                              {payment.invoice_number || `#${payment.invoice_id}`}
-                              <ExternalLink className="h-3 w-3" />
-                            </Link>
-                          )}
-                        </TableCell>
-                        <TableCell className={`text-right font-bold ${payment.invoice_number === 'Invoice Deleted' ? '' : (payment.amount < 0 ? 'text-red-600' : 'text-green-600')}`}>
-                          {formatCurrency(payment.amount)}
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="h-4 w-4" />
-                            <span className="capitalize">{payment.payment_method?.replace('_', ' ')}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell font-mono text-sm">
-                          {payment.reference_number || '-'}
-                        </TableCell>
-                        <TableCell className="hidden xl:table-cell">
-                          {payment.created_by_name || '-'}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      <StatStrip
+        items={[
+          { label: 'Received from customers', value: formatCurrency(received) },
+          { label: 'Paid to vendors', value: formatCurrency(paid) },
+          { label: 'Net cash flow', value: formatCurrency(received - paid) },
+          { label: 'Payments', value: live.length.toLocaleString() },
+        ]}
+      />
+
+      <DataTable
+        data={filtered}
+        columns={columns}
+        rowKey={(p) => p.id}
+        loading={isLoading}
+        defaultSort={{ id: 'date', dir: 'desc' }}
+        searchPlaceholder="Search invoice, method, reference…"
+        onRowClick={(p) => {
+          const link = !isDeleted(p) && invoiceLink(p);
+          if (link) navigate(link);
+        }}
+        storageKey="payments"
+        exportFileName="payments"
+        emptyTitle="No payments found"
+        activeFilterCount={(type ? 1 : 0) + (method ? 1 : 0)}
+        onResetFilters={() => {
+          setType('');
+          setMethod('');
+        }}
+        filters={
+          <>
+            <FilterSelect
+              label="Direction"
+              value={type}
+              onChange={setType}
+              options={[
+                { value: 'sales', label: 'Received' },
+                { value: 'purchase', label: 'Paid out' },
+                { value: 'deleted', label: 'Deleted invoice' },
+              ]}
+            />
+            <FilterSelect label="Method" value={method} onChange={setMethod} options={methods.map((m) => ({ value: m, label: m.replace('_', ' ') }))} />
+          </>
+        }
+        footer={(rows) => ({
+          date: <span className="text-xs font-medium text-muted-foreground">{rows.length} payments</span>,
+          amount: formatCurrency(rows.filter((p) => !isDeleted(p)).reduce((s, p) => s + Math.abs(Number(p.amount)), 0)),
+        })}
+      />
+    </Page>
   );
 }

@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { locationApi } from '@/lib/api';
 import { cn, toLocalISODate } from '@/lib/utils';
+import { DateRangePicker } from '@/components/ui/date-picker';
 
 export type CommissionBasis = 'sales' | 'collected';
 
@@ -78,22 +78,7 @@ export function RepReportFilters({ showBasis = true }: { showBasis?: boolean }) 
             </button>
           ))}
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" aria-hidden />
-            <input
-              type="date"
-              aria-label="From date"
-              value={from}
-              onChange={(e) => e.target.value && update({ from: e.target.value })}
-              className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
-            />
-            <span className="text-sm text-muted-foreground">to</span>
-            <input
-              type="date"
-              aria-label="To date"
-              value={to}
-              onChange={(e) => e.target.value && update({ to: e.target.value })}
-              className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
-            />
+            <DateRangePicker size="default" clearable={false} label="Custom" value={{ from, to }} onChange={(r) => update(r)} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">

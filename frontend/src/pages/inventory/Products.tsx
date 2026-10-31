@@ -1,231 +1,184 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Search, MapPin } from 'lucide-react';
+import { Package, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Pagination } from '@/components/ui/pagination';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { productApi } from '@/lib/api';
+import { categoryApi, productApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { ColumnDef, DataTable, FilterSelect, SortState } from '@/components/data-table/DataTable';
+import { ActiveBadge, Page, PageHeader, RowAction, RowActions } from '@/components/layout/Page';
+
+// Table column id -> backend sortBy column
+const SORT_FIELDS: Record<string, string> = {
+  sku: 'sku',
+  name: 'name_en',
+  unit_price: 'unit_price',
+  cost_price: 'cost_price',
+  status: 'is_active',
+};
 
 export default function Products() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [perPage] = useState(20);
+  const [pageSize, setPageSize] = useState(25);
+  const [sort, setSort] = useState<SortState | null>({ id: 'name', dir: 'asc' });
+  const [categoryId, setCategoryId] = useState('');
+  const [status, setStatus] = useState('active');
 
-  const { data: productsResponse, isLoading } = useQuery({
-    queryKey: ['products', searchTerm, page],
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['products', { search, page, pageSize, sort, categoryId, status }],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
-      try {
-        const response = await productApi.getAll({
-          search: searchTerm,
-          page,
-          per_page: perPage
-        });
-
-        console.log('Product API Response:', response.data);
-
-        // The API returns: { success: true, message: "Success", data: { data: [], pagination: {} } }
-        // So we need response.data.data to get { data: [...], pagination: {...} }
-
-        const apiData = response.data.data || response.data;
-
-        // Check if apiData has the nested structure
-        if (apiData?.data && Array.isArray(apiData.data)) {
-          console.log('Correct format detected: nested data array');
-          return {
-            data: apiData.data,
-            pagination: apiData.pagination || null
-          };
-        }
-
-        // Fallback: if apiData is directly an array (old format)
-        if (Array.isArray(apiData)) {
-          console.log('Old format: direct array');
-          return { data: apiData, pagination: null };
-        }
-
-        console.log('Unknown format, returning empty. ApiData:', apiData);
-        return { data: [], pagination: null };
-      } catch (error) {
-        console.error('Failed to fetch products:', error);
-        return { data: [], pagination: null };
-      }
+      const response = await productApi.getAll({
+        search: search || undefined,
+        page,
+        per_page: pageSize,
+        sortBy: sort ? SORT_FIELDS[sort.id] : undefined,
+        orderBy: sort?.dir,
+        category_id: categoryId || undefined,
+        status: status || 'all',
+      });
+      const apiData = response.data.data || response.data;
+      if (Array.isArray(apiData?.data)) return { rows: apiData.data, total: apiData.total ?? apiData.pagination?.total ?? apiData.data.length };
+      if (Array.isArray(apiData)) return { rows: apiData, total: apiData.length };
+      return { rows: [], total: 0 };
     },
   });
 
-  const products = Array.isArray(productsResponse?.data) ? productsResponse.data : [];
-  const pagination = productsResponse?.pagination;
-
-  console.log('Products:', products, 'Pagination:', pagination);
-
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories', 'filter'],
+    queryFn: async () => {
+      const response = await categoryApi.getAll();
+      const d = response.data.data || response.data;
+      return Array.isArray(d) ? d : d?.data || [];
+    },
+  });
 
   const deleteMutation = useMutation({
     mutationFn: productApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast.success(t('common.deleteSuccess') || 'Product deleted successfully');
+      toast.success(t('common.deleteSuccess') || 'Product deleted');
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to delete product');
-    },
+    onError: (error: any) => toast.error(error.response?.data?.message || 'Failed to delete product'),
   });
 
-
   const handleDelete = (id: number) => {
-    if (confirm(t('common.confirmDelete') || 'Are you sure you want to delete this product?')) {
-      deleteMutation.mutate(id);
-    }
+    if (confirm(t('common.confirmDelete') || 'Delete this product?')) deleteMutation.mutate(id);
   };
 
-  return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('products.title')}</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your product inventory</p>
+  const columns: ColumnDef<any>[] = [
+    {
+      id: 'name',
+      header: t('products.name'),
+      alwaysVisible: true,
+      value: (p) => p.name_ar || p.name_en,
+      cell: (p) => (
+        <div className="min-w-0" dir="auto">
+          <p className="truncate font-medium">{p.name_ar || p.name_en}</p>
+          {p.name_ar && p.name_en && <p className="truncate text-xs text-muted-foreground">{p.name_en}</p>}
         </div>
-        <Button onClick={() => navigate('/products/new')} size="lg" className="shadow-lg">
-          <Plus className="mr-2 h-5 w-5" />
-          {t('products.addProduct')}
-        </Button>
-      </div>
+      ),
+    },
+    { id: 'sku', header: t('products.sku'), value: (p) => p.sku, cell: (p) => <span className="font-mono text-xs text-muted-foreground">{p.sku || '—'}</span> },
+    {
+      id: 'category',
+      header: t('products.category'),
+      sortable: false,
+      value: (p) => p.category?.name_ar || p.category?.name_en,
+      cell: (p) => <span dir="auto">{p.category?.name_ar || p.category?.name_en || '—'}</span>,
+    },
+    {
+      id: 'type',
+      header: t('products.type'),
+      sortable: false,
+      defaultHidden: true,
+      value: (p) => p.product_type?.name_ar || p.product_type?.name_en,
+      cell: (p) => <span dir="auto">{p.product_type?.name_ar || p.product_type?.name_en || '—'}</span>,
+    },
+    { id: 'cost_price', header: t('products.costPrice'), align: 'end', defaultHidden: true, value: (p) => Number(p.cost_price), cell: (p) => <span className="tabular-nums">{formatCurrency(p.cost_price)}</span> },
+    { id: 'unit_price', header: t('products.unitPrice'), align: 'end', value: (p) => Number(p.unit_price), cell: (p) => <span className="tabular-nums font-medium">{formatCurrency(p.unit_price)}</span> },
+    { id: 'status', header: t('common.status'), value: (p) => (p.is_active ? 1 : 0), cell: (p) => <ActiveBadge active={p.is_active} activeLabel={t('common.active')} inactiveLabel={t('common.inactive')} /> },
+    {
+      id: 'actions',
+      header: '',
+      alwaysVisible: true,
+      sortable: false,
+      align: 'end',
+      cell: (p) => (
+        <RowActions>
+          <RowAction label="Edit" icon={Pencil} onClick={() => navigate(`/products/edit/${p.id}`)} />
+          <RowAction label="Delete" icon={Trash2} tone="danger" onClick={() => handleDelete(p.id)} />
+        </RowActions>
+      ),
+    },
+  ];
 
-      <Card className="border-0 shadow-lg">
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder={t('common.search')}
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setPage(1); // Reset to first page on search
-                }}
-                className="pl-10 h-11"
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8">{t('common.loading')}</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('products.sku')}</TableHead>
-                  <TableHead>{t('products.name')}</TableHead>
-                  <TableHead>{t('products.category')}</TableHead>
-                  <TableHead>{t('products.type')}</TableHead>
-                  <TableHead>{t('products.unitPrice')}</TableHead>
-                  <TableHead>Stock by Location</TableHead>
-                  <TableHead>{t('common.status')}</TableHead>
-                  <TableHead>{t('common.actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {products?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
-                      {t('common.noData')}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  products?.map((product: any) => (
-                    <TableRow key={product.id}>
-                      <TableCell className="font-medium">{product.sku}</TableCell>
-                      <TableCell dir="auto">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{product.name_ar || product.name_en}</span>
-                          {product.name_ar && product.name_en && (
-                            <span className="text-xs text-muted-foreground">{product.name_en}</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell dir="auto">{product.category?.name_ar || product.category?.name_en || '-'}</TableCell>
-                      <TableCell dir="auto">{product.product_type?.name_ar || product.product_type?.name_en || '-'}</TableCell>
-                      <TableCell>{formatCurrency(product.unit_price)}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          {product.stock_by_location && product.stock_by_location.length > 0 ? (
-                            product.stock_by_location.map((stock: any, idx: number) => (
-                              <div key={idx} className="flex items-center gap-1 text-xs">
-                                <MapPin className="h-3 w-3 text-muted-foreground" />
-                                <span className="font-medium">{stock.location_name}:</span>
-                                <span className={stock.quantity < 10 ? 'text-red-600 font-semibold' : ''}>
-                                  {stock.quantity}
-                                </span>
-                              </div>
-                            ))
-                          ) : (
-                            <span className="text-muted-foreground text-xs">No stock</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${product.is_active
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                            }`}
-                        >
-                          {product.is_active ? t('common.active') : t('common.inactive')}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => navigate(`/products/edit/${product.id}`)}
-                            title="Edit"
-                          >
-                            <Edit className="h-4 w-4 text-blue-600" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(product.id)}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
+  const resetPage = <T,>(fn: (v: T) => void) => (v: T) => {
+    fn(v);
+    setPage(1);
+  };
+  const activeFilters = (categoryId ? 1 : 0) + (status !== 'active' ? 1 : 0);
 
-          {pagination && pagination.total_pages > 1 && (
-            <Pagination
-              currentPage={pagination.current_page}
-              totalPages={pagination.total_pages}
-              onPageChange={setPage}
-              totalItems={pagination.total}
-              itemsPerPage={pagination.per_page}
+  return (
+    <Page>
+      <PageHeader
+        icon={Package}
+        title={t('products.title')}
+        description="Manage your product catalog and prices"
+        actions={
+          <Button onClick={() => navigate('/products/new')}>
+            <Plus className="me-1.5 h-4 w-4" />
+            {t('products.addProduct')}
+          </Button>
+        }
+      />
+      <DataTable
+        data={data?.rows || []}
+        columns={columns}
+        rowKey={(p) => p.id}
+        loading={isLoading}
+        className={isFetching && !isLoading ? 'opacity-80 transition-opacity' : undefined}
+        search={search}
+        onSearchChange={resetPage(setSearch)}
+        searchPlaceholder="Search name, SKU…"
+        sort={sort}
+        onSortChange={resetPage(setSort)}
+        pagination={{ page, pageSize, total: data?.total || 0, onPageChange: setPage, onPageSizeChange: setPageSize }}
+        onRowClick={(p) => navigate(`/products/edit/${p.id}`)}
+        storageKey="products"
+        exportFileName="products"
+        activeFilterCount={activeFilters}
+        onResetFilters={() => {
+          setCategoryId('');
+          setStatus('active');
+          setPage(1);
+        }}
+        filters={
+          <>
+            <FilterSelect
+              label={t('products.category')}
+              value={categoryId}
+              onChange={resetPage(setCategoryId)}
+              options={categories.map((c: any) => ({ value: String(c.id), label: c.name_ar || c.name_en }))}
             />
-          )}
-        </CardContent>
-      </Card>
-    </div>
+            <FilterSelect
+              label={t('common.status')}
+              value={status === 'all' ? '' : status}
+              onChange={(v) => resetPage(setStatus)(v || 'all')}
+              options={[
+                { value: 'active', label: t('common.active') },
+                { value: 'inactive', label: t('common.inactive') },
+              ]}
+            />
+          </>
+        }
+      />
+    </Page>
   );
 }

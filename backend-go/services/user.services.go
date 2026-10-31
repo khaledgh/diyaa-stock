@@ -41,7 +41,7 @@ func (us *UserService) GetALL(limit, page int, orderBy, sortBy, status, role, se
 	query.Count(&totalRecords)
 
 	offset := (page - 1) * limit
-	if err := query.Order(sortBy + " " + orderBy).Offset(offset).Limit(limit).Find(&users).Error; err != nil {
+	if err := query.Order(SafeColumnOrder(query, sortBy, orderBy)).Offset(offset).Limit(limit).Find(&users).Error; err != nil {
 		return PaginationResponse{}, err
 	}
 

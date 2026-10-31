@@ -55,7 +55,7 @@ func (h *ExpenseHandler) GetAllHandler(c echo.Context) error {
 		}
 	}
 
-	expenses, total, err := h.service.GetAll(page, pageSize, search, catID, startDate, endDate)
+	expenses, total, err := h.service.GetAll(page, pageSize, search, catID, startDate, endDate, c.QueryParam("sort_by"), c.QueryParam("sort_dir"))
 	if err != nil {
 		return ResponseError(c, err)
 	}

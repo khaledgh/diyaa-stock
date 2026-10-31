@@ -31,7 +31,7 @@ func (ss *ProductTypeServices) GetALL(limit, page int, orderBy, sortBy, searchTe
 	query.Count(&totalRecords)
 	
 	offset := (page - 1) * limit
-	if err := query.Order(sortBy + " " + orderBy).Offset(offset).Limit(limit).Find(&shops).Error; err != nil {
+	if err := query.Order(SafeColumnOrder(query, sortBy, orderBy)).Offset(offset).Limit(limit).Find(&shops).Error; err != nil {
 		return PaginationResponse{}, err
 	}
 	

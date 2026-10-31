@@ -1,272 +1,137 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { useReactToPrint } from 'react-to-print';
-import {
-  ArrowLeft,
-  Printer,
-  Calendar,
-  Users,
-  DollarSign,
-  Download,
-  FileText
-} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { FileSpreadsheet, FileText, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { reportApi } from '@/lib/api';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, toLocalISODate } from '@/lib/utils';
 import { exportSalesByCustomer } from '@/lib/exportExcel';
 import { exportSalesByCustomerPDF } from '@/lib/exportPDF';
+import { ColumnDef, DataTable, DateRangeFilter, FilterSelect } from '@/components/data-table/DataTable';
+import { Page, PageHeader, StatStrip } from '@/components/layout/Page';
 
 export default function SalesByCustomer() {
-  const printRef = useRef<HTMLDivElement>(null);
-  const [dateRange, setDateRange] = useState({
-    from_date: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
-    to_date: new Date().toISOString().split('T')[0],
-  });
+  const navigate = useNavigate();
+  const now = new Date();
+  const [range, setRange] = useState({ from: toLocalISODate(new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())), to: toLocalISODate(now) });
+  const [balance, setBalance] = useState('');
 
   const { data: report, isLoading } = useQuery({
-    queryKey: ['sales-by-customer', dateRange],
+    queryKey: ['sales-by-customer', range],
     queryFn: async () => {
-      const response = await reportApi.salesByCustomer(dateRange);
+      const response = await reportApi.salesByCustomer({ from_date: range.from, to_date: range.to });
       return response.data.data || response.data;
     },
+    enabled: !!(range.from && range.to),
   });
 
-  const handlePrint = useReactToPrint({
-    content: () => printRef.current,
-    documentTitle: `Sales_By_Customer_${dateRange.from_date}_${dateRange.to_date}`,
-  });
+  const num = (v: unknown) => Number(v || 0);
+  const rows: any[] = report?.customers || [];
+  const filtered = rows.filter((r) => !balance || (balance === 'owing' ? num(r.total_outstanding) > 0.009 : num(r.total_outstanding) <= 0.009));
+  const s = report?.summary || {};
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full p-6">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  const columns: ColumnDef<any>[] = [
+    { id: 'customer', header: 'Customer', alwaysVisible: true, value: (r) => r.customer_name, cell: (r) => <span className="font-medium" dir="auto">{r.customer_name}</span> },
+    { id: 'invoices', header: 'Invoices', align: 'end', value: (r) => num(r.invoice_count), cell: (r) => <span className="tabular-nums text-muted-foreground">{num(r.invoice_count)}</span> },
+    { id: 'sales', header: 'Sales', align: 'end', value: (r) => num(r.total_sales), cell: (r) => <span className="tabular-nums font-semibold">{formatCurrency(num(r.total_sales))}</span> },
+    {
+      id: 'returns',
+      header: 'Returns',
+      align: 'end',
+      value: (r) => num(r.total_credit_notes),
+      cell: (r) => (num(r.total_credit_notes) ? <span className="tabular-nums text-orange-600">−{formatCurrency(num(r.total_credit_notes))}</span> : <span className="text-muted-foreground/50">—</span>),
+    },
+    { id: 'paid', header: 'Paid', align: 'end', value: (r) => num(r.total_paid), cell: (r) => <span className="tabular-nums">{formatCurrency(num(r.total_paid))}</span> },
+    {
+      id: 'outstanding',
+      header: 'Outstanding',
+      align: 'end',
+      value: (r) => num(r.total_outstanding),
+      cell: (r) => <span className={`tabular-nums font-medium ${num(r.total_outstanding) > 0.009 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{formatCurrency(num(r.total_outstanding))}</span>,
+    },
+    {
+      id: 'share',
+      header: 'Share',
+      align: 'end',
+      value: (r) => (num(s.total_sales) > 0 ? (num(r.total_sales) / num(s.total_sales)) * 100 : 0),
+      cell: (r) => {
+        const pct = num(s.total_sales) > 0 ? (num(r.total_sales) / num(s.total_sales)) * 100 : 0;
+        return (
+          <div className="ms-auto flex w-24 items-center justify-end gap-2">
+            <div className="h-1.5 flex-1 rounded-full bg-muted">
+              <div className="h-1.5 rounded-full" style={{ width: `${Math.min(pct, 100)}%`, background: 'var(--chart-1)' }} />
+            </div>
+            <span className="w-9 text-end tabular-nums text-xs text-muted-foreground">{pct.toFixed(0)}%</span>
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <Link to="/reports">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
+    <Page>
+      <PageHeader
+        icon={Users}
+        backTo="/reports"
+        title="Sales by Customer"
+        description="Who buys the most, and who still owes"
+        actions={
+          <>
+            <Button variant="outline" disabled={!rows.length} onClick={() => exportSalesByCustomer(rows, range.from, range.to)}>
+              <FileSpreadsheet className="me-1.5 h-4 w-4" /> Excel
             </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-              <Users className="h-6 w-6 text-blue-600" />
-              Sales by Customer
-            </h1>
-            <p className="text-muted-foreground">Customer sales breakdown</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => exportSalesByCustomer(report?.customers || [], dateRange.from_date, dateRange.to_date)}
-            className="gap-2"
-            disabled={!report?.customers?.length}
-          >
-            <Download className="h-4 w-4" />
-            Excel
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => exportSalesByCustomerPDF(report?.customers || [], dateRange.from_date, dateRange.to_date)}
-            className="gap-2"
-            disabled={!report?.customers?.length}
-          >
-            <FileText className="h-4 w-4" />
-            PDF
-          </Button>
-          <Button variant="outline" onClick={() => handlePrint()} className="gap-2">
-            <Printer className="h-4 w-4" />
-            Print
-          </Button>
-        </div>
-      </div>
+            <Button variant="outline" disabled={!rows.length} onClick={() => exportSalesByCustomerPDF(rows, range.from, range.to)}>
+              <FileText className="me-1.5 h-4 w-4" /> PDF
+            </Button>
+          </>
+        }
+      />
 
-      {/* Date Filter */}
-      <Card>
-        <CardContent className="py-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Period:</span>
-            <input
-              type="date"
-              value={dateRange.from_date}
-              onChange={(e) => setDateRange({ ...dateRange, from_date: e.target.value })}
-              className="px-3 py-2 rounded-md border border-input bg-background text-sm"
+      <StatStrip
+        items={[
+          { label: 'Sales', value: formatCurrency(num(s.total_sales)), hint: `${num(s.total_invoices)} invoices` },
+          { label: 'Returns', value: formatCurrency(num(s.total_credit_notes)) },
+          { label: 'Paid', value: formatCurrency(num(s.total_paid)) },
+          { label: 'Outstanding', value: formatCurrency(num(s.total_outstanding)), hint: `${num(s.total_customers)} customers` },
+        ]}
+      />
+
+      <DataTable
+        data={filtered}
+        columns={columns}
+        rowKey={(r) => r.customer_id || r.customer_name}
+        loading={isLoading}
+        defaultSort={{ id: 'sales', dir: 'desc' }}
+        searchPlaceholder="Search customer…"
+        onRowClick={(r) => r.customer_id && navigate(`/customers/${r.customer_id}`)}
+        storageKey="sales-by-customer"
+        exportFileName={`sales-by-customer-${range.from}-${range.to}`}
+        emptyTitle="No sales in this period"
+        activeFilterCount={balance ? 1 : 0}
+        onResetFilters={() => setBalance('')}
+        filters={
+          <>
+            <DateRangeFilter from={range.from} to={range.to} onChange={setRange} clearable={false} />
+            <FilterSelect
+              label="Balance"
+              value={balance}
+              onChange={setBalance}
+              options={[
+                { value: 'owing', label: 'Still owes' },
+                { value: 'settled', label: 'Settled' },
+              ]}
             />
-            <span className="text-muted-foreground">to</span>
-            <input
-              type="date"
-              value={dateRange.to_date}
-              onChange={(e) => setDateRange({ ...dateRange, to_date: e.target.value })}
-              className="px-3 py-2 rounded-md border border-input bg-background text-sm"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Printable Report */}
-      <div ref={printRef} className="bg-white dark:bg-card rounded-lg">
-        {/* Header */}
-        <div className="p-6 border-b">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-xl font-bold">Sales by Customer</h2>
-              <p className="text-muted-foreground mt-1">
-                {formatDate(dateRange.from_date)} - {formatDate(dateRange.to_date)}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold text-blue-600">
-                {formatCurrency(report?.summary?.total_sales || 0)}
-              </p>
-              <p className="text-sm text-muted-foreground">Total Sales</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground uppercase">Total Sales</p>
-              <p className="text-lg font-bold text-blue-600">
-                {formatCurrency(report?.summary?.total_sales || 0)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground uppercase">Total Paid</p>
-              <p className="text-lg font-bold text-green-600">
-                {formatCurrency(report?.summary?.total_paid || 0)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground uppercase">Credit Notes</p>
-              <p className="text-lg font-bold text-red-600">
-                {formatCurrency(report?.summary?.total_credit_notes || 0)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground uppercase">Outstanding</p>
-              <p className="text-lg font-bold text-orange-600">
-                {formatCurrency(report?.summary?.total_outstanding || 0)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground uppercase">Customers</p>
-              <p className="text-lg font-bold">
-                {report?.summary?.total_customers || 0}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Customer Table */}
-        <div className="px-6 pb-6">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>Customer</TableHead>
-                <TableHead className="text-right">Invoices</TableHead>
-                <TableHead className="text-right">Total Sales</TableHead>
-                <TableHead className="text-right">Credit Notes</TableHead>
-                <TableHead className="text-right">Paid</TableHead>
-                <TableHead className="text-right">Outstanding</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {report?.customers?.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    <DollarSign className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                    No sales in this period
-                  </TableCell>
-                </TableRow>
-              ) : (
-                <>
-                  {report?.customers?.map((customer: any, index: number) => (
-                    <TableRow key={customer.customer_id || index} className="hover:bg-muted/30">
-                      <TableCell className="font-medium">
-                        {customer.customer_id > 0 ? (
-                          <Link
-                            to={`/customers/${customer.customer_id}/statement`}
-                            className="text-primary hover:underline"
-                          >
-                            {customer.customer_name}
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">{customer.customer_name}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {customer.invoice_count}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(customer.total_sales)}
-                      </TableCell>
-                      <TableCell className="text-right text-red-600">
-                        {customer.total_credit_notes > 0 ? formatCurrency(customer.total_credit_notes) : '-'}
-                      </TableCell>
-                      <TableCell className="text-right text-green-600">
-                        {formatCurrency(customer.total_paid)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {Number(customer.total_outstanding) > 0 ? (
-                          <span className="text-orange-600 font-medium">
-                            {formatCurrency(customer.total_outstanding)}
-                          </span>
-                        ) : (
-                          <span className="text-green-600">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-
-                  {/* Totals Row */}
-                  <TableRow className="bg-muted/50 font-semibold border-t-2">
-                    <TableCell>Total</TableCell>
-                    <TableCell className="text-right">{report?.summary?.total_invoices || 0}</TableCell>
-                    <TableCell className="text-right text-blue-600">
-                      {formatCurrency(report?.summary?.total_sales || 0)}
-                    </TableCell>
-                    <TableCell className="text-right text-red-600">
-                      {formatCurrency(report?.summary?.total_credit_notes || 0)}
-                    </TableCell>
-                    <TableCell className="text-right text-green-600">
-                      {formatCurrency(report?.summary?.total_paid || 0)}
-                    </TableCell>
-                    <TableCell className="text-right text-orange-600">
-                      {formatCurrency(report?.summary?.total_outstanding || 0)}
-                    </TableCell>
-                  </TableRow>
-                </>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Footer */}
-        <div className="p-6 border-t text-center text-sm text-muted-foreground">
-          <p>Generated on {new Date().toLocaleDateString()}</p>
-        </div>
-      </div>
-    </div>
+          </>
+        }
+        footer={(list) => ({
+          customer: <span className="text-xs font-medium text-muted-foreground">{list.length} customers</span>,
+          invoices: list.reduce((t, r) => t + num(r.invoice_count), 0),
+          sales: formatCurrency(list.reduce((t, r) => t + num(r.total_sales), 0)),
+          returns: formatCurrency(list.reduce((t, r) => t + num(r.total_credit_notes), 0)),
+          paid: formatCurrency(list.reduce((t, r) => t + num(r.total_paid), 0)),
+          outstanding: formatCurrency(list.reduce((t, r) => t + num(r.total_outstanding), 0)),
+        })}
+      />
+    </Page>
   );
 }

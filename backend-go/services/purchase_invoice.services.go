@@ -38,7 +38,12 @@ func (s *PurchaseInvoiceService) GetALL(filters map[string]string, limit, offset
 
 	// Apply filters
 	if search, ok := filters["search"]; ok && search != "" {
-		query = query.Where("invoice_number LIKE ?", "%"+search+"%")
+		like := "%" + search + "%"
+		query = query.Where("(invoice_number LIKE ? OR vendor_id IN (SELECT id FROM vendors WHERE name LIKE ? OR company_name LIKE ?))", like, like, like)
+	}
+
+	if locationID, ok := filters["location_id"]; ok && locationID != "" {
+		query = query.Where("location_id = ?", locationID)
 	}
 
 	if paymentStatus, ok := filters["payment_status"]; ok && paymentStatus != "" {
@@ -61,7 +66,16 @@ func (s *PurchaseInvoiceService) GetALL(filters map[string]string, limit, offset
 
 	query.Count(&total)
 
-	err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&invoices).Error
+	order := SafeOrder(filters["sort_by"], filters["sort_dir"], map[string]string{
+		"invoice_number": "purchase_invoices.invoice_number",
+		"date":           "purchase_invoices.invoice_date",
+		"total":          "purchase_invoices.total_amount",
+		"paid":           "purchase_invoices.paid_amount",
+		"status":         "purchase_invoices.payment_status",
+		"vendor":         "(SELECT COALESCE(NULLIF(company_name, ''), name) FROM vendors WHERE vendors.id = purchase_invoices.vendor_id)",
+		"location":       "(SELECT name FROM locations WHERE locations.id = purchase_invoices.location_id)",
+	}, "purchase_invoices.created_at DESC")
+	err := query.Order(order).Order("purchase_invoices.id DESC").Limit(limit).Offset(offset).Find(&invoices).Error
 	if err != nil {
 		return nil, 0, err
 	}

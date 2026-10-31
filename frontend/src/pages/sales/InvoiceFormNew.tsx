@@ -2,15 +2,16 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Trash2, ShoppingCart, Package, AlertCircle, MapPin } from 'lucide-react';
+import { Plus, Save, Trash2, ShoppingCart, Package, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent } from '@/components/ui/card';
+import { Page, PageHeader } from '@/components/layout/Page';
 import { Combobox } from '@/components/ui/combobox';
 import { invoiceApi, productApi, locationApi, customerApi, stockApi, vendorApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface InvoiceItem {
   product_id: number;
@@ -383,340 +384,242 @@ export default function InvoiceFormNew() {
     };
   }) || [];
 
+  const isPurchase = invoiceType === 'purchase';
+  const lineGrid = 'md:grid md:grid-cols-[minmax(0,1fr)_84px_104px_76px_100px_36px] md:items-center md:gap-2';
+  const numberInput = 'h-8 text-end tabular-nums';
+  const itemCount = invoiceItems.length;
+
+  const addProduct = (value: string) => {
+    if (!value) return;
+    const prod = products?.find((p: any) => p.id.toString() === value);
+    if (!prod) return;
+    const price = isPurchase ? prod.cost_price : prod.unit_price;
+    const newItem: InvoiceItem = {
+      product_id: prod.id,
+      product_name: prod.name_ar || prod.name_en || prod.name || 'Unknown Product',
+      quantity: 0,
+      unit_price: price || 0,
+      discount_percent: 0,
+      total: 0,
+    };
+    setInvoiceItems([...invoiceItems, newItem]);
+    setErrors({ ...errors, items: '' });
+    setProductSearch('');
+    setSelectedProduct('');
+  };
+
   return (
-    <div className="space-y-6 p-6  mx-auto">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(`/invoices/${invoiceType}`)}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            {invoiceType === 'purchase' ? (
-              <><Package className="h-8 w-8 text-blue-600" /> {isEdit ? `Edit Purchase Invoice #${invoiceToEdit?.invoice_number}` : 'New Purchase Invoice'}</>
-            ) : (
-              <><ShoppingCart className="h-8 w-8 text-green-600" /> {isEdit ? `Edit Sales Invoice #${invoiceToEdit?.invoice_number}` : 'New Sales Invoice'}</>
-            )}
-          </h1>
-          {isEdit && invoiceToEdit?.location_name && (
-            <div className="flex items-center gap-2 text-muted-foreground mt-2 bg-muted/30 w-fit px-3 py-1 rounded-full border">
-              <MapPin className="h-4 w-4" />
-              <span className="text-sm font-medium">Location: {invoiceToEdit.location_name}</span>
-            </div>
-          )}
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {invoiceType === 'purchase'
-              ? 'Create a purchase invoice - adds stock to selected location'
-              : 'Create a sales invoice - reduces stock from selected location'}
-          </p>
-        </div>
-      </div>
+    <Page className="max-w-[1400px]">
+      <PageHeader
+        backTo={`/invoices/${invoiceType}`}
+        icon={isPurchase ? Package : ShoppingCart}
+        title={
+          isEdit
+            ? `Edit ${isPurchase ? 'Purchase' : 'Sales'} Invoice ${invoiceToEdit?.invoice_number ? `#${invoiceToEdit.invoice_number}` : ''}`
+            : `New ${isPurchase ? 'Purchase' : 'Sales'} Invoice`
+        }
+        description={
+          isEdit && invoiceToEdit?.location_name
+            ? `Location: ${invoiceToEdit.location_name}`
+            : isPurchase
+              ? 'Adds stock to the selected location'
+              : 'Reduces stock at the selected location'
+        }
+      />
 
       <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Form */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Invoice Details */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle>Invoice Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="location">Location *</Label>
-                      <Combobox
-                        options={[
-                          { value: '', label: 'Select location...' },
-                          ...locationOptions,
-                        ]}
-                        value={selectedLocation}
-                        onChange={(value) => {
-                          setSelectedLocation(value);
-                          setErrors({ ...errors, location: '' });
-                          setInvoiceItems([]); // Clear items when changing location
-                        }}
-                        placeholder="Select location"
-                        searchPlaceholder="Search locations..."
-                        emptyText="No locations found"
-                      />
-                      {errors.location && (
-                        <p className="text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.location}
-                        </p>
-                      )}
-                    </div>
-
-                    {invoiceType === 'purchase' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="invoiceDate">Invoice Date *</Label>
-                        <Input
-                          id="invoiceDate"
-                          type="date"
-                          value={invoiceDate}
-                          onChange={(e) => setInvoiceDate(e.target.value)}
-                          className="h-11"
-                        />
-                      </div>
-                    )}
-
-                    {invoiceType === 'sales' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="customer">Customer</Label>
-                        <Combobox
-                          options={[
-                            { value: '', label: 'Select customer (optional)...' },
-                            ...customerOptions,
-                          ]}
-                          value={selectedCustomer}
-                          onChange={setSelectedCustomer}
-                          onSearchChange={setCustomerSearch}
-                          placeholder="Select customer"
-                          searchPlaceholder="Search customers..."
-                          emptyText="No customers found"
-                        />
-                      </div>
-                    )}
-
-                    {invoiceType === 'purchase' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="vendor">Vendor</Label>
-                        <Combobox
-                          options={[
-                            { value: '', label: 'Select vendor (optional)...' },
-                            ...vendorOptions,
-                          ]}
-                          value={selectedVendor}
-                          onChange={setSelectedVendor}
-                          onSearchChange={setVendorSearch}
-                          placeholder="Select vendor"
-                          searchPlaceholder="Search vendors..."
-                          emptyText="No vendors found"
-                        />
-                      </div>
-                    )}
-
-                    {invoiceType === 'sales' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="invoiceDate">Invoice Date *</Label>
-                        <Input
-                          id="invoiceDate"
-                          type="date"
-                          value={invoiceDate}
-                          onChange={(e) => setInvoiceDate(e.target.value)}
-                          className="h-11"
-                        />
-                      </div>
-                    )}
-                  </div>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="min-w-0 space-y-4">
+            {/* Details */}
+            <Card>
+              <CardContent className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="location">Location *</Label>
+                  <Combobox
+                    options={[{ value: '', label: 'Select location...' }, ...locationOptions]}
+                    value={selectedLocation}
+                    onChange={(value) => {
+                      setSelectedLocation(value);
+                      setErrors({ ...errors, location: '' });
+                      setInvoiceItems([]);
+                    }}
+                    placeholder="Select location"
+                    searchPlaceholder="Search locations..."
+                    emptyText="No locations found"
+                  />
+                  {errors.location && (
+                    <p className="flex items-center gap-1 text-xs text-red-600">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.location}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>{isPurchase ? 'Vendor' : 'Customer'}</Label>
+                  {isPurchase ? (
+                    <Combobox
+                      options={[{ value: '', label: 'Select vendor (optional)...' }, ...vendorOptions]}
+                      value={selectedVendor}
+                      onChange={setSelectedVendor}
+                      clearable
+                      onSearchChange={setVendorSearch}
+                      placeholder="Select vendor"
+                      searchPlaceholder="Search vendors..."
+                      emptyText="No vendors found"
+                    />
+                  ) : (
+                    <Combobox
+                      options={[{ value: '', label: 'Walk-in customer' }, ...customerOptions]}
+                      value={selectedCustomer}
+                      onChange={setSelectedCustomer}
+                      clearable
+                      onSearchChange={setCustomerSearch}
+                      placeholder="Walk-in customer"
+                      searchPlaceholder="Search customers..."
+                      emptyText="No customers found"
+                    />
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="invoiceDate">Invoice date *</Label>
+                  <DatePicker id="invoiceDate" value={invoiceDate} onChange={setInvoiceDate} />
                 </div>
               </CardContent>
             </Card>
 
-            {/* Items Table */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Invoice Items</CardTitle>
+            {/* Line items */}
+            <Card>
+              <div className="flex items-center justify-between border-b px-4 py-3">
+                <h2 className="text-sm font-semibold">
+                  Items {itemCount > 0 && <span className="ms-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{itemCount}</span>}
+                </h2>
                 {errors.items && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
+                  <p className="flex items-center gap-1 text-xs text-red-600">
                     <AlertCircle className="h-3 w-3" />
                     {errors.items}
                   </p>
                 )}
-              </CardHeader>
-              <CardContent>
-                {!selectedLocation ? (
-                  <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-2 border-dashed">
-                    <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 dark:text-gray-400">Please select a location to start adding items</p>
+              </div>
+
+              {!selectedLocation ? (
+                <div className="m-4 rounded-lg border-2 border-dashed py-10 text-center">
+                  <Package className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" aria-hidden />
+                  <p className="text-sm text-muted-foreground">Select a location to start adding items</p>
+                </div>
+              ) : (
+                <div>
+                  <div className={`hidden border-b bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground ${lineGrid}`}>
+                    <span>Product</span>
+                    <span className="text-end">Qty</span>
+                    <span className="text-end">Unit price</span>
+                    <span className="text-end">Disc. %</span>
+                    <span className="text-end">Total</span>
+                    <span />
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[300px]">Product</TableHead>
-                          <TableHead className="w-[100px]">Quantity</TableHead>
-                          <TableHead className="w-[150px]">Unit Price</TableHead>
-                          <TableHead className="w-[100px]">Discount %</TableHead>
-                          <TableHead className="w-[120px]">Total</TableHead>
-                          <TableHead className="w-[80px] text-center">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {invoiceItems.map((item, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="min-w-[250px]">
-                              <div className="space-y-1">
-                                <Combobox
-                                  options={[
-                                    { value: '0', label: 'Select matching product...' },
-                                    ...productOptions,
-                                    // Ensure current product is always in options so label shows correctly
-                                    ...(item.product_id && !productOptions.some((p: any) => p.value === item.product_id?.toString())
-                                      ? [{ value: item.product_id.toString(), label: item.product_name || 'Selected product' }]
-                                      : [])
-                                  ]}
-                                  value={item.product_id?.toString() || ''}
-                                  onChange={(val) => handleItemChange(index, 'product_id', val)}
-                                  onSearchChange={setProductSearch}
-                                  placeholder="Select product"
-                                  className="h-9"
-                                />
-                                {(!item.product_id || item.product_id === 0) && (
-                                  <div className="text-[10px] text-orange-600 bg-orange-50 px-2 py-0.5 rounded border border-orange-100 italic">
-                                    From AI: {item.product_name} (Not matched)
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={item.quantity}
-                                onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                                className="h-9"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={item.unit_price}
-                                onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
-                                className="h-9"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                min="0"
-                                max="100"
-                                step="0.01"
-                                value={item.discount_percent}
-                                onChange={(e) => handleItemChange(index, 'discount_percent', e.target.value)}
-                                className="h-9"
-                              />
-                            </TableCell>
-                            <TableCell className="font-semibold text-primary">
-                              {formatCurrency(item.total || 0)}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2 justify-center">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleRemoveItem(index)}
-                                  className="p-1 h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
 
-                        {/* New Item Row (Auto-add) */}
-                        <TableRow className="bg-muted/30">
-                          <TableCell>
-                            <Combobox
-                              options={[
-                                { value: '', label: 'Search and add product...' },
-                                ...productOptions,
-                              ]}
-                              value={selectedProduct}
-                              onChange={(value) => {
-                                if (value) {
-                                  // Auto-add product when selected
-                                  const prod = products?.find((p: any) => p.id.toString() === value);
-                                  if (prod) {
-                                    const price = invoiceType === 'sales' ? prod.unit_price : prod.cost_price;
+                  <div className="divide-y">
+                    {invoiceItems.map((item, index) => (
+                      <div key={index} className={`space-y-2 px-4 py-2.5 md:space-y-0 ${lineGrid}`}>
+                        <div className="min-w-0">
+                          <Combobox
+                            options={[
+                              { value: '0', label: 'Select matching product...' },
+                              ...productOptions,
+                              ...(item.product_id && !productOptions.some((p: any) => p.value === item.product_id?.toString())
+                                ? [{ value: item.product_id.toString(), label: item.product_name || 'Selected product' }]
+                                : []),
+                            ]}
+                            value={item.product_id?.toString() || ''}
+                            onChange={(val) => handleItemChange(index, 'product_id', val)}
+                            onSearchChange={setProductSearch}
+                            placeholder="Select product"
+                            className="h-8"
+                          />
+                          {(!item.product_id || item.product_id === 0) && (
+                            <p className="mt-1 rounded border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] italic text-orange-700 dark:border-orange-900/50 dark:bg-orange-500/10 dark:text-orange-300">
+                              From AI: {item.product_name} (not matched)
+                            </p>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 md:contents">
+                          <label className="space-y-1 md:space-y-0">
+                            <span className="text-xs text-muted-foreground md:hidden">Qty</span>
+                            <Input type="number" min="0" step="0.01" aria-label="Quantity" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} className={numberInput} />
+                          </label>
+                          <label className="space-y-1 md:space-y-0">
+                            <span className="text-xs text-muted-foreground md:hidden">Unit price</span>
+                            <Input type="number" min="0" step="0.01" aria-label="Unit price" value={item.unit_price} onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)} className={numberInput} />
+                          </label>
+                          <label className="space-y-1 md:space-y-0">
+                            <span className="text-xs text-muted-foreground md:hidden">Disc. %</span>
+                            <Input type="number" min="0" max="100" step="0.01" aria-label="Discount percent" value={item.discount_percent} onChange={(e) => handleItemChange(index, 'discount_percent', e.target.value)} className={numberInput} />
+                          </label>
+                        </div>
+                        <div className="flex items-center justify-between md:contents">
+                          <span className="text-end text-sm font-semibold tabular-nums">{formatCurrency(item.total || 0)}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(index)}
+                            aria-label="Remove item"
+                            title="Remove item"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
 
-                                    // Default values for auto-add
-                                    const qty = 0;
-                                    const disc = 0;
-
-                                    const itemTotal = qty * (price || 0);
-                                    const finalTotal = itemTotal - (itemTotal * disc / 100);
-
-                                    const newItem: InvoiceItem = {
-                                      product_id: prod.id,
-                                      product_name: prod.name_ar || prod.name_en || prod.name || 'Unknown Product',
-                                      quantity: qty,
-                                      unit_price: price || 0,
-                                      discount_percent: disc,
-                                      total: finalTotal,
-                                    };
-
-                                    setInvoiceItems([...invoiceItems, newItem]);
-                                    setErrors({ ...errors, items: '' });
-                                    // Clear product search to be ready for next one
-                                    setProductSearch('');
-                                    setSelectedProduct('');
-                                  }
-                                }
-                              }}
-                              onSearchChange={setProductSearch}
-                              placeholder="Type to search product..."
-                              searchPlaceholder="Search products by SKU or Name..."
-                              emptyText="No products found"
-                              className="border-none bg-transparent shadow-none"
-                            />
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">-</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">-</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">-</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">-</TableCell>
-                          <TableCell className="text-center">
-                            <Package className="h-4 w-4 text-muted-foreground mx-auto" />
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
+                    <div className="flex items-center gap-2 bg-muted/20 px-4 py-2.5">
+                      <Plus className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <Combobox
+                          options={[{ value: '', label: 'Search and add product...' }, ...productOptions]}
+                          value={selectedProduct}
+                          onChange={addProduct}
+                          onSearchChange={setProductSearch}
+                          placeholder="Add a product — type to search by name or SKU"
+                          searchPlaceholder="Search products by SKU or name..."
+                          emptyText="No products found"
+                          className="h-8 border-dashed"
+                        />
+                      </div>
+                    </div>
                   </div>
-                )}
-              </CardContent>
+                </div>
+              )}
             </Card>
 
             {/* Notes */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle>Additional Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <textarea
-                    id="notes"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    placeholder="Add any additional notes..."
-                  />
-                </div>
+            <Card>
+              <CardContent className="space-y-1.5 p-4">
+                <Label htmlFor="notes">Notes</Label>
+                <textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  placeholder="Optional notes shown on the invoice"
+                />
               </CardContent>
             </Card>
           </div>
 
-          {/* Summary Sidebar */}
-          <div className="space-y-6">
-            <Card className="border-0 shadow-lg sticky top-6">
-              <CardHeader>
-                <CardTitle>Payment & Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="paymentMethod">Payment Method</Label>
+          {/* Summary */}
+          <div>
+            <Card className="lg:sticky lg:top-4">
+              <div className="border-b px-4 py-3">
+                <h2 className="text-sm font-semibold">Payment & summary</h2>
+              </div>
+              <CardContent className="space-y-4 p-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="paymentMethod">Payment method</Label>
                   <select
                     id="paymentMethod"
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <option value="cash">Cash</option>
                     <option value="card">Card</option>
@@ -726,20 +629,28 @@ export default function InvoiceFormNew() {
                 </div>
 
                 {paymentMethod !== 'cash' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="referenceNumber">Reference Number</Label>
-                    <Input
-                      id="referenceNumber"
-                      value={referenceNumber}
-                      onChange={(e) => setReferenceNumber(e.target.value)}
-                      className="h-11"
-                      placeholder="Transaction reference"
-                    />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="referenceNumber">Reference number</Label>
+                    <Input id="referenceNumber" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Transaction reference" />
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="paidAmount">Paid Amount</Label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="paidAmount">Amount paid</Label>
+                    {total > 0 && (
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-primary hover:underline"
+                        onClick={() => {
+                          setPaidAmount(total.toFixed(2));
+                          setErrors({ ...errors, paidAmount: '' });
+                        }}
+                      >
+                        Paid in full
+                      </button>
+                    )}
+                  </div>
                   <Input
                     id="paidAmount"
                     type="number"
@@ -747,67 +658,59 @@ export default function InvoiceFormNew() {
                     min="0"
                     max={total}
                     value={paidAmount}
-                    onChange={(e) => { setPaidAmount(e.target.value); setErrors({ ...errors, paidAmount: '' }) }}
-                    className={`h-11 ${errors.paidAmount ? 'border-red-500' : ''}`}
+                    onChange={(e) => {
+                      setPaidAmount(e.target.value);
+                      setErrors({ ...errors, paidAmount: '' });
+                    }}
+                    className={`text-end tabular-nums ${errors.paidAmount ? 'border-red-500' : ''}`}
                   />
                   {errors.paidAmount && (
-                    <p className="text-sm text-red-600 flex items-center gap-1">
+                    <p className="flex items-center gap-1 text-xs text-red-600">
                       <AlertCircle className="h-3 w-3" />
                       {errors.paidAmount}
                     </p>
                   )}
                 </div>
 
-                <div className="border-t pt-4 space-y-2">
-                  <div className="flex justify-between text-lg">
-                    <span className="font-medium">Subtotal:</span>
-                    <span className="font-bold">{formatCurrency(total)}</span>
+                <dl className="space-y-2 rounded-lg bg-muted/40 p-3 text-sm">
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Items</dt>
+                    <dd className="tabular-nums">{itemCount}</dd>
                   </div>
-                  <div className="flex justify-between text-lg">
-                    <span className="font-medium">Paid:</span>
-                    <span className="font-bold text-green-600">{formatCurrency(Number(paidAmount) || 0)}</span>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Total</dt>
+                    <dd className="font-semibold tabular-nums">{formatCurrency(total)}</dd>
                   </div>
-                  <div className="flex justify-between text-xl border-t pt-2">
-                    <span className="font-bold">Remaining:</span>
-                    <span className={`font-bold ${remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {formatCurrency(remaining)}
-                    </span>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Paid</dt>
+                    <dd className="tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(Number(paidAmount) || 0)}</dd>
                   </div>
-                </div>
+                  <div className="flex items-center justify-between border-t pt-2">
+                    <dt className="font-medium">{remaining > 0.009 ? 'Balance due' : 'Fully paid'}</dt>
+                    <dd className={`text-lg font-semibold tabular-nums ${remaining > 0.009 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {formatCurrency(Math.max(remaining, 0))}
+                    </dd>
+                  </div>
+                </dl>
 
-                <div className="flex flex-col gap-3 pt-4">
-                  {isEdit ? (
-                    <Button
-                      type="submit"
-                      onClick={(e) => handleSubmit(e, 'finalized')}
-                      disabled={createInvoiceMutation.isPending || invoiceItems.length === 0}
-                      size="lg"
-                      className="w-full bg-blue-600 hover:bg-blue-700 font-bold"
-                    >
-                      <Save className="mr-2 h-4 w-4" />
-                      {createInvoiceMutation.isPending ? 'Saving...' : 'Save & Finalize'}
+                <div className="space-y-2">
+                  {isEdit && (
+                    <Button type="submit" onClick={(e) => handleSubmit(e, 'finalized')} disabled={createInvoiceMutation.isPending || invoiceItems.length === 0} className="w-full">
+                      <Save className="me-1.5 h-4 w-4" />
+                      {createInvoiceMutation.isPending ? 'Saving…' : 'Save & Finalize'}
                     </Button>
-                  ) : null}
-
+                  )}
                   <Button
                     type="button"
-                    variant={isEdit ? "outline" : "default"}
+                    variant={isEdit ? 'outline' : 'default'}
                     onClick={(e) => handleSubmit(e, 'draft')}
                     disabled={createInvoiceMutation.isPending || invoiceItems.length === 0}
-                    size="lg"
-                    className={`w-full ${!isEdit ? 'bg-blue-600 hover:bg-blue-700 font-bold' : 'border-blue-600 text-blue-600 hover:bg-blue-50'}`}
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    {createInvoiceMutation.isPending ? 'Saving...' : 'Save as Draft'}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => navigate(`/invoices/${invoiceType}`)}
-                    size="lg"
                     className="w-full"
                   >
+                    <Save className="me-1.5 h-4 w-4" />
+                    {createInvoiceMutation.isPending ? 'Saving…' : 'Save as Draft'}
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => navigate(`/invoices/${invoiceType}`)} className="w-full text-muted-foreground">
                     Cancel
                   </Button>
                 </div>
@@ -816,6 +719,6 @@ export default function InvoiceFormNew() {
           </div>
         </div>
       </form>
-    </div>
+    </Page>
   );
 }

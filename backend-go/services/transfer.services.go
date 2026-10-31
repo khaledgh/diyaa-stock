@@ -106,7 +106,7 @@ func (s *TransferService) GetPaginated(limit, page int, orderBy, sortBy, status 
 	query.Count(&total)
 
 	offset := (page - 1) * limit
-	if err := query.Order(sortBy + " " + orderBy).Limit(limit).Offset(offset).Find(&transfers).Error; err != nil {
+	if err := query.Order(SafeColumnOrder(query, sortBy, orderBy)).Limit(limit).Offset(offset).Find(&transfers).Error; err != nil {
 		return PaginationResponse{}, err
 	}
 

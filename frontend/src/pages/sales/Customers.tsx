@@ -1,25 +1,28 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Users, Search, FileText, Phone, Mail, MapPin, DollarSign } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Pagination } from '@/components/ui/pagination';
 import { customerApi } from '@/lib/api';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import { ColumnDef, DataTable, SortState } from '@/components/data-table/DataTable';
+import { Page, PageHeader, RowAction, RowActions } from '@/components/layout/Page';
 
 export default function Customers() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
-  const [perPage] = useState(20);
+  const [perPage, setPerPage] = useState(25);
+  const [sort, setSort] = useState<SortState | null>({ id: 'name', dir: 'asc' });
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -31,13 +34,16 @@ export default function Customers() {
   });
 
   const { data: customersResponse, isLoading } = useQuery({
-    queryKey: ['customers', searchTerm, page],
+    queryKey: ['customers', searchTerm, page, perPage, sort],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       try {
         const response = await customerApi.getAll({
           search: searchTerm,
           page,
-          per_page: perPage
+          per_page: perPage,
+          sortBy: sort?.id,
+          orderBy: sort?.dir,
         });
         
         const apiData = response.data;
@@ -115,147 +121,100 @@ export default function Customers() {
     }
   };
 
+  const columns: ColumnDef<any>[] = [
+    {
+      id: 'name',
+      header: t('customers.name'),
+      alwaysVisible: true,
+      value: (c) => c.name,
+      cell: (c) => (
+        <div className="flex items-center gap-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+            {c.name?.charAt(0)?.toUpperCase() || '?'}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate font-medium" dir="auto">{c.name}</p>
+            {c.address && <p className="truncate text-xs text-muted-foreground" dir="auto">{c.address}</p>}
+          </div>
+        </div>
+      ),
+    },
+    { id: 'phone', header: t('customers.phone'), value: (c) => c.phone, cell: (c) => <span className="tabular-nums text-muted-foreground" dir="ltr">{c.phone || '—'}</span> },
+    { id: 'email', header: t('customers.email'), defaultHidden: true, value: (c) => c.email, cell: (c) => <span className="text-muted-foreground">{c.email || '—'}</span> },
+    {
+      id: 'balance',
+      header: 'Balance',
+      align: 'end',
+      value: (c) => Number(c.balance || 0),
+      cell: (c) => {
+        const b = Number(c.balance || 0);
+        return (
+          <span className={`tabular-nums font-medium ${b > 0.009 ? 'text-red-600 dark:text-red-400' : b < -0.009 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+            {formatCurrency(b)}
+          </span>
+        );
+      },
+    },
+    { id: 'created_at', header: 'Added', defaultHidden: true, value: (c) => c.created_at, cell: (c) => <span className="text-muted-foreground">{formatDate(c.created_at)}</span> },
+    {
+      id: 'actions',
+      header: '',
+      alwaysVisible: true,
+      sortable: false,
+      align: 'end',
+      cell: (c) => (
+        <RowActions>
+          <RowAction label="Statement" icon={FileText} onClick={() => navigate(`/customers/${c.id}/statement`)} />
+          <RowAction label="Edit" icon={Edit} onClick={() => handleOpenDialog(c)} />
+          <RowAction
+            label="Delete"
+            icon={Trash2}
+            tone="danger"
+            onClick={() => {
+              if (confirm('Are you sure you want to delete this customer?')) deleteMutation.mutate(c.id);
+            }}
+          />
+        </RowActions>
+      ),
+    },
+  ];
+
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-            <Users className="h-6 w-6 text-primary" />
-            {t('customers.title')}
-          </h1>
-          <p className="text-muted-foreground mt-1">Manage your customer database</p>
-        </div>
-        <Button onClick={() => handleOpenDialog()} className="gap-2">
-          <Plus className="h-4 w-4" />
-          {t('customers.addCustomer')}
-        </Button>
-      </div>
+    <Page>
+      <PageHeader
+        icon={Users}
+        title={t('customers.title')}
+        description="Your customers, their contact details and balances"
+        actions={
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="me-1.5 h-4 w-4" />
+            {t('customers.addCustomer')}
+          </Button>
+        }
+      />
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search customers..."
-          value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            setPage(1);
-          }}
-          className="pl-10"
-        />
-      </div>
-
-      {/* Customer Cards Grid */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      ) : customers.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium">No customers found</h3>
-            <p className="text-muted-foreground mt-1">
-              {searchTerm ? 'Try a different search term' : 'Add your first customer to get started'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {customers.map((customer: any) => (
-            <Card key={customer.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-primary font-semibold">
-                        {customer.name?.charAt(0)?.toUpperCase() || '?'}
-                      </span>
-                    </div>
-                    <div>
-                      <Link to={`/customers/${customer.id}`} className="hover:text-primary">
-                        <h3 className="font-semibold text-foreground hover:underline">{customer.name}</h3>
-                      </Link>
-                      <p className="text-xs text-muted-foreground">ID: {customer.id}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm">
-                  {customer.phone && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Phone className="h-3.5 w-3.5" />
-                      <span>{customer.phone}</span>
-                    </div>
-                  )}
-                  {customer.email && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Mail className="h-3.5 w-3.5" />
-                      <span className="truncate">{customer.email}</span>
-                    </div>
-                  )}
-                  {customer.address && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span className="truncate">{customer.address}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Balance */}
-                {(customer.balance !== undefined && customer.balance !== 0) && (
-                  <div className="mt-3 flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <DollarSign className="h-3 w-3" />
-                      Outstanding Balance
-                    </span>
-                    <span className={`text-sm font-bold ${customer.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {Number(customer.balance).toFixed(2)}
-                    </span>
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 mt-4 pt-4 border-t">
-                  <Link to={`/customers/${customer.id}/statement`} className="flex-1">
-                    <Button variant="outline" size="sm" className="w-full gap-2">
-                      <FileText className="h-4 w-4" />
-                      Statement
-                    </Button>
-                  </Link>
-                  <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(customer)} title="Edit">
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => {
-                      if (confirm('Are you sure you want to delete this customer?')) {
-                        deleteMutation.mutate(customer.id);
-                      }
-                    }} 
-                    title="Delete"
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-      
-      {/* Pagination */}
-      {pagination && pagination.total_pages > 1 && (
-        <Pagination
-          currentPage={pagination.current_page}
-          totalPages={pagination.total_pages}
-          onPageChange={setPage}
-          totalItems={pagination.total}
-          itemsPerPage={pagination.per_page}
-        />
-      )}
+      <DataTable
+        data={customers}
+        columns={columns}
+        rowKey={(c) => c.id}
+        loading={isLoading}
+        search={searchTerm}
+        onSearchChange={(v) => {
+          setSearchTerm(v);
+          setPage(1);
+        }}
+        searchPlaceholder="Search name, phone, email…"
+        sort={sort}
+        onSortChange={(v) => {
+          setSort(v);
+          setPage(1);
+        }}
+        pagination={{ page, pageSize: perPage, total: pagination?.total || 0, onPageChange: setPage, onPageSizeChange: setPerPage }}
+        onRowClick={(c) => navigate(`/customers/${c.id}`)}
+        storageKey="customers"
+        exportFileName="customers"
+        emptyTitle="No customers found"
+      />
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -331,6 +290,6 @@ export default function Customers() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </Page>
   );
 }

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Tag } from 'lucide-react';
+import { Plus, Edit, Trash2, Tags } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ColumnDef, DataTable } from '@/components/data-table/DataTable';
+import { Page, PageHeader, RowAction, RowActions } from '@/components/layout/Page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -13,14 +14,6 @@ import {
     DialogTitle,
     DialogFooter,
 } from '@/components/ui/dialog';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { expenseCategoryApi } from '@/lib/api';
 
 interface ExpenseCategory {
@@ -131,80 +124,59 @@ export default function ExpenseCategories() {
         }
     };
 
-    return (
-        <div className="p-4 md:p-6 space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-                        <Tag className="h-8 w-8 text-primary" />
-                        Expense Categories
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        Manage expense categories
-                    </p>
-                </div>
-                <Button onClick={() => handleOpenDialog()} className="w-full sm:w-auto">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Category
-                </Button>
-            </div>
+    const columns: ColumnDef<any>[] = [
+      {
+        id: 'name_en',
+        header: 'Name',
+        alwaysVisible: true,
+        value: (r) => r.name_en,
+        cell: (r) => (
+          <div className="min-w-0">
+            <p className="truncate font-medium">{r.name_en}</p>
+            {r.name_ar && <p className="truncate text-xs text-muted-foreground" dir="rtl">{r.name_ar}</p>}
+          </div>
+        ),
+      },
+      { id: 'description', header: 'Description', value: (r) => r.description, cell: (r) => <span className="line-clamp-1 text-muted-foreground">{r.description || '—'}</span> },
+      {
+        id: 'actions',
+        header: '',
+        alwaysVisible: true,
+        sortable: false,
+        align: 'end',
+        cell: (r) => (
+          <RowActions>
+            <RowAction label="Edit" icon={Edit} onClick={() => handleOpenDialog(r)} />
+            <RowAction label="Delete" icon={Trash2} tone="danger" onClick={() => handleDelete(r.id)} />
+          </RowActions>
+        ),
+      },
+    ];
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>All Categories</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? (
-                        <div className="text-center py-8">Loading...</div>
-                    ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Name (English)</TableHead>
-                                    <TableHead className="hidden md:table-cell">Name (Arabic)</TableHead>
-                                    <TableHead className="hidden lg:table-cell">Description</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {categories.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                                            No categories found
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    categories.map((category: ExpenseCategory) => (
-                                        <TableRow key={category.id}>
-                                            <TableCell className="font-medium">{category.name_en}</TableCell>
-                                            <TableCell className="hidden md:table-cell">{category.name_ar || '-'}</TableCell>
-                                            <TableCell className="hidden lg:table-cell">{category.description || '-'}</TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleOpenDialog(category)}
-                                                    >
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleDelete(category.id)}
-                                                    >
-                                                        <Trash2 className="h-4 w-4 text-red-500" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    )}
-                </CardContent>
-            </Card>
+    return (
+      <Page className="max-w-5xl">
+        <PageHeader
+          icon={Tags}
+          title="Expense Categories"
+          description="Organise company spending"
+          actions={
+            <Button onClick={() => handleOpenDialog()}>
+              <Plus className="me-1.5 h-4 w-4" />
+              Add Category
+            </Button>
+          }
+        />
+        <DataTable
+          data={categories}
+          columns={columns}
+          rowKey={(r) => r.id}
+          loading={isLoading}
+          defaultSort={{ id: 'name_en', dir: 'asc' }}
+          searchPlaceholder="Search name or description…"
+          onRowClick={(r) => handleOpenDialog(r)}
+          exportFileName="expense-categories"
+          emptyTitle="Nothing here yet"
+        />
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="sm:max-w-[500px]">
@@ -271,6 +243,6 @@ export default function ExpenseCategories() {
                     </form>
                 </DialogContent>
             </Dialog>
-        </div>
+        </Page>
     );
 }

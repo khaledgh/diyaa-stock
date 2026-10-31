@@ -1,43 +1,60 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Filter, Edit2, Trash2, Calendar, FileText, BadgeDollarSign } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { Plus, Edit2, Trash2, Receipt, Tags } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { expenseApi } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
+import { expenseApi, expenseCategoryApi } from '@/lib/api';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import { Expense } from '@/types/expenses';
+import { ColumnDef, DataTable, DateRangeFilter, FilterSelect, SortState } from '@/components/data-table/DataTable';
+import { Page, PageHeader, RowAction, RowActions, StatusBadge } from '@/components/layout/Page';
 import ExpenseForm from './ExpenseForm';
 
 export default function Expenses() {
+    const navigate = useNavigate();
     const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(25);
     const [search, setSearch] = useState('');
+    const [sort, setSort] = useState<SortState | null>({ id: 'date', dir: 'desc' });
+    const [categoryId, setCategoryId] = useState('');
+    const [dateRange, setDateRange] = useState({ from: '', to: '' });
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
     const queryClient = useQueryClient();
 
-    // Fetch expenses
     const { data: expensesData, isLoading } = useQuery({
-        queryKey: ['expenses', page, search],
+        queryKey: ['expenses', page, pageSize, search, sort, categoryId, dateRange],
+        placeholderData: keepPreviousData,
         queryFn: async () => {
             const response = await expenseApi.getAll({
                 page,
-                limit: 10,
+                limit: pageSize,
                 search: search || undefined,
+                sort_by: sort?.id,
+                sort_dir: sort?.dir,
+                category_id: categoryId || undefined,
+                start_date: dateRange.from || undefined,
+                end_date: dateRange.to || undefined,
             });
             return response.data;
         },
     });
 
-    const expenses = expensesData?.data || [];
+    const { data: categories = [] } = useQuery({
+        queryKey: ['expense-categories', 'filter'],
+        queryFn: async () => {
+            const response = await expenseCategoryApi.getAll();
+            const d = response.data.data || response.data;
+            return Array.isArray(d) ? d : d?.data || [];
+        },
+    });
+
+    const expenses: Expense[] = expensesData?.data || [];
     const meta = expensesData?.meta;
 
-    // Delete mutation
     const deleteMutation = useMutation({
         mutationFn: (id: number) => expenseApi.delete(id),
         onSuccess: () => {
@@ -49,164 +66,119 @@ export default function Expenses() {
         },
     });
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = (id: number) => {
         if (confirm('Are you sure you want to delete this expense?')) {
             deleteMutation.mutate(id);
         }
     };
 
+    const openEdit = (expense: Expense) => {
+        setEditingExpense(expense);
+        setShowAddModal(true);
+    };
+
+    const withReset = <T,>(fn: (v: T) => void) => (v: T) => {
+        fn(v);
+        setPage(1);
+    };
+
+    const columns: ColumnDef<Expense>[] = [
+        { id: 'expense_number', header: 'Number', alwaysVisible: true, value: (e) => e.expense_number, cell: (e) => <span className="font-medium">{e.expense_number}</span> },
+        { id: 'date', header: 'Date', value: (e) => e.expense_date, cell: (e) => <span className="whitespace-nowrap text-muted-foreground">{formatDate(e.expense_date)}</span> },
+        {
+            id: 'category',
+            header: 'Category',
+            value: (e) => e.expense_category?.name_en,
+            cell: (e) => <StatusBadge tone="violet" dot={false}>{e.expense_category?.name_en || 'Uncategorized'}</StatusBadge>,
+        },
+        {
+            id: 'vendor',
+            header: 'Vendor',
+            sortable: false,
+            value: (e) => e.vendor?.company_name || e.vendor?.name,
+            cell: (e) => <span className="text-muted-foreground">{e.vendor?.company_name || e.vendor?.name || '—'}</span>,
+        },
+        {
+            id: 'payment_method',
+            header: 'Paid by',
+            value: (e) => e.payment_method,
+            cell: (e) => <span className="capitalize text-muted-foreground">{(e.payment_method || '—').replace('_', ' ')}</span>,
+        },
+        { id: 'amount', header: 'Amount', align: 'end', value: (e) => Number(e.amount), cell: (e) => <span className="tabular-nums font-semibold">{formatCurrency(e.amount)}</span> },
+        {
+            id: 'actions',
+            header: '',
+            alwaysVisible: true,
+            sortable: false,
+            align: 'end',
+            cell: (e) => (
+                <RowActions>
+                    <RowAction label="Edit" icon={Edit2} onClick={() => openEdit(e)} />
+                    <RowAction label="Delete" icon={Trash2} tone="danger" onClick={() => handleDelete(e.id)} />
+                </RowActions>
+            ),
+        },
+    ];
+
+    const pageTotal = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
     return (
-        <div className="p-6 max-w-[1600px] mx-auto space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold flex items-center gap-3">
-                        <BadgeDollarSign className="h-8 w-8 text-primary" />
-                        Expenses
-                    </h1>
-                    <p className="text-muted-foreground mt-1">Manage company expenses and track spending</p>
-                </div>
-                <div className="flex gap-2 w-full md:w-auto">
-                    <Button variant="outline" onClick={() => window.location.href = '/expenses/categories'}>
-                        Manage Categories
-                    </Button>
-                    <Button onClick={() => setShowAddModal(true)} className="flex-1 md:flex-none">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Expense
-                    </Button>
-                </div>
-            </div>
-
-            <Card>
-                <CardHeader>
-                    <div className="flex flex-col md:flex-row items-center gap-4">
-                        <div className="relative flex-1 w-full">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Search expenses..."
-                                className="pl-8"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
-                        </div>
-                        <Button variant="outline">
-                            <Filter className="mr-2 h-4 w-4" />
-                            Filter
+        <Page>
+            <PageHeader
+                icon={Receipt}
+                title="Expenses"
+                description="Company spending, by category and vendor"
+                actions={
+                    <>
+                        <Button variant="outline" onClick={() => navigate('/expenses/categories')}>
+                            <Tags className="me-1.5 h-4 w-4" />
+                            Categories
                         </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="rounded-md border">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Number</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Category</TableHead>
-                                    <TableHead>Vendor</TableHead>
-                                    <TableHead>Amount</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoading ? (
-                                    <TableRow>
-                                        <TableCell colSpan={7} className="text-center py-8">
-                                            Loading...
-                                        </TableCell>
-                                    </TableRow>
-                                ) : expenses.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={7} className="text-center py-8">
-                                            No expenses found
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    expenses.map((expense: Expense) => (
-                                        <TableRow key={expense.id}>
-                                            <TableCell className="font-medium">
-                                                <div className="flex items-center gap-2">
-                                                    <FileText className="h-4 w-4 text-muted-foreground" />
-                                                    {expense.expense_number}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-2 text-muted-foreground">
-                                                    <Calendar className="h-4 w-4" />
-                                                    {new Date(expense.expense_date).toLocaleDateString()}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="secondary">
-                                                    {expense.expense_category?.name_en || 'Uncategorized'}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                {expense.vendor?.company_name || expense.vendor?.name || '-'}
-                                            </TableCell>
-                                            <TableCell className="font-bold">
-                                                {formatCurrency(expense.amount)}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline" className="capitalize">
-                                                    {expense.payment_method}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => {
-                                                            setEditingExpense(expense);
-                                                            setShowAddModal(true);
-                                                        }}
-                                                    >
-                                                        <Edit2 className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                                                        onClick={() => handleDelete(expense.id)}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
+                        <Button onClick={() => setShowAddModal(true)}>
+                            <Plus className="me-1.5 h-4 w-4" />
+                            Add Expense
+                        </Button>
+                    </>
+                }
+            />
 
-                    {/* Pagination */}
-                    {meta && meta.last_page > 1 && (
-                        <div className="flex items-center justify-end space-x-2 py-4">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                            >
-                                Previous
-                            </Button>
-                            <div className="text-sm text-muted-foreground">
-                                Page {page} of {meta.last_page}
-                            </div>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
-                                disabled={page === meta.last_page}
-                            >
-                                Next
-                            </Button>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+            <DataTable
+                data={expenses}
+                columns={columns}
+                rowKey={(e) => e.id}
+                loading={isLoading}
+                search={search}
+                onSearchChange={withReset(setSearch)}
+                searchPlaceholder="Search number, notes, category…"
+                sort={sort}
+                onSortChange={withReset(setSort)}
+                pagination={{ page, pageSize, total: meta?.total_count || 0, onPageChange: setPage, onPageSizeChange: setPageSize }}
+                onRowClick={openEdit}
+                storageKey="expenses"
+                exportFileName="expenses"
+                emptyTitle="No expenses found"
+                activeFilterCount={(categoryId ? 1 : 0) + (dateRange.from || dateRange.to ? 1 : 0)}
+                onResetFilters={() => {
+                    setCategoryId('');
+                    setDateRange({ from: '', to: '' });
+                    setPage(1);
+                }}
+                filters={
+                    <>
+                        <FilterSelect
+                            label="Category"
+                            value={categoryId}
+                            onChange={withReset(setCategoryId)}
+                            options={categories.map((c: any) => ({ value: String(c.id), label: c.name_en }))}
+                        />
+                        <DateRangeFilter from={dateRange.from} to={dateRange.to} onChange={withReset(setDateRange)} />
+                    </>
+                }
+                footer={() => ({
+                    expense_number: <span className="text-xs font-medium text-muted-foreground">Page total</span>,
+                    amount: formatCurrency(pageTotal),
+                })}
+            />
 
             <Dialog open={showAddModal} onOpenChange={(open) => {
                 setShowAddModal(open);
@@ -230,6 +202,6 @@ export default function Expenses() {
                     />
                 </DialogContent>
             </Dialog>
-        </div>
+        </Page>
     );
 }

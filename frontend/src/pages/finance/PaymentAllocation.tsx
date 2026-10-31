@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Combobox } from '@/components/ui/combobox';
 import { paymentAllocationApi, customerApi, vendorApi, api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { DatePicker } from '@/components/ui/date-picker';
 
 export default function PaymentAllocation() {
   const { t } = useTranslation();
@@ -279,11 +280,11 @@ export default function PaymentAllocation() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 sm:px-6 sm:py-5">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-            <DollarSign className="h-8 w-8 text-green-600" />
+          <h1 className="text-xl font-semibold tracking-tight flex items-center gap-3">
+            <DollarSign className="h-5 w-5 text-green-600" />
             {t('paymentAllocation.title')}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -292,7 +293,7 @@ export default function PaymentAllocation() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Payment Form */}
         <Card>
           <CardHeader>
@@ -380,12 +381,7 @@ export default function PaymentAllocation() {
 
               <div>
                 <Label>{t('paymentAllocation.paymentDate')} *</Label>
-                <Input
-                  type="date"
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  required
-                />
+                <DatePicker value={paymentDate} onChange={setPaymentDate} />
               </div>
 
               <div>

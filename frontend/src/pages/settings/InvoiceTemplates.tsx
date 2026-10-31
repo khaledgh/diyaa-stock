@@ -261,11 +261,11 @@ export default function InvoiceTemplates() {
   }, {} as Record<string, typeof AVAILABLE_FIELDS>);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 sm:px-6 sm:py-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-3">
+          <h1 className="text-xl font-semibold tracking-tight flex items-center gap-3">
             <FileText className="h-6 w-6 text-blue-600" />
             Invoice Templates
           </h1>
@@ -573,7 +573,7 @@ export default function InvoiceTemplates() {
                   </div>
                 )}
                 {previewTemplate.fields.includes('company_name') && (
-                  <h1 className="text-xl font-bold" style={{ color: previewTemplate.layout.primary_color }}>
+                  <h1 className="text-xl font-semibold tracking-tight text-xl" style={{ color: previewTemplate.layout.primary_color }}>
                     Company Name
                   </h1>
                 )}

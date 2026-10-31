@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { DollarSign, Calendar, Download, TrendingUp, AlertCircle, User, Briefcase, Eye, Search, X } from 'lucide-react';
+import { DollarSign, Download, TrendingUp, AlertCircle, User, Briefcase, Eye, Search, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DatePicker } from '@/components/ui/date-picker';
 
 export default function PaymentsReport() {
     const [fromDate, setFromDate] = useState(() => {
@@ -111,10 +112,10 @@ export default function PaymentsReport() {
     }
 
     return (
-        <div className="p-6 space-y-6">
+        <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 sm:px-6 sm:py-5">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-bold">Payments Report</h1>
+                    <h1 className="text-xl font-semibold tracking-tight">Payments Report</h1>
                     <p className="text-sm text-muted-foreground mt-1">
                         Detailed summary of Received, Payed and Expense transactions
                     </p>
@@ -134,25 +135,13 @@ export default function PaymentsReport() {
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-muted-foreground uppercase">From Date</label>
                             <div className="relative">
-                                <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    type="date"
-                                    value={fromDate}
-                                    onChange={(e) => setFromDate(e.target.value)}
-                                    className="pl-9"
-                                />
+                                <DatePicker value={fromDate} onChange={setFromDate} max={toDate || undefined} />
                             </div>
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-muted-foreground uppercase">To Date</label>
                             <div className="relative">
-                                <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    type="date"
-                                    value={toDate}
-                                    onChange={(e) => setToDate(e.target.value)}
-                                    className="pl-9"
-                                />
+                                <DatePicker value={toDate} onChange={setToDate} min={fromDate || undefined} />
                             </div>
                         </div>
                         <div className="space-y-2">

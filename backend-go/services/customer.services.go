@@ -47,7 +47,7 @@ func (s *CustomerService) GetALL(limit, page int, orderBy, sortBy, searchTerm st
 	}
 
 	offset := (page - 1) * limit
-	if err := query.Order(sortBy + " " + orderBy).Limit(limit).Offset(offset).Find(&customers).Error; err != nil {
+	if err := query.Order(SafeColumnOrder(query, sortBy, orderBy)).Limit(limit).Offset(offset).Find(&customers).Error; err != nil {
 		return PaginationResponse{}, err
 	}
 

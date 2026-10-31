@@ -384,8 +384,8 @@ export default function PurchaseInvoiceDetails() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              <Package className="h-8 w-8 text-blue-600" /> Purchase Invoice
+            <h1 className="text-xl font-semibold tracking-tight flex items-center gap-3">
+              <Package className="h-5 w-5 text-blue-600" /> Purchase Invoice
             </h1>
             <p className="text-muted-foreground mt-1">{invoice.invoice_number}</p>
           </div>
@@ -432,7 +432,7 @@ export default function PurchaseInvoiceDetails() {
           <CardTitle>Invoice Information</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-muted-foreground">

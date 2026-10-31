@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Combobox } from '@/components/ui/combobox'; // Assuming this component exists based on previous file
 import { expenseApi, expenseCategoryApi, vendorApi } from '@/lib/api';
 import { Expense } from '@/types/expenses';
+import { DatePicker } from '@/components/ui/date-picker';
+import { toLocalISODate } from '@/lib/utils';
 
 interface ExpenseFormProps {
     expense: Expense | null;
@@ -24,7 +26,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
             vendor_id: '',
             amount: '',
             tax_amount: '0',
-            expense_date: new Date().toISOString().split('T')[0],
+            expense_date: toLocalISODate(),
             payment_method: 'cash',
             reference_number: '',
             notes: '',
@@ -60,7 +62,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
                 vendor_id: expense.vendor_id?.toString() || '',
                 amount: expense.amount?.toString() || '',
                 tax_amount: expense.tax_amount?.toString() || '0',
-                expense_date: expense.expense_date ? new Date(expense.expense_date).toISOString().split('T')[0] : '',
+                expense_date: expense.expense_date ? String(expense.expense_date).slice(0, 10) : '',
                 payment_method: expense.payment_method || 'cash',
                 reference_number: expense.reference_number || '',
                 notes: expense.notes || '',
@@ -174,10 +176,11 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
 
                     <div className="space-y-2">
                         <Label htmlFor="expense_date">Date</Label>
-                        <Input
-                            id="expense_date"
-                            type="date"
-                            {...register('expense_date', { required: 'Date is required' })}
+                        <Controller
+                            name="expense_date"
+                            control={control}
+                            rules={{ required: 'Date is required' }}
+                            render={({ field }) => <DatePicker id="expense_date" value={field.value} onChange={field.onChange} />}
                         />
                     </div>
 

@@ -161,10 +161,10 @@ export default function ReportsHub() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 sm:px-6 sm:py-5">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-3">
           <BarChart3 className="h-6 w-6 text-primary" />
           Reports
         </h1>
@@ -248,7 +248,7 @@ export default function ReportsHub() {
       </div>
 
       {/* Report Categories */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {reportCategories.map((category) => (
           <Card key={category.title} className="overflow-hidden">
             <CardHeader className={`${category.bgColor} py-4`}>

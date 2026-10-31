@@ -10,7 +10,7 @@ import (
 )
 
 type ProductService interface {
-	GetALL(limit, page int, orderBy, sortBy, searchTerm string) (services.PaginationResponse, error)
+	GetALL(limit, page int, orderBy, sortBy, searchTerm string, filters ...map[string]string) (services.PaginationResponse, error)
 	GetID(id string) (models.Product, error)
 	// GetEmail(email string) (models.User, error)
 	Create(product models.Product) (models.Product, error)
@@ -36,6 +36,9 @@ func (ph *ProductHandler) GetAllHandler(c echo.Context) error {
 	}
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	if limit <= 0 {
+		limit, _ = strconv.Atoi(c.QueryParam("per_page"))
+	}
+	if limit <= 0 {
 		limit = 1000 // Increased default limit for dropdowns
 	}
 	orderBy := c.QueryParam("orderBy")
@@ -47,7 +50,14 @@ func (ph *ProductHandler) GetAllHandler(c echo.Context) error {
 		sortBy = "name_en"
 	}
 	searchTerm := c.QueryParam("searchTerm")
-	response, err := ph.ProductServices.GetALL(limit, page, orderBy, sortBy, searchTerm)
+	if searchTerm == "" {
+		searchTerm = c.QueryParam("search")
+	}
+	filters := map[string]string{
+		"status":      c.QueryParam("status"),
+		"category_id": c.QueryParam("category_id"),
+	}
+	response, err := ph.ProductServices.GetALL(limit, page, orderBy, sortBy, searchTerm, filters)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}

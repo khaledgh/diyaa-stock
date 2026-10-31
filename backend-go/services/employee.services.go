@@ -33,7 +33,7 @@ func (s *EmployeeService) GetALL(limit, page int, orderBy, sortBy, searchTerm st
 	query.Count(&total)
 
 	offset := (page - 1) * limit
-	if err := query.Order(sortBy + " " + orderBy).Limit(limit).Offset(offset).Find(&employees).Error; err != nil {
+	if err := query.Order(SafeColumnOrder(query, sortBy, orderBy)).Limit(limit).Offset(offset).Find(&employees).Error; err != nil {
 		return PaginationResponse{}, err
 	}
 

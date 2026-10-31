@@ -1,21 +1,18 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FileText, Eye, Plus, Search, ChevronLeft, ChevronRight, ShoppingCart, Package, Trash2, DollarSign, Edit2 } from 'lucide-react';
+import { Eye, Plus, ShoppingCart, Package, Trash2, DollarSign, Edit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { invoiceApi, customerApi, vendorApi } from '@/lib/api';
+import { invoiceApi, customerApi, vendorApi, locationApi } from '@/lib/api';
+import { ColumnDef, DataTable, DateRangeFilter, FilterSelect, SortState } from '@/components/data-table/DataTable';
+import { Page, PageHeader, PaymentBadge, RowAction, RowActions, StatStrip, StatusBadge } from '@/components/layout/Page';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
 import PaymentAllocation from '@/components/PaymentAllocation';
 import { Combobox } from '@/components/ui/combobox';
 
 export default function InvoicesNew() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -28,7 +25,12 @@ export default function InvoicesNew() {
   const [invoiceType, setInvoiceType] = useState<'purchase' | 'sales'>(getInvoiceTypeFromPath());
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(25);
+  const [sort, setSort] = useState<SortState | null>({ id: 'date', dir: 'desc' });
+  const [paymentStatus, setPaymentStatus] = useState('');
+  const [docStatus, setDocStatus] = useState('');
+  const [locationId, setLocationId] = useState('');
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [isAllocationDialogOpen, setIsAllocationDialogOpen] = useState(false);
@@ -92,6 +94,11 @@ export default function InvoicesNew() {
       setInvoiceType(typeFromPath);
       setCurrentPage(1);
       setSearchQuery('');
+      setSort({ id: 'date', dir: 'desc' });
+      setPaymentStatus('');
+      setDocStatus('');
+      setLocationId('');
+      setDateRange({ from: '', to: '' });
     }
   }, [location.pathname]);
 
@@ -101,13 +108,21 @@ export default function InvoicesNew() {
   };
 
   const { data: invoicesData, isLoading } = useQuery({
-    queryKey: ['invoices', invoiceType, searchQuery, currentPage, pageSize],
+    queryKey: ['invoices', invoiceType, searchQuery, currentPage, pageSize, sort, paymentStatus, docStatus, locationId, dateRange],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const response = await invoiceApi.getAll({
         invoice_type: invoiceType,
         search: searchQuery || undefined,
         limit: pageSize,
-        offset: (currentPage - 1) * pageSize
+        offset: (currentPage - 1) * pageSize,
+        sort_by: sort?.id,
+        sort_dir: sort?.dir,
+        payment_status: paymentStatus || undefined,
+        status: docStatus || undefined,
+        location_id: locationId || undefined,
+        from_date: dateRange.from && dateRange.to ? dateRange.from : undefined,
+        to_date: dateRange.from && dateRange.to ? dateRange.to : undefined,
       });
       const payload = response?.data;
 
@@ -160,6 +175,15 @@ export default function InvoicesNew() {
     },
   });
 
+  const { data: locations } = useQuery({
+    queryKey: ['locations', 'filter'],
+    queryFn: async () => {
+      const response = await locationApi.getAll();
+      const d = response.data.data || response.data;
+      return Array.isArray(d) ? d : d?.data || [];
+    },
+  });
+
   const deleteInvoiceMutation = useMutation({
     mutationFn: (id: number) => invoiceApi.delete(id, invoiceType),
     onSuccess: () => {
@@ -198,288 +222,173 @@ export default function InvoicesNew() {
     deleteInvoiceMutation.mutate(selectedInvoice.id);
   };
 
+  const isPurchase = invoiceType === 'purchase';
+  const creditTotal = (inv: any) => (inv.credit_notes || []).reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0);
+  const partyName = (inv: any) => (isPurchase ? inv.vendor?.company_name || inv.vendor?.name : inv.customer?.name) || '';
+  const openPayment = (invoice: any) => {
+    const party = isPurchase ? invoice.vendor : invoice.customer;
+    if (!party?.id) return;
+    setAllocationCustomer({ id: party.id, name: isPurchase ? party.company_name || party.name : party.name });
+    setIsAllocationDialogOpen(true);
+  };
+  const withReset = <T,>(fn: (v: T) => void) => (v: T) => {
+    fn(v);
+    setCurrentPage(1);
+  };
+
+  const columns: ColumnDef<any>[] = [
+    {
+      id: 'invoice_number',
+      header: 'Invoice',
+      alwaysVisible: true,
+      value: (inv) => inv.invoice_number,
+      cell: (inv) => (
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-primary">{inv.invoice_number}</span>
+          {inv.status === 'draft' && <StatusBadge tone="amber" dot={false}>Draft</StatusBadge>}
+        </div>
+      ),
+    },
+    {
+      id: 'date',
+      header: 'Date',
+      value: (inv) => inv.invoice_date || inv.created_at,
+      cell: (inv) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(inv.invoice_date || inv.created_at)}</span>,
+    },
+    {
+      id: isPurchase ? 'vendor' : 'customer',
+      header: isPurchase ? 'Vendor' : 'Customer',
+      value: partyName,
+      cell: (inv) => <span className="block max-w-[220px] truncate font-medium" dir="auto">{partyName(inv) || '—'}</span>,
+    },
+    { id: 'location', header: 'Location', value: (inv) => inv.location?.name, cell: (inv) => <span className="text-muted-foreground">{inv.location?.name || '—'}</span> },
+    { id: 'total', header: 'Total', align: 'end', value: (inv) => Number(inv.total_amount), cell: (inv) => <span className="tabular-nums font-semibold">{formatCurrency(inv.total_amount)}</span> },
+    ...(isPurchase
+      ? ([
+          {
+            id: 'credits',
+            header: 'Returns',
+            align: 'end',
+            sortable: false,
+            value: (inv: any) => creditTotal(inv),
+            cell: (inv: any) => (creditTotal(inv) ? <span className="tabular-nums text-orange-600">−{formatCurrency(creditTotal(inv))}</span> : <span className="text-muted-foreground">—</span>),
+          },
+        ] as ColumnDef<any>[])
+      : []),
+    { id: 'paid', header: 'Paid', align: 'end', value: (inv) => Number(inv.paid_amount), cell: (inv) => <span className="tabular-nums">{formatCurrency(inv.paid_amount)}</span> },
+    {
+      id: 'balance',
+      header: 'Balance',
+      align: 'end',
+      sortable: false,
+      value: (inv) => Math.max(inv.total_amount - inv.paid_amount - creditTotal(inv), 0),
+      cell: (inv) => {
+        const due = Math.max(inv.total_amount - inv.paid_amount - creditTotal(inv), 0);
+        return <span className={due > 0.009 ? 'tabular-nums font-medium text-red-600 dark:text-red-400' : 'tabular-nums text-muted-foreground'}>{formatCurrency(due)}</span>;
+      },
+    },
+    { id: 'status', header: 'Payment', value: (inv) => inv.payment_status, cell: (inv) => <PaymentBadge status={inv.payment_status} /> },
+    {
+      id: 'actions',
+      header: '',
+      alwaysVisible: true,
+      sortable: false,
+      align: 'end',
+      cell: (inv) => (
+        <RowActions>
+          <RowAction label="View" icon={Eye} onClick={() => handleViewDetails(inv.id)} />
+          <RowAction label="Edit" icon={Edit2} onClick={() => navigate(`/invoices/${inv.id}/edit?type=${invoiceType}`)} />
+          {inv.payment_status !== 'paid' && <RowAction label="Record payment" icon={DollarSign} tone="success" onClick={() => openPayment(inv)} />}
+          <RowAction label="Delete" icon={Trash2} tone="danger" onClick={() => handleDeleteInvoice(inv)} />
+        </RowActions>
+      ),
+    },
+  ];
+
+  const activeFilters = [paymentStatus, docStatus, locationId, dateRange.from || dateRange.to].filter(Boolean).length;
+
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">{t('invoices.title') || 'Invoices'}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {invoiceType === 'purchase'
-              ? 'Purchase invoices add stock to locations'
-              : 'Sales invoices reduce location stock'}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleOpenAllocation}
-            size="lg"
-            className={invoiceType === 'sales'
-              ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-              : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
-            }
-          >
-            <DollarSign className="mr-2 h-5 w-5" />
-            {invoiceType === 'sales' ? 'Record Payment' : 'Pay Vendor'}
-          </Button>
-          <Button onClick={() => navigate(`/invoices/new?type=${invoiceType}`)} size="lg" className="shadow-lg">
-            <Plus className="mr-2 h-5 w-5" />
-            {invoiceType === 'purchase' ? 'New Purchase' : 'New Sale'}
-          </Button>
-        </div>
-      </div>
+    <Page>
+      <PageHeader
+        icon={isPurchase ? Package : ShoppingCart}
+        title={isPurchase ? 'Purchase Invoices' : 'Sales Invoices'}
+        description={isPurchase ? 'Bills from vendors — they add stock to locations' : 'Invoices to customers — they reduce location stock'}
+        actions={
+          <>
+            <Button variant="outline" onClick={handleOpenAllocation}>
+              <DollarSign className="me-1.5 h-4 w-4" />
+              {isPurchase ? 'Pay Vendor' : 'Record Payment'}
+            </Button>
+            <Button onClick={() => navigate(`/invoices/new?type=${invoiceType}`)}>
+              <Plus className="me-1.5 h-4 w-4" />
+              {isPurchase ? 'New Purchase' : 'New Sale'}
+            </Button>
+          </>
+        }
+      />
 
-      {/* Invoice Type Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        <Card
-          className={`cursor-pointer transition-all ${invoiceType === 'purchase' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950' : 'hover:bg-muted'}`}
-          onClick={() => handleInvoiceTypeChange('purchase')}
-        >
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Package className="h-5 w-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold">Purchase</h3>
-                </div>
-                <p className="text-sm text-muted-foreground">From suppliers</p>
-              </div>
-              <div className="text-3xl font-bold text-blue-600">
-                {invoiceStats?.purchase_count || 0}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <StatStrip
+        items={[
+          { label: 'Sales invoices', value: invoiceStats?.sales_count ?? '—', hint: 'To customers', active: !isPurchase, onClick: () => handleInvoiceTypeChange('sales') },
+          { label: 'Purchase invoices', value: invoiceStats?.purchase_count ?? '—', hint: 'From vendors', active: isPurchase, onClick: () => handleInvoiceTypeChange('purchase') },
+        ]}
+      />
 
-        <Card
-          className={`cursor-pointer transition-all ${invoiceType === 'sales' ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950' : 'hover:bg-muted'}`}
-          onClick={() => handleInvoiceTypeChange('sales')}
-        >
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <ShoppingCart className="h-5 w-5 text-green-600" />
-                  <h3 className="text-lg font-semibold">Sales</h3>
-                </div>
-                <p className="text-sm text-muted-foreground">To customers</p>
-              </div>
-              <div className="text-3xl font-bold text-green-600">
-                {invoiceStats?.sales_count || 0}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Invoices Table */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="mb-4 flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search invoices..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="pl-10"
-              />
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="text-center py-8">{t('common.loading') || 'Loading...'}</div>
-          ) : (
-            <>
-              <div className="overflow-x-auto -mx-4 sm:mx-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Invoice #</TableHead>
-                      <TableHead className="hidden md:table-cell">Date</TableHead>
-                      <TableHead className="hidden lg:table-cell">
-                        {invoiceType === 'purchase' ? 'Vendor' : 'Customer'}
-                      </TableHead>
-                      <TableHead className="hidden xl:table-cell">Location</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      {invoiceType === 'purchase' && (
-                        <TableHead className="hidden md:table-cell text-right text-orange-600">Credit Notes</TableHead>
-                      )}
-                      {invoiceType === 'purchase' && (
-                        <TableHead className="hidden lg:table-cell text-right">Net Amount</TableHead>
-                      )}
-                      <TableHead className="hidden sm:table-cell text-right">Paid</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {invoices?.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={invoiceType === 'purchase' ? 10 : 8} className="text-center py-8 text-muted-foreground">
-                          No invoices found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      invoices?.map((invoice: any) => (
-                        <TableRow key={invoice.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4" />
-                              {invoice.invoice_number}
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            {formatDateTime(invoice.invoice_date || invoice.created_at)}
-                          </TableCell>
-                          <TableCell className="hidden lg:table-cell">
-                            {invoiceType === 'purchase'
-                              ? (invoice.vendor?.company_name || invoice.vendor?.name || '-')
-                              : (invoice.customer?.name || '-')}
-                          </TableCell>
-                          <TableCell className="hidden xl:table-cell">
-                            {invoice.location?.name || '-'}
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(invoice.total_amount)}
-                          </TableCell>
-                          {invoiceType === 'purchase' && (
-                            <TableCell className="hidden md:table-cell text-right text-orange-600">
-                              {invoice.credit_notes && invoice.credit_notes.length > 0
-                                ? `-${formatCurrency(invoice.credit_notes.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0))}`
-                                : '-'}
-                            </TableCell>
-                          )}
-                          {invoiceType === 'purchase' && (
-                            <TableCell className="hidden lg:table-cell text-right font-medium">
-                              {formatCurrency(
-                                invoice.total_amount -
-                                (invoice.credit_notes?.reduce((sum: number, cn: any) => sum + (cn.total_amount || 0), 0) || 0)
-                              )}
-                            </TableCell>
-                          )}
-                          <TableCell className="hidden sm:table-cell text-right">
-                            {formatCurrency(invoice.paid_amount)}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1">
-                              {/* Invoice Status Badge */}
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase w-fit ${invoice.status === 'draft'
-                                ? 'bg-orange-100 text-orange-700 border border-orange-200'
-                                : 'bg-blue-100 text-blue-700 border border-blue-200'
-                                }`}>
-                                {invoice.status || 'draft'}
-                              </span>
-                              {/* Payment Status Badge */}
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium w-fit ${invoice.payment_status === 'paid'
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                : invoice.payment_status === 'partial'
-                                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                                }`}>
-                                {invoice.payment_status}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleViewDetails(invoice.id)}
-                                title="View Details"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => navigate(`/invoices/${invoice.id}/edit?type=${invoiceType}`)}
-                                title="Edit"
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
-                              {invoice.payment_status !== 'paid' && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (invoiceType === 'sales' && invoice.customer?.id) {
-                                      setAllocationCustomer({
-                                        id: invoice.customer.id,
-                                        name: invoice.customer.name
-                                      });
-                                      setIsAllocationDialogOpen(true);
-                                    } else if (invoiceType === 'purchase' && invoice.vendor?.id) {
-                                      setAllocationCustomer({
-                                        id: invoice.vendor.id,
-                                        name: invoice.vendor.company_name || invoice.vendor.name
-                                      });
-                                      setIsAllocationDialogOpen(true);
-                                    }
-                                  }}
-                                  className={invoiceType === 'sales' ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-blue-600 hover:text-blue-700 hover:bg-blue-50"}
-                                  title="Record Payment"
-                                >
-                                  <DollarSign className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteInvoice(invoice)}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Pagination */}
-              {pagination.pages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, pagination.total)} of {pagination.total} results
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Previous
-                    </Button>
-                    <div className="text-sm">
-                      Page {currentPage} of {pagination.pages}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(p => Math.min(pagination.pages, p + 1))}
-                      disabled={currentPage === pagination.pages}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <DataTable
+        data={invoices}
+        columns={columns}
+        rowKey={(inv) => inv.id}
+        loading={isLoading}
+        search={searchQuery}
+        onSearchChange={withReset(setSearchQuery)}
+        searchPlaceholder={isPurchase ? 'Search invoice # or vendor…' : 'Search invoice #, customer, phone…'}
+        sort={sort}
+        onSortChange={withReset(setSort)}
+        pagination={{ page: currentPage, pageSize, total: pagination.total || 0, onPageChange: setCurrentPage, onPageSizeChange: setPageSize }}
+        onRowClick={(inv) => handleViewDetails(inv.id)}
+        storageKey={`invoices-${invoiceType}`}
+        exportFileName={`${invoiceType}-invoices`}
+        emptyTitle="No invoices found"
+        activeFilterCount={activeFilters}
+        onResetFilters={() => {
+          setPaymentStatus('');
+          setDocStatus('');
+          setLocationId('');
+          setDateRange({ from: '', to: '' });
+          setCurrentPage(1);
+        }}
+        filters={
+          <>
+            <FilterSelect
+              label="Payment"
+              value={paymentStatus}
+              onChange={withReset(setPaymentStatus)}
+              options={[
+                { value: 'paid', label: 'Paid' },
+                { value: 'partial', label: 'Partial' },
+                { value: 'unpaid', label: 'Unpaid' },
+                { value: 'unpaid,partial', label: 'Unpaid or partial' },
+              ].filter((o) => !isPurchase || !o.value.includes(','))}
+            />
+            <FilterSelect
+              label="Status"
+              value={docStatus}
+              onChange={withReset(setDocStatus)}
+              options={[
+                { value: 'finalized', label: 'Finalized' },
+                { value: 'draft', label: 'Draft' },
+              ]}
+            />
+            <FilterSelect
+              label="Location"
+              value={locationId}
+              onChange={withReset(setLocationId)}
+              options={(locations || []).map((l: any) => ({ value: String(l.id), label: l.name }))}
+            />
+            <DateRangeFilter from={dateRange.from} to={dateRange.to} onChange={withReset(setDateRange)} />
+          </>
+        }
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -571,6 +480,6 @@ export default function InvoicesNew() {
           }}
         />
       )}
-    </div>
+    </Page>
   );
 }

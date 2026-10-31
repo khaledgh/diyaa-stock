@@ -201,7 +201,7 @@ export default function QuickInvoiceModal({
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] p-0 gap-0">
-        <DialogHeader className="px-6 py-4 border-b">
+        <DialogHeader className="m-0 px-6 py-4 pe-12 border-b">
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-blue-600" />
             Quick Invoice
@@ -382,7 +382,7 @@ export default function QuickInvoiceModal({
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t">
+        <DialogFooter className="static m-0 rounded-none px-6 py-4 border-t">
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>

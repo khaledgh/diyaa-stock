@@ -1,558 +1,379 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Boxes, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { stockApi, productApi, locationApi } from '@/lib/api';
-import { Package, Search, Plus, Warehouse, AlertTriangle, Edit2 } from 'lucide-react';
-import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { stockApi, productApi, locationApi } from '@/lib/api';
+import { cn, formatQuantity } from '@/lib/utils';
+import { ColumnDef, DataTable, FilterSelect } from '@/components/data-table/DataTable';
+import { Page, PageHeader, StatStrip, StatusBadge } from '@/components/layout/Page';
+
+interface InventoryRow {
+  product_id: number;
+  sku: string;
+  name_en: string;
+  name_ar?: string;
+  unit?: string;
+  category: string;
+  min_level: number;
+  total: number;
+  byLocation: Record<number, number>;
+}
+
+// Same rule as the dashboard and Low Stock page.
+const minLevel = (min: unknown) => (Number(min) > 0 ? Number(min) : 10);
+
+function parseLocationQuantities(raw: string | null | undefined): Record<number, number> {
+  const out: Record<number, number> = {};
+  (raw || '').split('|').forEach((entry) => {
+    const parts = entry.split(':');
+    if (parts.length >= 3) {
+      const id = parseInt(parts[0]);
+      if (id) out[id] = (out[id] || 0) + (parseFloat(parts[parts.length - 1]) || 0);
+    }
+  });
+  return out;
+}
 
 export default function Inventory() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState('');
-  const [quantity, setQuantity] = useState('');
+  const [category, setCategory] = useState('');
+  const [stockStatus, setStockStatus] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
 
-  // Edit stock state
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editProductId, setEditProductId] = useState<number | null>(null);
-  const [editProductName, setEditProductName] = useState('');
-  const [editLocationId, setEditLocationId] = useState<number | null>(null);
-  const [editLocationName, setEditLocationName] = useState('');
-  const [editCurrentQuantity, setEditCurrentQuantity] = useState(0);
-  const [editNewQuantity, setEditNewQuantity] = useState('');
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ product: '', location: '', quantity: '' });
+  const [editing, setEditing] = useState<{ productId: number; productName: string; locationId: number; locationName: string; current: number } | null>(null);
+  const [newQuantity, setNewQuantity] = useState('');
 
-  const { data: inventory, isLoading } = useQuery({
+  const { data: inventory = [], isLoading } = useQuery({
     queryKey: ['all-stock'],
-    queryFn: async () => {
-      const response = await stockApi.getAllStock();
-      return response.data.data;
-    },
+    queryFn: async () => (await stockApi.getAllStock()).data.data || [],
   });
-
-  const { data: warehouseStock, isLoading: isWarehouseLoading } = useQuery({
-    queryKey: ['warehouse-stock'],
-    queryFn: async () => {
-      const response = await stockApi.getWarehouse();
-      return response.data.data;
-    },
-  });
-
-  const { data: products } = useQuery({
+  const { data: products = [] } = useQuery({
     queryKey: ['products-all'],
     queryFn: async () => {
-      const response = await productApi.getAll();
-      return response.data.data;
+      const d = (await productApi.getAll()).data;
+      return d.data || d || [];
     },
+    enabled: isAddOpen,
+  });
+  const { data: locations = [] } = useQuery({
+    queryKey: ['locations-all'],
+    queryFn: async () => (await locationApi.getAll()).data.data || [],
   });
 
-  const { data: locations } = useQuery({
-    queryKey: ['locations-all'],
-    queryFn: async () => {
-      const response = await locationApi.getAll();
-      return response.data.data;
-    },
-  });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['all-stock'] });
+    queryClient.invalidateQueries({ queryKey: ['warehouse-stock'] });
+    queryClient.invalidateQueries({ queryKey: ['stock-by-location'] });
+  };
 
   const addStockMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return await stockApi.addStock(data);
-    },
+    mutationFn: (data: any) => stockApi.addStock(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['all-stock'] });
-      queryClient.invalidateQueries({ queryKey: ['warehouse-stock'] });
+      invalidate();
       toast.success(t('stock.stockAdded'));
-      setIsAddDialogOpen(false);
-      resetForm();
+      setIsAddOpen(false);
+      setAddForm({ product: '', location: '', quantity: '' });
     },
-    onError: () => {
-      toast.error(t('stock.stockAddError'));
-    },
+    onError: () => toast.error(t('stock.stockAddError')),
   });
 
   const adjustStockMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return await stockApi.adjustStock(data);
-    },
+    mutationFn: (data: any) => stockApi.adjustStock(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['all-stock'] });
-      queryClient.invalidateQueries({ queryKey: ['warehouse-stock'] });
-      toast.success('Stock updated successfully');
-      closeEditDialog();
+      invalidate();
+      toast.success('Stock updated');
+      setEditing(null);
     },
-    onError: () => {
-      toast.error('Failed to update stock');
-    },
+    onError: () => toast.error('Failed to update stock'),
   });
 
-  const resetForm = () => {
-    setSelectedProduct('');
-    setSelectedLocation('');
-    setQuantity('');
-  };
-
-  const openEditDialog = (productId: number, productName: string, locationId: number, locationName: string, currentQty: number) => {
-    setEditProductId(productId);
-    setEditProductName(productName);
-    setEditLocationId(locationId);
-    setEditLocationName(locationName);
-    setEditCurrentQuantity(currentQty);
-    setEditNewQuantity(currentQty.toString());
-    setIsEditDialogOpen(true);
-  };
-
-  const closeEditDialog = () => {
-    setIsEditDialogOpen(false);
-    setEditProductId(null);
-    setEditProductName('');
-    setEditLocationId(null);
-    setEditLocationName('');
-    setEditCurrentQuantity(0);
-    setEditNewQuantity('');
-  };
-
-  const handleEditStock = () => {
-    if (editProductId === null || editLocationId === null || editNewQuantity === '') {
-      toast.error('Please enter a valid quantity');
-      return;
-    }
-
-    const newQty = parseFloat(editNewQuantity);
-    if (newQty < 0) {
-      toast.error('Quantity cannot be negative');
-      return;
-    }
-
-    // adjustStock API sets the stock to the exact quantity provided
-    adjustStockMutation.mutate({
-      product_id: editProductId,
-      location_id: editLocationId,
-      quantity: newQty,
-      reason: 'Manual stock adjustment',
-    });
-  };
-
-  const handleAddStock = () => {
-    if (!selectedProduct || !quantity || !selectedLocation) {
-      toast.error(t('common.fillRequired'));
-      return;
-    }
-
-    addStockMutation.mutate({
-      product_id: parseInt(selectedProduct),
-      location_id: parseInt(selectedLocation),
-      quantity: parseFloat(quantity),
-    });
-  };
-
-  const filteredInventory = inventory?.filter((item: any) =>
-    item.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.category_name_en?.toLowerCase().includes(searchTerm.toLowerCase())
+  const rows: InventoryRow[] = useMemo(
+    () =>
+      inventory.map((item: any) => ({
+        product_id: item.product_id,
+        sku: item.sku,
+        name_en: item.name_en,
+        name_ar: item.name_ar,
+        unit: item.unit,
+        category: item.category_name_en || '',
+        min_level: minLevel(item.min_stock_level),
+        total: Number(item.total_quantity || 0),
+        byLocation: parseLocationQuantities(item.location_quantities),
+      })),
+    [inventory]
   );
 
-  const filteredWarehouseStock = warehouseStock?.filter((item: any) =>
-    item.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.category_name_en?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const lowStockItems = warehouseStock?.filter((item: any) => (item.quantity || 0) <= (item.min_stock_level || 0)) || [];
-  const totalWarehouseItems = warehouseStock?.length || 0;
-  const totalWarehouseQuantity = warehouseStock?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0;
-
-  const parseLocationQuantities = (locationQuantitiesStr: string) => {
-    if (!locationQuantitiesStr) return [];
-    return locationQuantitiesStr.split('|').map(item => {
-      const parts = item.split(':');
-      if (parts.length >= 3) {
-        // New format: id:name:quantity
-        return {
-          id: parseInt(parts[0]) || 0,
-          name: parts[1],
-          quantity: parseFloat(parts[2]) || 0
-        };
-      } else if (parts.length === 2) {
-        // Old format: name:quantity (fallback)
-        return {
-          id: 0,
-          name: parts[0],
-          quantity: parseFloat(parts[1]) || 0
-        };
-      }
-      return null;
-    }).filter(item => item && item.name); // Filter out any empty entries
+  const activeLocations: any[] = useMemo(() => locations.filter((l: any) => l.is_active !== false), [locations]);
+  const shownLocations = locationFilter ? activeLocations.filter((l) => String(l.id) === locationFilter) : activeLocations;
+  const qtyFor = (r: InventoryRow) => (locationFilter ? r.byLocation[Number(locationFilter)] || 0 : r.total);
+  // Locations where this product is below its minimum (the Low Stock page's rule).
+  const lowLocations = (r: InventoryRow) => shownLocations.filter((l) => (r.byLocation[l.id] || 0) < r.min_level).length;
+  const statusOf = (r: InventoryRow) => {
+    if (qtyFor(r) <= 0) return 'out';
+    return lowLocations(r) > 0 ? 'low' : 'ok';
   };
 
-  const formatQuantity = (quantity: any) => {
-    if (quantity === null || quantity === undefined) {
-      return '0.00';
-    }
-    const num = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
-    if (isNaN(num)) return '0.00';
-    return num.toFixed(2);
+  const categories = useMemo(() => Array.from(new Set(rows.map((r) => r.category).filter(Boolean))).sort().map((c) => ({ value: c, label: c })), [rows]);
+  const filtered = rows.filter((r) => (!category || r.category === category) && (!stockStatus || statusOf(r) === stockStatus));
+
+  const lowCount = rows.filter((r) => statusOf(r) === 'low').length;
+  const outCount = rows.filter((r) => statusOf(r) === 'out').length;
+  const totalUnits = rows.reduce((s, r) => s + qtyFor(r), 0);
+
+  const openEdit = (r: InventoryRow, loc: any) => {
+    const current = r.byLocation[loc.id] || 0;
+    setEditing({ productId: r.product_id, productName: r.name_en, locationId: loc.id, locationName: loc.name, current });
+    setNewQuantity(String(current));
   };
+
+  const columns: ColumnDef<InventoryRow>[] = [
+    {
+      id: 'product',
+      header: t('products.name'),
+      alwaysVisible: true,
+      value: (r) => r.name_ar || r.name_en,
+      cell: (r) => (
+        <div className="min-w-[160px]" dir="auto">
+          <p className="truncate font-medium">{r.name_ar || r.name_en}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {r.sku}
+            {r.name_ar && r.name_en ? ` · ${r.name_en}` : ''}
+          </p>
+        </div>
+      ),
+    },
+    { id: 'category', header: t('products.category'), value: (r) => r.category, cell: (r) => <span className="text-muted-foreground">{r.category || '—'}</span> },
+    ...shownLocations.map(
+      (loc): ColumnDef<InventoryRow> => ({
+        id: `loc-${loc.id}`,
+        header: loc.name,
+        align: 'end',
+        value: (r) => r.byLocation[loc.id] || 0,
+        cell: (r) => {
+          const q = r.byLocation[loc.id] || 0;
+          return (
+            <button
+              type="button"
+              title={`Adjust ${r.name_en} at ${loc.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                openEdit(r, loc);
+              }}
+              className={cn(
+                'inline-flex min-w-[64px] justify-end rounded-md px-2 py-1 tabular-nums transition-colors hover:bg-primary/10 hover:text-primary',
+                q <= 0 ? 'text-muted-foreground/60' : q < r.min_level ? 'font-medium text-amber-700 dark:text-amber-300' : ''
+              )}
+            >
+              {formatQuantity(q)}
+            </button>
+          );
+        },
+      })
+    ),
+    ...(!locationFilter
+      ? [
+          {
+            id: 'total',
+            header: t('inventory.totalStock') || 'Total',
+            align: 'end',
+            value: (r: InventoryRow) => r.total,
+            cell: (r: InventoryRow) => (
+              <span className="tabular-nums font-semibold">
+                {formatQuantity(r.total)} <span className="text-xs font-normal text-muted-foreground">{r.unit}</span>
+              </span>
+            ),
+          } as ColumnDef<InventoryRow>,
+        ]
+      : []),
+    {
+      id: 'status',
+      header: 'Status',
+      value: (r) => ({ out: 0, low: 1, ok: 2 })[statusOf(r)],
+      cell: (r) => {
+        const s = statusOf(r);
+        if (s === 'out') return <StatusBadge tone="red">Out of stock</StatusBadge>;
+        if (s === 'low') {
+          const n = lowLocations(r);
+          return <StatusBadge tone="amber">{locationFilter ? 'Low' : `Low at ${n} location${n > 1 ? 's' : ''}`}</StatusBadge>;
+        }
+        return <StatusBadge tone="green">In stock</StatusBadge>;
+      },
+    },
+  ];
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <Package className="h-8 w-8 text-blue-600" />
-            {t('inventory.title')}
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">View all products across all locations</p>
-        </div>
+    <Page>
+      <PageHeader
+        icon={Boxes}
+        title={t('inventory.title')}
+        description="Stock per product and location — click a quantity to adjust it"
+        actions={
+          <Button onClick={() => setIsAddOpen(true)}>
+            <Plus className="me-1.5 h-4 w-4" />
+            {t('inventory.addStock')}
+          </Button>
+        }
+      />
 
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="h-4 w-4 mr-2" />
-              {t('inventory.addStock')}
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t('inventory.addStockToLocation')}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
-              <div>
-                <Label>{t('products.name')}</Label>
-                <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t('inventory.selectProduct')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products?.map((product: any) => (
-                      <SelectItem key={product.id} value={product.id.toString()}>
-                        {product.name_en} ({product.sku})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+      <StatStrip
+        items={[
+          { label: 'Products', value: rows.length.toLocaleString() },
+          { label: locationFilter ? 'Units at this location' : 'Total units', value: formatQuantity(totalUnits) },
+          { label: 'Low stock', value: lowCount, onClick: () => setStockStatus(stockStatus === 'low' ? '' : 'low'), active: stockStatus === 'low' },
+          { label: 'Out of stock', value: outCount, onClick: () => setStockStatus(stockStatus === 'out' ? '' : 'out'), active: stockStatus === 'out' },
+        ]}
+      />
 
-              <div>
-                <Label>{t('locations.location')}</Label>
-                <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locations?.map((location: any) => (
-                      <SelectItem key={location.id} value={location.id.toString()}>
-                        {location.name} ({location.type})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+      <DataTable
+        data={filtered}
+        columns={columns}
+        rowKey={(r) => r.product_id}
+        loading={isLoading}
+        defaultSort={{ id: 'product', dir: 'asc' }}
+        searchPlaceholder={t('inventory.searchPlaceholder') || 'Search product, SKU, category…'}
+        storageKey="inventory"
+        exportFileName="inventory"
+        emptyTitle="No products found"
+        activeFilterCount={[category, stockStatus, locationFilter].filter(Boolean).length}
+        onResetFilters={() => {
+          setCategory('');
+          setStockStatus('');
+          setLocationFilter('');
+        }}
+        filters={
+          <>
+            <FilterSelect label="Location" value={locationFilter} onChange={setLocationFilter} options={activeLocations.map((l) => ({ value: String(l.id), label: l.name }))} />
+            <FilterSelect label="Category" value={category} onChange={setCategory} options={categories} />
+            <FilterSelect
+              label="Stock"
+              value={stockStatus}
+              onChange={setStockStatus}
+              options={[
+                { value: 'ok', label: 'In stock' },
+                { value: 'low', label: 'Low' },
+                { value: 'out', label: 'Out of stock' },
+              ]}
+            />
+          </>
+        }
+        footer={(list) => ({
+          product: <span className="text-xs font-medium text-muted-foreground">{list.length} products</span>,
+          ...Object.fromEntries(shownLocations.map((l) => [`loc-${l.id}`, formatQuantity(list.reduce((s, r) => s + (r.byLocation[l.id] || 0), 0))])),
+          total: formatQuantity(list.reduce((s, r) => s + r.total, 0)),
+        })}
+      />
 
-              <div>
-                <Label>{t('common.quantity')}</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder={t('inventory.enterQuantity')}
-                />
-              </div>
-
-              <Button
-                onClick={handleAddStock}
-                className="w-full"
-                disabled={addStockMutation.isPending}
-              >
-                {addStockMutation.isPending ? t('common.saving') : t('common.save')}
-              </Button>
+      {/* Add stock */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('inventory.addStockToLocation')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>{t('products.name')}</Label>
+              <Select value={addForm.product} onValueChange={(v) => setAddForm({ ...addForm, product: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t('inventory.selectProduct')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {products.map((p: any) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name_en} {p.sku ? `(${p.sku})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Edit Stock Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Stock Quantity</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
-              <div>
-                <Label>Product</Label>
-                <Input value={editProductName} disabled className="bg-gray-100" />
-              </div>
-
-              <div>
-                <Label>Location</Label>
-                <Input value={editLocationName} disabled className="bg-gray-100" />
-              </div>
-
-              <div>
-                <Label>Current Quantity</Label>
-                <Input value={formatQuantity(editCurrentQuantity)} disabled className="bg-gray-100" />
-              </div>
-
-              <div>
-                <Label>New Quantity</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={editNewQuantity}
-                  onChange={(e) => setEditNewQuantity(e.target.value)}
-                  placeholder="Enter new quantity"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleEditStock}
-                  className="flex-1"
-                  disabled={adjustStockMutation.isPending}
-                >
-                  {adjustStockMutation.isPending ? 'Saving...' : 'Update Stock'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={closeEditDialog}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-              </div>
+            <div className="space-y-1.5">
+              <Label>{t('locations.location')}</Label>
+              <Select value={addForm.location} onValueChange={(v) => setAddForm({ ...addForm, location: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select location" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeLocations.map((l) => (
+                    <SelectItem key={l.id} value={String(l.id)}>
+                      {l.name} ({l.type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="all">All Locations</TabsTrigger>
-          <TabsTrigger value="warehouse">Warehouse Only</TabsTrigger>
-        </TabsList>
-
-        {/* All Locations Tab */}
-        <TabsContent value="all" className="space-y-4">
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">All Products - All Locations</CardTitle>
-                <div className="relative w-80">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    placeholder={t('inventory.searchPlaceholder')}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-11"
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="text-center py-8">{t('common.loading')}</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('products.sku')}</TableHead>
-                        <TableHead>{t('products.name')}</TableHead>
-                        <TableHead>{t('products.category')}</TableHead>
-                        <TableHead>{t('locations.locations')}</TableHead>
-                        <TableHead className="text-right">{t('inventory.totalStock')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredInventory?.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                            {searchTerm ? t('common.noResults') : t('common.noData')}
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredInventory?.map((item: any) => {
-                          const locationQtys = parseLocationQuantities(item.location_quantities);
-                          return (
-                            <TableRow key={item.product_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                              <TableCell className="font-medium">{item.sku}</TableCell>
-                              <TableCell className="font-medium">{item.name_en}</TableCell>
-                              <TableCell>{item.category_name_en || '-'}</TableCell>
-                              <TableCell>
-                                {locationQtys.length > 0 ? (
-                                  <div className="space-y-1">
-                                    {locationQtys.map((loc: any, idx: number) => (
-                                      <div key={idx} className="text-sm flex items-center gap-2">
-                                        <span className="text-gray-600 dark:text-gray-400">{loc.name}:</span>{' '}
-                                        <span className="font-medium">{formatQuantity(loc.quantity)}</span>
-                                        {loc.id > 0 && (
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-5 w-5 p-0"
-                                            onClick={() => openEditDialog(item.product_id, item.name_en, loc.id, loc.name, loc.quantity)}
-                                          >
-                                            <Edit2 className="h-3 w-3" />
-                                          </Button>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span className="text-gray-400">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <span className="font-bold text-blue-600 dark:text-blue-400">
-                                  {formatQuantity(item.total_quantity)} {item.unit}
-                                </span>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Warehouse Only Tab */}
-        <TabsContent value="warehouse" className="space-y-4">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Products</p>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{totalWarehouseItems}</p>
-                  </div>
-                  <div className="p-4 bg-blue-100 dark:bg-blue-900 rounded-2xl">
-                    <Package className="h-7 w-7 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Quantity</p>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{formatQuantity(totalWarehouseQuantity)}</p>
-                  </div>
-                  <div className="p-4 bg-green-100 dark:bg-green-900 rounded-2xl">
-                    <Warehouse className="h-7 w-7 text-green-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Low Stock Items</p>
-                    <p className="text-3xl font-bold text-red-600 dark:text-red-400 mt-2">{lowStockItems.length}</p>
-                  </div>
-                  <div className="p-4 bg-red-100 dark:bg-red-900 rounded-2xl">
-                    <AlertTriangle className="h-7 w-7 text-red-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="space-y-1.5">
+              <Label>{t('common.quantity')}</Label>
+              <Input type="number" min="0" step="0.01" value={addForm.quantity} onChange={(e) => setAddForm({ ...addForm, quantity: e.target.value })} placeholder={t('inventory.enterQuantity')} />
+            </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              disabled={addStockMutation.isPending}
+              onClick={() => {
+                if (!addForm.product || !addForm.location || !addForm.quantity) return toast.error(t('common.fillRequired'));
+                addStockMutation.mutate({ product_id: Number(addForm.product), location_id: Number(addForm.location), quantity: parseFloat(addForm.quantity) });
+              }}
+            >
+              {addStockMutation.isPending ? t('common.saving') : t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">Warehouse Stock</CardTitle>
-                <div className="relative w-80">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    placeholder="Search by product name, SKU, or category..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-11"
-                  />
-                </div>
+      {/* Adjust stock */}
+      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Adjust stock</DialogTitle>
+          </DialogHeader>
+          {editing && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/50 p-3 text-sm">
+                <p className="font-medium">{editing.productName}</p>
+                <p className="text-muted-foreground">
+                  {editing.locationName} · currently <span className="font-medium text-foreground">{formatQuantity(editing.current)}</span>
+                </p>
               </div>
-            </CardHeader>
-            <CardContent>
-              {isWarehouseLoading ? (
-                <div className="text-center py-8">{t('common.loading')}</div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('products.sku')}</TableHead>
-                      <TableHead>{t('products.name')}</TableHead>
-                      <TableHead>{t('products.category')}</TableHead>
-                      <TableHead className="text-right">{t('common.quantity')}</TableHead>
-                      <TableHead className="text-right">Min Stock</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredWarehouseStock?.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                          {searchTerm ? 'No products found matching your search' : 'No stock items'}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredWarehouseStock?.map((item: any) => {
-                        const isLowStock = item.quantity <= item.min_stock_level;
-                        return (
-                          <TableRow
-                            key={item.id}
-                            className={`hover:bg-gray-50 dark:hover:bg-gray-800 ${isLowStock ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
-                          >
-                            <TableCell className="font-medium">{item.sku}</TableCell>
-                            <TableCell className="font-medium">{item.name_en}</TableCell>
-                            <TableCell>{item.category_name_en || '-'}</TableCell>
-                            <TableCell className="text-right">
-                              <span className={`font-semibold ${isLowStock ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                                {formatQuantity(item.quantity)} {item.unit}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right text-gray-600 dark:text-gray-400">{item.min_stock_level}</TableCell>
-                            <TableCell>
-                              {isLowStock ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                                  <AlertTriangle className="h-3 w-3" />
-                                  Low Stock
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                  In Stock
-                                </span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-qty">New quantity</Label>
+                <Input id="new-qty" type="number" min="0" step="0.01" autoFocus value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} />
+                {newQuantity !== '' && !isNaN(parseFloat(newQuantity)) && (
+                  <p className="text-xs text-muted-foreground">
+                    Change: {parseFloat(newQuantity) - editing.current >= 0 ? '+' : ''}
+                    {formatQuantity(parseFloat(newQuantity) - editing.current)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={adjustStockMutation.isPending}
+              onClick={() => {
+                const q = parseFloat(newQuantity);
+                if (!editing || isNaN(q) || q < 0) return toast.error('Enter a valid quantity');
+                adjustStockMutation.mutate({ product_id: editing.productId, location_id: editing.locationId, quantity: q, reason: 'Manual stock adjustment' });
+              }}
+            >
+              {adjustStockMutation.isPending ? 'Saving…' : 'Update stock'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Page>
   );
 }

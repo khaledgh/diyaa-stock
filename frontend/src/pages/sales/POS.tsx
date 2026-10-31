@@ -380,7 +380,7 @@ export default function POS() {
             />
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 max-h-[500px] overflow-y-auto p-2 custom-scrollbar">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto p-2 custom-scrollbar">
             {locations?.filter((l: any) =>
               !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.type.toLowerCase().includes(search.toLowerCase())
             ).map((location: any) => (

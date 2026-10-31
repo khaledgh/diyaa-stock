@@ -93,6 +93,8 @@ func (ih *InvoiceHandler) GetAllHandler(c echo.Context) error {
 		"created_by":     c.QueryParam("user_id"),
 		"from_date":      c.QueryParam("from_date"),
 		"to_date":        c.QueryParam("to_date"),
+		"sort_by":        c.QueryParam("sort_by"),
+		"sort_dir":       c.QueryParam("sort_dir"),
 	}
 
 	if invoiceType == "purchase" {

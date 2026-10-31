@@ -404,10 +404,10 @@ export default function Transfers() {
   }) || [];
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 sm:px-6 sm:py-5">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold">{t('transfers.title') || 'Stock Transfers'}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{t('transfers.title') || 'Stock Transfers'}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {t('transfers.subtitle') || 'Transfer stock from warehouse to vans'}
           </p>

@@ -17,7 +17,7 @@ func NewExpenseService(db *gorm.DB) *ExpenseService {
 	return &ExpenseService{db: db}
 }
 
-func (s *ExpenseService) GetAll(page, pageSize int, search string, categoryID *uint, startDate, endDate *time.Time) ([]models.Expense, int64, error) {
+func (s *ExpenseService) GetAll(page, pageSize int, search string, categoryID *uint, startDate, endDate *time.Time, sort ...string) ([]models.Expense, int64, error) {
 	var expenses []models.Expense
 	var total int64
 
@@ -27,7 +27,8 @@ func (s *ExpenseService) GetAll(page, pageSize int, search string, categoryID *u
 		Preload("CreatedByUser")
 
 	if search != "" {
-		query = query.Where("expense_number LIKE ? OR notes LIKE ? OR reference_number LIKE ?", "%"+search+"%", "%"+search+"%", "%"+search+"%")
+		like := "%" + search + "%"
+		query = query.Where("(expense_number LIKE ? OR notes LIKE ? OR reference_number LIKE ? OR expense_category_id IN (SELECT id FROM expense_categories WHERE name_en LIKE ? OR name_ar LIKE ?))", like, like, like, like, like)
 	}
 
 	if categoryID != nil {
@@ -35,11 +36,11 @@ func (s *ExpenseService) GetAll(page, pageSize int, search string, categoryID *u
 	}
 
 	if startDate != nil {
-		query = query.Where("expense_date >= ?", startDate)
+		query = query.Where("DATE(expense_date) >= DATE(?)", startDate)
 	}
 
 	if endDate != nil {
-		query = query.Where("expense_date <= ?", endDate)
+		query = query.Where("DATE(expense_date) <= DATE(?)", endDate)
 	}
 
 	err := query.Count(&total).Error
@@ -52,7 +53,18 @@ func (s *ExpenseService) GetAll(page, pageSize int, search string, categoryID *u
 		query = query.Offset(offset).Limit(pageSize)
 	}
 
-	err = query.Order("expense_date desc, id desc").Find(&expenses).Error
+	sortBy, sortDir := "", ""
+	if len(sort) == 2 {
+		sortBy, sortDir = sort[0], sort[1]
+	}
+	order := SafeOrder(sortBy, sortDir, map[string]string{
+		"expense_number": "expenses.expense_number",
+		"date":           "expenses.expense_date",
+		"amount":         "expenses.amount",
+		"payment_method": "expenses.payment_method",
+		"category":       "(SELECT name_en FROM expense_categories WHERE expense_categories.id = expenses.expense_category_id)",
+	}, "expenses.expense_date DESC")
+	err = query.Order(order).Order("expenses.id DESC").Find(&expenses).Error
 	return expenses, total, err
 }
 

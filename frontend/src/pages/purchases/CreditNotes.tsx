@@ -1,18 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Plus, FileText, CheckCircle, XCircle, Trash2, Eye, Search, Pencil, Loader2 } from 'lucide-react';
+import { Plus, FileText, CheckCircle, XCircle, Trash2, Eye, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Pagination } from '@/components/ui/pagination';
 import { creditNoteApi } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import { ColumnDef, DataTable, FilterSelect, SortState } from '@/components/data-table/DataTable';
+import { Page, PageHeader, RowAction, RowActions, StatusBadge } from '@/components/layout/Page';
 
 export default function CreditNotes() {
   const { t } = useTranslation();
@@ -23,11 +22,13 @@ export default function CreditNotes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
-  const [perPage] = useState(20);
+  const [perPage, setPerPage] = useState(25);
+  const [sort, setSort] = useState<SortState | null>({ id: 'credit_note_date', dir: 'desc' });
 
   // Fetch credit notes
   const { data: creditNotesResponse, isLoading } = useQuery({
-    queryKey: ['credit-notes', searchTerm, statusFilter, page],
+    queryKey: ['credit-notes', searchTerm, statusFilter, page, perPage, sort],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       try {
         const response = await creditNoteApi.getAll({
@@ -35,6 +36,8 @@ export default function CreditNotes() {
           status: statusFilter,
           page,
           per_page: perPage,
+          sortBy: sort?.id,
+          orderBy: sort?.dir,
         });
 
         const apiData = response.data;
@@ -144,150 +147,97 @@ export default function CreditNotes() {
     return badges[status] || badges.draft;
   };
 
+  const statusTone: Record<string, 'gray' | 'green' | 'red'> = { draft: 'gray', approved: 'green', cancelled: 'red' };
+  const resetPage = <T,>(fn: (v: T) => void) => (v: T) => {
+    fn(v);
+    setPage(1);
+  };
+
+  const columns: ColumnDef<any>[] = [
+    { id: 'credit_note_number', header: 'Credit note', alwaysVisible: true, value: (cn) => cn.credit_note_number, cell: (cn) => <span className="font-medium text-primary">{cn.credit_note_number}</span> },
+    { id: 'credit_note_date', header: 'Date', value: (cn) => cn.credit_note_date, cell: (cn) => <span className="whitespace-nowrap text-muted-foreground">{formatDate(cn.credit_note_date)}</span> },
+    {
+      id: 'type',
+      header: 'Type',
+      value: (cn) => cn.type || 'purchase',
+      cell: (cn) => (cn.type === 'sales' ? <StatusBadge tone="green" dot={false}>Sales return</StatusBadge> : <StatusBadge tone="blue" dot={false}>Purchase return</StatusBadge>),
+    },
+    {
+      id: 'entity',
+      header: 'Customer / Vendor',
+      sortable: false,
+      value: (cn) => (cn.type === 'sales' ? cn.customer?.name || 'Walk-in' : cn.vendor?.company_name || cn.vendor?.name),
+      cell: (cn) => (
+        <span className="block max-w-[220px] truncate" dir="auto">
+          {cn.type === 'sales' ? cn.customer?.name || 'Walk-in' : cn.vendor?.company_name || cn.vendor?.name || '—'}
+        </span>
+      ),
+    },
+    { id: 'location', header: 'Location', sortable: false, value: (cn) => cn.location?.name, cell: (cn) => <span className="text-muted-foreground">{cn.location?.name || '—'}</span> },
+    { id: 'total_amount', header: 'Amount', align: 'end', value: (cn) => Number(cn.total_amount || 0), cell: (cn) => <span className="tabular-nums font-semibold">{formatCurrency(cn.total_amount || 0)}</span> },
+    { id: 'status', header: 'Status', value: (cn) => cn.status, cell: (cn) => <StatusBadge tone={statusTone[cn.status] || 'gray'}>{cn.status}</StatusBadge> },
+    {
+      id: 'actions',
+      header: '',
+      alwaysVisible: true,
+      sortable: false,
+      align: 'end',
+      cell: (cn) => (
+        <RowActions>
+          <RowAction label="View" icon={Eye} onClick={() => handleView(cn.id)} />
+          {(cn.status === 'draft' || cn.status === 'approved') && <RowAction label="Edit" icon={Pencil} onClick={() => handleEdit(cn)} />}
+          {cn.status === 'draft' && <RowAction label="Approve" icon={CheckCircle} tone="success" onClick={() => handleApprove(cn.id)} />}
+          {cn.status === 'draft' && <RowAction label="Cancel" icon={XCircle} tone="danger" onClick={() => handleCancel(cn.id)} />}
+          {(cn.status === 'draft' || cn.status === 'approved') && <RowAction label="Delete" icon={Trash2} tone="danger" onClick={() => handleDelete(cn.id)} />}
+        </RowActions>
+      ),
+    },
+  ];
+
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-            <FileText className="h-8 w-8 text-orange-600" />
-            {t('creditNotes.title') || 'Credit Notes'}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage product returns and credit notes
-          </p>
-        </div>
-        <Button onClick={handleOpenNew} className="w-full sm:w-auto">
-          <Plus className="mr-2 h-4 w-4" />
-          {t('creditNotes.createCreditNote') || 'Create Credit Note'}
-        </Button>
-      </div>
+    <Page>
+      <PageHeader
+        icon={FileText}
+        title={t('creditNotes.title') || 'Credit Notes'}
+        description="Returns from customers and to vendors"
+        actions={
+          <Button onClick={handleOpenNew}>
+            <Plus className="me-1.5 h-4 w-4" />
+            {t('creditNotes.createCreditNote') || 'Create Credit Note'}
+          </Button>
+        }
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Credit Notes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-6 flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder={t('creditNotes.searchCreditNotes') || 'Search credit notes...'}
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setPage(1);
-                }}
-                className="pl-10"
-              />
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
-              className="px-4 py-2 border rounded-md"
-            >
-              <option value="all">{t('common.all') || 'All'}</option>
-              <option value="draft">{t('creditNotes.draft') || 'Draft'}</option>
-              <option value="approved">{t('creditNotes.approved') || 'Approved'}</option>
-              <option value="cancelled">{t('creditNotes.cancelled') || 'Cancelled'}</option>
-            </select>
-          </div>
-
-          {isLoading ? (
-            <div className="text-center py-20">
-              <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
-              <p className="text-muted-foreground">Loading credit notes...</p>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Credit Note #</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Entity</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {creditNotes.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                          No credit notes found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      creditNotes.map((cn: any) => (
-                        <TableRow key={cn.id}>
-                          <TableCell className="font-medium whitespace-nowrap">{cn.credit_note_number}</TableCell>
-                          <TableCell className="whitespace-nowrap">{new Date(cn.credit_note_date).toLocaleDateString()}</TableCell>
-                          <TableCell className="capitalize">{cn.type || 'purchase'}</TableCell>
-                          <TableCell>
-                            {cn.type === 'sales'
-                              ? (cn.customer?.name || 'Walk-in')
-                              : (cn.vendor?.company_name || cn.vendor?.name || '-')}
-                          </TableCell>
-                          <TableCell>{cn.location?.name || '-'}</TableCell>
-                          <TableCell className="text-right font-bold">{formatCurrency(cn.total_amount || 0)}</TableCell>
-                          <TableCell>
-                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${getStatusBadge(cn.status)}`}>
-                              {cn.status}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="icon" onClick={() => handleView(cn.id)}>
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              {(cn.status === 'draft' || cn.status === 'approved') && (
-                                <Button variant="ghost" size="icon" onClick={() => handleEdit(cn)}>
-                                  <Pencil className="h-4 w-4 text-blue-600" />
-                                </Button>
-                              )}
-                              {cn.status === 'draft' && (
-                                <>
-                                  <Button variant="ghost" size="icon" onClick={() => handleApprove(cn.id)} title="Approve">
-                                    <CheckCircle className="h-4 w-4 text-green-600" />
-                                  </Button>
-                                  <Button variant="ghost" size="icon" onClick={() => handleCancel(cn.id)} title="Cancel">
-                                    <XCircle className="h-4 w-4 text-red-600" />
-                                  </Button>
-                                </>
-                              )}
-                              {(cn.status === 'draft' || cn.status === 'approved') && (
-                                <Button variant="ghost" size="icon" onClick={() => handleDelete(cn.id)} title="Delete">
-                                  <Trash2 className="h-4 w-4 text-red-600" />
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {pagination && pagination.total_pages > 1 && (
-                <Pagination
-                  currentPage={pagination.current_page}
-                  totalPages={pagination.total_pages}
-                  onPageChange={setPage}
-                  totalItems={pagination.total}
-                  itemsPerPage={pagination.per_page}
-                />
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <DataTable
+        data={creditNotes}
+        columns={columns}
+        rowKey={(cn) => cn.id}
+        loading={isLoading}
+        search={searchTerm}
+        onSearchChange={resetPage(setSearchTerm)}
+        searchPlaceholder={t('creditNotes.searchCreditNotes') || 'Search credit notes…'}
+        sort={sort}
+        onSortChange={resetPage(setSort)}
+        pagination={{ page, pageSize: perPage, total: pagination?.total || 0, onPageChange: setPage, onPageSizeChange: setPerPage }}
+        onRowClick={(cn) => handleView(cn.id)}
+        storageKey="credit-notes"
+        exportFileName="credit-notes"
+        emptyTitle="No credit notes found"
+        activeFilterCount={statusFilter !== 'all' ? 1 : 0}
+        onResetFilters={() => resetPage(setStatusFilter)('all')}
+        filters={
+          <FilterSelect
+            label="Status"
+            value={statusFilter === 'all' ? '' : statusFilter}
+            onChange={(v) => resetPage(setStatusFilter)(v || 'all')}
+            options={[
+              { value: 'draft', label: t('creditNotes.draft') || 'Draft' },
+              { value: 'approved', label: t('creditNotes.approved') || 'Approved' },
+              { value: 'cancelled', label: t('creditNotes.cancelled') || 'Cancelled' },
+            ]}
+          />
+        }
+      />
 
       {/* View Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
@@ -387,6 +337,6 @@ export default function CreditNotes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </Page>
   );
 }

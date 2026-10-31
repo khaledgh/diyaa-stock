@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { DateRangePicker } from '@/components/ui/date-picker';
 import { reportApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils'; // Assuming this utility exists
 
@@ -47,29 +47,17 @@ export default function ProfitLoss() {
     } = reportData || {};
 
     return (
-        <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+        <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 sm:px-6 sm:py-5">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold">Profit & Loss Statement</h1>
+                    <h1 className="text-xl font-semibold tracking-tight">Profit & Loss Statement</h1>
                     <p className="text-muted-foreground mt-1">
                         Financial performance from {dateRange.from} to {dateRange.to}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2">
-                        <Input
-                            type="date"
-                            value={dateRange.from}
-                            onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-                            className="w-auto"
-                        />
-                        <span className="text-muted-foreground">to</span>
-                        <Input
-                            type="date"
-                            value={dateRange.to}
-                            onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-                            className="w-auto"
-                        />
+                        <DateRangePicker size="default" clearable={false} value={dateRange} onChange={setDateRange} />
                     </div>
                     <Button variant="outline">
                         <Download className="mr-2 h-4 w-4" />
@@ -78,7 +66,7 @@ export default function ProfitLoss() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Key Metrics Cards */}
                 <Card>
                     <CardContent className="p-6 flex items-center justify-between">
@@ -123,7 +111,7 @@ export default function ProfitLoss() {
                 </Card>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Income Statement Detailed View */}
                 <Card className="lg:col-span-2">
                     <CardHeader>

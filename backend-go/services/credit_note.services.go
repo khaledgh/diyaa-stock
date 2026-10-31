@@ -70,7 +70,7 @@ func (s *CreditNoteService) GetAll(limit, page int, orderBy, sortBy, status, sea
 	}
 
 	offset := (page - 1) * limit
-	if err := query.Order(sortBy + " " + orderBy).Limit(limit).Offset(offset).Find(&creditNotes).Error; err != nil {
+	if err := query.Order(SafeColumnOrder(query, sortBy, orderBy)).Limit(limit).Offset(offset).Find(&creditNotes).Error; err != nil {
 		return PaginationResponse{}, err
 	}
 

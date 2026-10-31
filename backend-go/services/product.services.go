@@ -19,14 +19,28 @@ func NewProductServices(c models.Product, db *gorm.DB) *ProductServices {
 	}
 }
 
-func (ss *ProductServices) GetALL(limit, page int, orderBy, sortBy, searchTerm string) (PaginationResponse, error) {
+func (ss *ProductServices) GetALL(limit, page int, orderBy, sortBy, searchTerm string, filters ...map[string]string) (PaginationResponse, error) {
 	products := []models.Product{}
 	var totalRecords int64
 
 	query := ss.DB.Model(&models.Product{}).
 		Preload("Category").
-		Preload("ProductType").
-		Where("is_active = ?", true)
+		Preload("ProductType")
+
+	f := map[string]string{}
+	if len(filters) > 0 {
+		f = filters[0]
+	}
+	switch f["status"] {
+	case "all":
+	case "inactive":
+		query = query.Where("is_active = ?", false)
+	default:
+		query = query.Where("is_active = ?", true)
+	}
+	if categoryID := f["category_id"]; categoryID != "" {
+		query = query.Where("category_id = ?", categoryID)
+	}
 
 	if searchTerm != "" {
 		query = query.Where("name_en LIKE ? OR name_ar LIKE ? OR sku LIKE ? OR description LIKE ?",
@@ -36,7 +50,7 @@ func (ss *ProductServices) GetALL(limit, page int, orderBy, sortBy, searchTerm s
 	query.Count(&totalRecords)
 
 	offset := (page - 1) * limit
-	if err := query.Order(sortBy + " " + orderBy).Offset(offset).Limit(limit).Find(&products).Error; err != nil {
+	if err := query.Order(SafeColumnOrder(query, sortBy, orderBy)).Offset(offset).Limit(limit).Find(&products).Error; err != nil {
 		return PaginationResponse{}, err
 	}
 

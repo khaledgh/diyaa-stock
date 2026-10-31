@@ -15,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { reportApi } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { DateRangePicker } from '@/components/ui/date-picker';
 
 
 export default function VendorStatement() {
@@ -123,7 +124,7 @@ export default function VendorStatement() {
   }) || [];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 sm:px-6 sm:py-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-4">
@@ -133,7 +134,7 @@ export default function VendorStatement() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
               Vendor Statement
             </h1>
             <p className="text-muted-foreground">
@@ -164,18 +165,11 @@ export default function VendorStatement() {
           <div className="flex flex-wrap items-center gap-4">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">Period:</span>
-            <input
-              type="date"
-              value={dateRange.from_date}
-              onChange={(e) => setDateRange({ ...dateRange, from_date: e.target.value })}
-              className="px-3 py-2 rounded-md border border-input bg-background text-sm"
-            />
-            <span className="text-muted-foreground">to</span>
-            <input
-              type="date"
-              value={dateRange.to_date}
-              onChange={(e) => setDateRange({ ...dateRange, to_date: e.target.value })}
-              className="px-3 py-2 rounded-md border border-input bg-background text-sm"
+            <DateRangePicker
+              size="default"
+              clearable={false}
+              value={{ from: dateRange.from_date, to: dateRange.to_date }}
+              onChange={(r) => setDateRange({ ...dateRange, from_date: r.from, to_date: r.to })}
             />
           </div>
         </CardContent>

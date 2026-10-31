@@ -38,7 +38,7 @@ func (s *VendorService) GetALL(limit, page int, orderBy, sortBy, searchTerm stri
 	if searchTerm != "" {
 		baseQuery = baseQuery.Where("name LIKE ? OR company_name LIKE ? OR phone LIKE ? OR email LIKE ?", "%"+searchTerm+"%", "%"+searchTerm+"%", "%"+searchTerm+"%", "%"+searchTerm+"%")
 	}
-	if err := baseQuery.Order(sortBy + " " + orderBy).Limit(limit).Offset(offset).Find(&vendorModels).Error; err != nil {
+	if err := baseQuery.Order(SafeColumnOrder(baseQuery, sortBy, orderBy)).Limit(limit).Offset(offset).Find(&vendorModels).Error; err != nil {
 		return PaginationResponse{}, err
 	}
 

@@ -93,7 +93,7 @@ export default function CustomerOverview() {
   const balance = statement?.closing_balance || 0;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 sm:px-6 sm:py-5">
       {/* Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div className="flex items-center gap-4">
@@ -108,7 +108,7 @@ export default function CustomerOverview() {
               {customer?.name?.charAt(0)?.toUpperCase() || 'C'}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">{customer?.name}</h1>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground">{customer?.name}</h1>
               <div className="flex items-center gap-4 text-muted-foreground mt-1">
                 {customer?.phone && (
                   <span className="flex items-center gap-1">
@@ -211,7 +211,7 @@ export default function CustomerOverview() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Customer Details */}
             <Card>
               <CardHeader>

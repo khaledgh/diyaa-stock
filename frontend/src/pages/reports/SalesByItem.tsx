@@ -1,230 +1,118 @@
-import { useState, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { useReactToPrint } from 'react-to-print';
-import { 
-  ArrowLeft, 
-  Printer, 
-  Calendar,
-  Package,
-  Download,
-  FileText
-} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { FileSpreadsheet, FileText, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { reportApi } from '@/lib/api';
-import { formatCurrency, formatDate, formatQuantity } from '@/lib/utils';
+import { formatCurrency, formatQuantity, toLocalISODate } from '@/lib/utils';
 import { exportSalesByItem } from '@/lib/exportExcel';
 import { exportSalesByItemPDF } from '@/lib/exportPDF';
+import { ColumnDef, DataTable, DateRangeFilter, FilterSelect } from '@/components/data-table/DataTable';
+import { Page, PageHeader, StatStrip } from '@/components/layout/Page';
 
 export default function SalesByItem() {
-  const printRef = useRef<HTMLDivElement>(null);
-  const [dateRange, setDateRange] = useState({
-    from_date: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
-    to_date: new Date().toISOString().split('T')[0],
-  });
+  const navigate = useNavigate();
+  const now = new Date();
+  const [range, setRange] = useState({ from: toLocalISODate(new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())), to: toLocalISODate(now) });
+  const [category, setCategory] = useState('');
 
   const { data: report, isLoading } = useQuery({
-    queryKey: ['sales-by-item', dateRange],
+    queryKey: ['sales-by-item', range],
     queryFn: async () => {
-      const response = await reportApi.salesByItem(dateRange);
+      const response = await reportApi.salesByItem({ from_date: range.from, to_date: range.to });
       return response.data.data || response.data;
     },
+    enabled: !!(range.from && range.to),
   });
 
-  const handlePrint = useReactToPrint({
-    content: () => printRef.current,
-    documentTitle: `Sales_By_Item_${dateRange.from_date}_${dateRange.to_date}`,
-  });
+  const num = (v: unknown) => Number(v || 0);
+  const rows: any[] = report?.products || [];
+  const categories = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.category_name).filter(Boolean))).sort().map((c) => ({ value: c as string, label: c as string })),
+    [rows]
+  );
+  const filtered = rows.filter((r) => !category || r.category_name === category);
+  const s = report?.summary || {};
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full p-6">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  const columns: ColumnDef<any>[] = [
+    { id: 'product', header: 'Product', alwaysVisible: true, value: (r) => r.product_name, cell: (r) => <span className="font-medium" dir="auto">{r.product_name}</span> },
+    { id: 'sku', header: 'SKU', defaultHidden: true, value: (r) => r.sku, cell: (r) => <span className="font-mono text-xs text-muted-foreground">{r.sku || '—'}</span> },
+    { id: 'category', header: 'Category', value: (r) => r.category_name, cell: (r) => <span className="text-muted-foreground">{r.category_name}</span> },
+    { id: 'quantity', header: 'Qty sold', align: 'end', value: (r) => num(r.quantity_sold), cell: (r) => <span className="tabular-nums">{formatQuantity(num(r.quantity_sold))}</span> },
+    { id: 'invoices', header: 'Invoices', align: 'end', defaultHidden: true, value: (r) => num(r.invoice_count), cell: (r) => <span className="tabular-nums text-muted-foreground">{num(r.invoice_count)}</span> },
+    { id: 'avg_price', header: 'Avg price', align: 'end', value: (r) => num(r.avg_price), cell: (r) => <span className="tabular-nums text-muted-foreground">{formatCurrency(num(r.avg_price))}</span> },
+    { id: 'sales', header: 'Net sales', align: 'end', value: (r) => num(r.total_sales), cell: (r) => <span className="tabular-nums font-semibold">{formatCurrency(num(r.total_sales))}</span> },
+    {
+      id: 'share',
+      header: 'Share',
+      align: 'end',
+      value: (r) => (num(s.total_sales) > 0 ? (num(r.total_sales) / num(s.total_sales)) * 100 : 0),
+      cell: (r) => {
+        const pct = num(s.total_sales) > 0 ? (num(r.total_sales) / num(s.total_sales)) * 100 : 0;
+        return (
+          <div className="ms-auto flex w-24 items-center justify-end gap-2">
+            <div className="h-1.5 flex-1 rounded-full bg-muted">
+              <div className="h-1.5 rounded-full" style={{ width: `${Math.min(pct, 100)}%`, background: 'var(--chart-1)' }} />
+            </div>
+            <span className="w-9 text-end tabular-nums text-xs text-muted-foreground">{pct.toFixed(0)}%</span>
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <Link to="/reports">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
+    <Page>
+      <PageHeader
+        icon={Package}
+        backTo="/reports"
+        title="Sales by Item"
+        description="Which products sell, net of returns"
+        actions={
+          <>
+            <Button variant="outline" disabled={!rows.length} onClick={() => exportSalesByItem(rows, range.from, range.to)}>
+              <FileSpreadsheet className="me-1.5 h-4 w-4" /> Excel
             </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-              <Package className="h-6 w-6 text-purple-600" />
-              Sales by Item
-            </h1>
-            <p className="text-muted-foreground">Product sales breakdown</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => exportSalesByItem(report?.products || [], dateRange.from_date, dateRange.to_date)} 
-            className="gap-2"
-            disabled={!report?.products?.length}
-          >
-            <Download className="h-4 w-4" />
-            Excel
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={async () => await exportSalesByItemPDF(report?.products || [], dateRange.from_date, dateRange.to_date)} 
-            className="gap-2"
-            disabled={!report?.products?.length}
-          >
-            <FileText className="h-4 w-4" />
-            PDF
-          </Button>
-          <Button variant="outline" onClick={() => handlePrint()} className="gap-2">
-            <Printer className="h-4 w-4" />
-            Print
-          </Button>
-        </div>
-      </div>
+            <Button variant="outline" disabled={!rows.length} onClick={async () => await exportSalesByItemPDF(rows, range.from, range.to)}>
+              <FileText className="me-1.5 h-4 w-4" /> PDF
+            </Button>
+          </>
+        }
+      />
 
-      {/* Date Filter */}
-      <Card>
-        <CardContent className="py-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Period:</span>
-            <input
-              type="date"
-              value={dateRange.from_date}
-              onChange={(e) => setDateRange({ ...dateRange, from_date: e.target.value })}
-              className="px-3 py-2 rounded-md border border-input bg-background text-sm"
-            />
-            <span className="text-muted-foreground">to</span>
-            <input
-              type="date"
-              value={dateRange.to_date}
-              onChange={(e) => setDateRange({ ...dateRange, to_date: e.target.value })}
-              className="px-3 py-2 rounded-md border border-input bg-background text-sm"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <StatStrip
+        items={[
+          { label: 'Net sales', value: formatCurrency(num(s.total_sales)) },
+          { label: 'Units sold', value: formatQuantity(num(s.total_quantity_sold)) },
+          { label: 'Products sold', value: num(s.total_products) },
+        ]}
+      />
 
-      {/* Printable Report */}
-      <div ref={printRef} className="bg-white dark:bg-card rounded-lg">
-        {/* Header */}
-        <div className="p-6 border-b">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-xl font-bold">Sales by Item</h2>
-              <p className="text-muted-foreground mt-1">
-                {formatDate(dateRange.from_date)} - {formatDate(dateRange.to_date)}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold text-purple-600">
-                {formatCurrency(report?.summary?.total_sales || 0)}
-              </p>
-              <p className="text-sm text-muted-foreground">Total Sales</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-3 gap-4 p-6">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground uppercase">Total Sales</p>
-              <p className="text-lg font-bold text-purple-600">
-                {formatCurrency(report?.summary?.total_sales || 0)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground uppercase">Quantity Sold</p>
-              <p className="text-lg font-bold text-blue-600">
-                {formatQuantity(report?.summary?.total_quantity_sold || 0)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-xs text-muted-foreground uppercase">Products Sold</p>
-              <p className="text-lg font-bold">
-                {report?.summary?.total_products || 0}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Product Table */}
-        <div className="px-6 pb-6">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>Product</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Quantity Sold</TableHead>
-                <TableHead className="text-right">Avg Price</TableHead>
-                <TableHead className="text-right">Total Sales</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {report?.products?.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    <Package className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                    No sales in this period
-                  </TableCell>
-                </TableRow>
-              ) : (
-                <>
-                  {report?.products?.map((product: any) => (
-                    <TableRow key={product.product_id} className="hover:bg-muted/30">
-                      <TableCell className="font-medium">{product.product_name}</TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">
-                        {product.sku}
-                      </TableCell>
-                      <TableCell>{product.category_name}</TableCell>
-                      <TableCell className="text-right">
-                        {formatQuantity(product.quantity_sold)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(product.avg_price)}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-purple-600">
-                        {formatCurrency(product.total_sales)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-
-                  {/* Totals Row */}
-                  <TableRow className="bg-muted/50 font-semibold border-t-2">
-                    <TableCell colSpan={3}>Total</TableCell>
-                    <TableCell className="text-right">
-                      {formatQuantity(report?.summary?.total_quantity_sold || 0)}
-                    </TableCell>
-                    <TableCell className="text-right">-</TableCell>
-                    <TableCell className="text-right text-purple-600 text-lg">
-                      {formatCurrency(report?.summary?.total_sales || 0)}
-                    </TableCell>
-                  </TableRow>
-                </>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Footer */}
-        <div className="p-6 border-t text-center text-sm text-muted-foreground">
-          <p>Generated on {new Date().toLocaleDateString()}</p>
-        </div>
-      </div>
-    </div>
+      <DataTable
+        data={filtered}
+        columns={columns}
+        rowKey={(r) => r.product_id}
+        loading={isLoading}
+        defaultSort={{ id: 'sales', dir: 'desc' }}
+        searchPlaceholder="Search product, SKU, category…"
+        onRowClick={(r) => navigate(`/products/edit/${r.product_id}`)}
+        storageKey="sales-by-item"
+        exportFileName={`sales-by-item-${range.from}-${range.to}`}
+        emptyTitle="No sales in this period"
+        activeFilterCount={category ? 1 : 0}
+        onResetFilters={() => setCategory('')}
+        filters={
+          <>
+            <DateRangeFilter from={range.from} to={range.to} onChange={setRange} clearable={false} />
+            <FilterSelect label="Category" value={category} onChange={setCategory} options={categories} />
+          </>
+        }
+        footer={(list) => ({
+          product: <span className="text-xs font-medium text-muted-foreground">{list.length} products</span>,
+          quantity: formatQuantity(list.reduce((t, r) => t + num(r.quantity_sold), 0)),
+          sales: formatCurrency(list.reduce((t, r) => t + num(r.total_sales), 0)),
+        })}
+      />
+    </Page>
   );
 }

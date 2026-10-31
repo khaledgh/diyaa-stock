@@ -36,7 +36,8 @@ func (s *SalesInvoiceService) GetALL(filters map[string]string, limit, offset in
 
 	// Apply filters
 	if search, ok := filters["search"]; ok && search != "" {
-		query = query.Where("invoice_number LIKE ?", "%"+search+"%")
+		like := "%" + search + "%"
+		query = query.Where("(invoice_number LIKE ? OR customer_id IN (SELECT id FROM customers WHERE name LIKE ? OR phone LIKE ?))", like, like, like)
 	}
 
 	if paymentStatus, ok := filters["payment_status"]; ok && paymentStatus != "" {
@@ -73,7 +74,16 @@ func (s *SalesInvoiceService) GetALL(filters map[string]string, limit, offset in
 
 	query.Count(&total)
 
-	err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&invoices).Error
+	order := SafeOrder(filters["sort_by"], filters["sort_dir"], map[string]string{
+		"invoice_number": "sales_invoices.invoice_number",
+		"date":           "sales_invoices.created_at",
+		"total":          "sales_invoices.total_amount",
+		"paid":           "sales_invoices.paid_amount",
+		"status":         "sales_invoices.payment_status",
+		"customer":       "(SELECT name FROM customers WHERE customers.id = sales_invoices.customer_id)",
+		"location":       "(SELECT name FROM locations WHERE locations.id = sales_invoices.location_id)",
+	}, "sales_invoices.created_at DESC")
+	err := query.Order(order).Order("sales_invoices.id DESC").Limit(limit).Offset(offset).Find(&invoices).Error
 	if err != nil {
 		return nil, 0, err
 	}

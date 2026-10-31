@@ -7,10 +7,11 @@ import * as z from 'zod';
 import { toast } from 'sonner';
 import { Plus, Edit, Trash2, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ColumnDef, DataTable } from '@/components/data-table/DataTable';
+import { ActiveBadge, StatusBadge, Page, PageHeader, RowAction, RowActions } from '@/components/layout/Page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -18,14 +19,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { vanApi } from '@/lib/api';
 import { Combobox } from '@/components/ui/combobox';
 
@@ -167,105 +160,57 @@ export default function Vans() {
     return option?.label || type;
   };
 
-  return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">{t('vans.title') || 'Vans'}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t('vans.subtitle') || 'Manage company and rental vehicles'}
-          </p>
-        </div>
-        <Button onClick={() => handleOpenDialog()} className="w-full sm:w-auto">
-          <Plus className="mr-2 h-4 w-4" />
-          {t('vans.addNew') || 'Add Van'}
-        </Button>
-      </div>
+  const columns: ColumnDef<any>[] = [
+    { id: 'name', header: t('vans.name') || 'Name', alwaysVisible: true, value: (v) => v.name, cell: (v) => <span className="font-medium">{v.name}</span> },
+    { id: 'plate_number', header: t('vans.plateNumber') || 'Plate Number', value: (v) => v.plate_number, cell: (v) => <span className="font-mono text-xs">{v.plate_number || '—'}</span> },
+    {
+      id: 'owner_type',
+      header: t('vans.ownerType') || 'Owner Type',
+      value: (v) => getOwnerTypeLabel(v.owner_type),
+      cell: (v) => <StatusBadge tone={v.owner_type === 'rental' ? 'amber' : 'blue'} dot={false}>{v.owner_type ? getOwnerTypeLabel(v.owner_type) : '—'}</StatusBadge>,
+    },
+    { id: 'status', header: t('common.status') || 'Status', value: (v) => (v.is_active ? 1 : 0), cell: (v) => <ActiveBadge active={!!v.is_active} /> },
+    {
+      id: 'actions',
+      header: '',
+      alwaysVisible: true,
+      sortable: false,
+      align: 'end',
+      cell: (v) => (
+        <RowActions>
+          <RowAction label="Edit" icon={Edit} onClick={() => handleOpenDialog(v)} />
+          <RowAction label="Delete" icon={Trash2} tone="danger" onClick={() => handleDelete(v.id)} />
+        </RowActions>
+      ),
+    },
+  ];
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <Truck className="h-5 w-5" />
-            <h2 className="text-lg font-semibold">{t('vans.list') || 'All Vans'}</h2>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8">{t('common.loading') || 'Loading...'}</div>
-          ) : (
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
-              <div className="inline-block min-w-full align-middle">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('vans.name') || 'Name'}</TableHead>
-                      <TableHead className="hidden md:table-cell">{t('vans.plateNumber') || 'Plate Number'}</TableHead>
-                      <TableHead className="hidden lg:table-cell">{t('vans.ownerType') || 'Owner Type'}</TableHead>
-                      <TableHead className="hidden md:table-cell">{t('common.status') || 'Status'}</TableHead>
-                      <TableHead className="text-right">{t('common.actions') || 'Actions'}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {vans?.map((van: Van) => (
-                      <TableRow key={van.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            <Truck className="h-4 w-4" />
-                            <div>
-                              <div>{van.name}</div>
-                              <div className="md:hidden text-xs text-muted-foreground mt-1">
-                                {van.plate_number && `${van.plate_number} • `}
-                                {getOwnerTypeLabel(van.owner_type)}
-                              </div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">{van.plate_number || '-'}</TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            van.owner_type === 'company'
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                              : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          }`}>
-                            {getOwnerTypeLabel(van.owner_type)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            van.is_active
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                          }`}>
-                            {van.is_active ? t('common.active') : t('common.inactive')}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenDialog(van)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(van.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+  return (
+    <Page>
+      <PageHeader
+        icon={Truck}
+        title={t('vans.title') || 'Vans'}
+        description={t('vans.subtitle') || 'Manage company and rental vehicles'}
+        actions={
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="me-1.5 h-4 w-4" />
+            {t('vans.addNew') || 'Add Van'}
+          </Button>
+        }
+      />
+
+      <DataTable
+        data={vans || []}
+        columns={columns}
+        rowKey={(v) => v.id}
+        loading={isLoading}
+        defaultSort={{ id: 'name', dir: 'asc' }}
+        searchPlaceholder="Search name or plate…"
+        onRowClick={(v) => handleOpenDialog(v)}
+        storageKey="vans"
+        exportFileName="vans"
+        emptyTitle="No vans yet"
+      />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
@@ -358,6 +303,6 @@ export default function Vans() {
         </DialogContent>
       </Dialog>
 
-    </div>
+    </Page>
   );
 }

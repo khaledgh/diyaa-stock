@@ -92,7 +92,7 @@ func (s *StockService) GetAllStockByLocation() ([]map[string]interface{}, error)
 	var results []map[string]interface{}
 
 	err := s.db.Table("stocks").
-		Select("stocks.*, products.sku, products.name_en, products.name_ar, products.unit, products.min_stock_level, categories.name_en as category_name_en, categories.name_ar as category_name_ar, locations.name as location_name").
+		Select("stocks.*, products.sku, products.name_en, products.name_ar, products.unit, products.min_stock_level, products.is_active as product_active, products.cost_price, categories.name_en as category_name_en, categories.name_ar as category_name_ar, locations.name as location_name").
 		Joins("LEFT JOIN products ON stocks.product_id = products.id").
 		Joins("LEFT JOIN categories ON products.category_id = categories.id").
 		Joins("LEFT JOIN locations ON stocks.location_id = locations.id").

@@ -176,11 +176,11 @@ export default function Roles() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 sm:px-6 sm:py-5">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Roles & Permissions</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Roles & Permissions</h1>
           <p className="text-gray-600 mt-1">Manage user roles and access control</p>
         </div>
         <button
@@ -197,7 +197,7 @@ export default function Roles() {
       </div>
 
       {/* Roles Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {roles.map((role) => (
           <div key={role.id} className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
             <div className="flex items-start justify-between mb-4">

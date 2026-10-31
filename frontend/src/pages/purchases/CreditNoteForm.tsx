@@ -311,7 +311,7 @@ export default function CreditNoteForm() {
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                     <div>
-                        <h1 className="text-2xl font-bold">{isEditMode ? 'Edit Credit Note' : 'New Credit Note'}</h1>
+                        <h1 className="text-xl font-semibold tracking-tight">{isEditMode ? 'Edit Credit Note' : 'New Credit Note'}</h1>
                         <p className="text-sm text-muted-foreground">Record product returns and adjustments</p>
                     </div>
                 </div>
@@ -327,7 +327,7 @@ export default function CreditNoteForm() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="lg:col-span-2 space-y-6">
                     <Card>
                         <CardHeader>

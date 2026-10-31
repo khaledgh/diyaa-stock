@@ -31,7 +31,7 @@ export default function Employees() {
             </div>
           </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-xl font-semibold tracking-tight">
               Employees Page Moved
             </h1>
             <p className="text-gray-600 dark:text-gray-400">

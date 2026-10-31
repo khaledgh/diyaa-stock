@@ -83,7 +83,7 @@ func (s *PaymentService) GetPaginated(limit, page int, orderBy, sortBy, invoiceI
 	query.Count(&total)
 
 	offset := (page - 1) * limit
-	if err := query.Order(sortBy + " " + orderBy).Limit(limit).Offset(offset).Find(&payments).Error; err != nil {
+	if err := query.Order(SafeColumnOrder(query, sortBy, orderBy)).Limit(limit).Offset(offset).Find(&payments).Error; err != nil {
 		return PaginationResponse{}, err
 	}
 

@@ -102,6 +102,7 @@ export const vanApi = {
 export const stockApi = {
   getWarehouse: () => api.get('/stock'),
   getAllStock: () => api.get('/stock/inventory'),
+  getAllByLocation: () => api.get('/stock/all'),
   getByLocation: (locationId: number) => api.get(`/stock/location/${locationId}`),
   getMovements: (params?: any) => api.get('/stock/movements', { params }),
   adjustStock: (data: any) => api.post('/stock/adjust', data),

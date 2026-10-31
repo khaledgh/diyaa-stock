@@ -1,26 +1,28 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Pagination } from '@/components/ui/pagination';
 import { vendorApi } from '@/lib/api';
-import { Building2, Plus, Edit, Trash2, Phone, Mail, Search, FileText, DollarSign } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
+import { ColumnDef, DataTable, SortState } from '@/components/data-table/DataTable';
+import { Page, PageHeader, RowAction, RowActions } from '@/components/layout/Page';
+import { Building2, Plus, Edit, Trash2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Vendors() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
-  const [perPage] = useState(20);
+  const [perPage, setPerPage] = useState(25);
+  const [sort, setSort] = useState<SortState | null>({ id: 'name', dir: 'asc' });
   const [formData, setFormData] = useState({
     name: '',
     company_name: '',
@@ -34,23 +36,23 @@ export default function Vendors() {
   });
 
   const { data: vendorsResponse, isLoading } = useQuery({
-    queryKey: ['vendors', searchTerm, page],
+    queryKey: ['vendors', searchTerm, page, perPage, sort],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       try {
         const response = await vendorApi.getAll({
           search: searchTerm,
           page,
-          per_page: perPage
+          per_page: perPage,
+          sortBy: sort?.id,
+          orderBy: sort?.dir,
         });
-        
-        console.log('Vendor API Response:', response.data);
         
         // Backend returns PaginationResponse directly: { data: [], total: X, current_page: 1, per_page: 20, total_pages: Y }
         const apiData = response.data;
         
         // Check if it's the pagination response format
         if (apiData?.data && Array.isArray(apiData.data) && apiData.total !== undefined) {
-          console.log('Pagination format detected');
           return {
             data: apiData.data,
             pagination: {
@@ -64,11 +66,9 @@ export default function Vendors() {
         
         // Fallback: if apiData is directly an array (old format)
         if (Array.isArray(apiData)) {
-          console.log('Old format: direct array');
           return { data: apiData, pagination: null };
         }
         
-        console.log('Unknown format, returning empty. ApiData:', apiData);
         return { data: [], pagination: null };
       } catch (error) {
         console.error('Failed to fetch vendors:', error);
@@ -79,8 +79,6 @@ export default function Vendors() {
 
   const vendors = Array.isArray(vendorsResponse?.data) ? vendorsResponse.data : [];
   const pagination = vendorsResponse?.pagination;
-  
-  console.log('Vendors:', vendors, 'Pagination:', pagination);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -181,24 +179,75 @@ export default function Vendors() {
     }
   };
 
-  return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <Building2 className="h-8 w-8 text-green-600" />
-            {t('vendors.title')}
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">{t('vendors.subtitle')}</p>
+  const columns: ColumnDef<any>[] = [
+    {
+      id: 'name',
+      header: t('vendors.name'),
+      alwaysVisible: true,
+      value: (v) => v.name,
+      cell: (v) => (
+        <div className="min-w-0">
+          <p className="truncate font-medium" dir="auto">{v.name}</p>
+          {v.company_name && <p className="truncate text-xs text-muted-foreground" dir="auto">{v.company_name}</p>}
         </div>
+      ),
+    },
+    { id: 'phone', header: t('common.phone'), value: (v) => v.phone, cell: (v) => <span className="tabular-nums text-muted-foreground" dir="ltr">{v.phone || '—'}</span> },
+    { id: 'email', header: t('common.email'), defaultHidden: true, value: (v) => v.email, cell: (v) => <span className="text-muted-foreground">{v.email || '—'}</span> },
+    { id: 'payment_terms', header: t('vendors.paymentTerms'), defaultHidden: true, value: (v) => v.payment_terms, cell: (v) => <span className="text-muted-foreground">{v.payment_terms || '—'}</span> },
+    {
+      id: 'total_purchases',
+      header: t('vendors.totalPurchases'),
+      align: 'end',
+      sortable: false,
+      value: (v) => Number(v.total_amount || 0),
+      cell: (v) => (
+        <div>
+          <p className="tabular-nums font-medium">{formatCurrency(Number(v.total_amount || 0))}</p>
+          <p className="text-xs text-muted-foreground">{v.total_purchases || 0} invoices</p>
+        </div>
+      ),
+    },
+    {
+      id: 'balance',
+      header: 'Balance',
+      align: 'end',
+      value: (v) => Number(v.balance || 0),
+      cell: (v) => {
+        const b = Number(v.balance || 0);
+        return <span className={`tabular-nums font-medium ${b > 0.009 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{formatCurrency(b)}</span>;
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      alwaysVisible: true,
+      sortable: false,
+      align: 'end',
+      cell: (v) => (
+        <RowActions>
+          <RowAction label="Statement" icon={FileText} onClick={() => navigate(`/vendors/${v.id}/statement`)} />
+          <RowAction label="Edit" icon={Edit} onClick={() => handleEdit(v)} />
+          <RowAction label="Delete" icon={Trash2} tone="danger" onClick={() => handleDelete(v.id)} />
+        </RowActions>
+      ),
+    },
+  ];
 
+  return (
+    <Page>
+      <PageHeader
+        icon={Building2}
+        title={t('vendors.title')}
+        description={t('vendors.subtitle')}
+        actions={
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) resetForm();
         }}>
           <DialogTrigger asChild>
-            <Button className="bg-green-600 hover:bg-green-700">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button>
+              <Plus className="me-1.5 h-4 w-4" />
               {t('vendors.addNew')}
             </Button>
           </DialogTrigger>
@@ -313,136 +362,31 @@ export default function Vendors() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
-      <Card className="border-0 shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-xl">{t('vendors.list')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Search vendors by name, company, phone, or email..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setPage(1);
-                }}
-                className="pl-10 h-11"
-              />
-            </div>
-          </div>
-          {isLoading ? (
-            <div className="text-center py-8">{t('common.loading')}</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('vendors.name')}</TableHead>
-                  <TableHead>{t('vendors.companyName')}</TableHead>
-                  <TableHead>{t('common.phone')}</TableHead>
-                  <TableHead>{t('common.email')}</TableHead>
-                  <TableHead>{t('vendors.paymentTerms')}</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead className="text-right">{t('vendors.totalPurchases')}</TableHead>
-                  <TableHead className="text-right">{t('common.actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vendors?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                      {t('common.noData')}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  vendors?.map((vendor: any) => (
-                    <TableRow key={vendor.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <TableCell className="font-medium">{vendor.name}</TableCell>
-                      <TableCell>{vendor.company_name || '-'}</TableCell>
-                      <TableCell>
-                        {vendor.phone ? (
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3 w-3 text-gray-400" />
-                            {vendor.phone}
-                          </div>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {vendor.email ? (
-                          <div className="flex items-center gap-1">
-                            <Mail className="h-3 w-3 text-gray-400" />
-                            {vendor.email}
-                          </div>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell>{vendor.payment_terms || '-'}</TableCell>
-                      <TableCell className="text-right">
-                        {vendor.balance && vendor.balance !== 0 ? (
-                          <span className={`inline-flex items-center gap-1 text-sm font-semibold ${vendor.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            <DollarSign className="h-3 w-3" />
-                            {Number(vendor.balance).toFixed(2)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div>
-                          <div className="font-medium">{vendor.total_purchases || 0}</div>
-                          <div className="text-xs text-gray-500">
-                            ${parseFloat(vendor.total_amount || 0).toFixed(2)}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Link to={`/vendors/${vendor.id}/statement`}>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                            >
-                              <FileText className="h-4 w-4 mr-1" />
-                              Statement
-                            </Button>
-                          </Link>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(vendor)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(vendor.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-          
-          {pagination && pagination.total_pages > 1 && (
-            <Pagination
-              currentPage={pagination.current_page}
-              totalPages={pagination.total_pages}
-              onPageChange={setPage}
-              totalItems={pagination.total}
-              itemsPerPage={pagination.per_page}
-            />
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      <DataTable
+        data={vendors}
+        columns={columns}
+        rowKey={(v) => v.id}
+        loading={isLoading}
+        search={searchTerm}
+        onSearchChange={(v) => {
+          setSearchTerm(v);
+          setPage(1);
+        }}
+        searchPlaceholder="Search name, company, phone, email…"
+        sort={sort}
+        onSortChange={(v) => {
+          setSort(v);
+          setPage(1);
+        }}
+        pagination={{ page, pageSize: perPage, total: pagination?.total || 0, onPageChange: setPage, onPageSizeChange: setPerPage }}
+        onRowClick={(v) => navigate(`/vendors/${v.id}/statement`)}
+        storageKey="vendors"
+        exportFileName="vendors"
+        emptyTitle="No vendors found"
+      />
+    </Page>
   );
 }

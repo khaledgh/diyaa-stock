@@ -156,22 +156,22 @@ export default function ProductForm() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-xl font-semibold tracking-tight">
             {isEditing ? t('products.editProduct') : t('products.addProduct')}
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground">
             {isEditing ? 'Update product information' : 'Add a new product to your inventory'}
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <Card className="border-0 shadow-lg">
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Product Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="sku">{t('products.sku')} *</Label>
                 <Input

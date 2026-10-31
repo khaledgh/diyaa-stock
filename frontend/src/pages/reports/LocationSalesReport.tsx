@@ -1,322 +1,106 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, DollarSign, ShoppingCart, Calendar, Download, TrendingUp, AlertCircle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { MapPin } from 'lucide-react';
 import { reportApi } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { formatCurrency, toLocalISODate } from '@/lib/utils';
+import { ColumnDef, DataTable, DateRangeFilter } from '@/components/data-table/DataTable';
+import { Page, PageHeader, StatStrip } from '@/components/layout/Page';
 
 export default function LocationSalesReport() {
-  const [fromDate, setFromDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
-  const [toDate, setToDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const today = toLocalISODate();
+  const [range, setRange] = useState({ from: today, to: today });
 
-  // Fetch location sales data
-  const { data: reportData, isLoading, error } = useQuery({
-    queryKey: ['location-sales-report', fromDate, toDate],
+  const { data: report, isLoading } = useQuery({
+    queryKey: ['location-sales', range],
     queryFn: async () => {
-      const response = await reportApi.locationSales({ from_date: fromDate, to_date: toDate });
-      return response.data.data;
+      const response = await reportApi.locationSales({ from_date: range.from, to_date: range.to });
+      return response.data.data || response.data;
     },
+    enabled: !!(range.from && range.to),
   });
 
-  const locations = reportData?.locations || [];
-  const summary = reportData?.summary || {};
+  const num = (v: unknown) => Number(v || 0);
+  const rows: any[] = report?.locations || [];
+  const s = report?.summary || {};
+  const margin = (r: any) => (num(r.total_sales) > 0 ? (num(r.gross_profit) / num(r.total_sales)) * 100 : null);
 
-  const exportReport = () => {
-    const headers = ['Location', 'Invoice Count', 'Total Sales', 'Total Paid', 'Total Unpaid', 'Products Sold'];
-    const csvData = [
-      headers.join(','),
-      ...locations.map((location: any) => [
-        `"${location.location_name}"`,
-        location.invoice_count || 0,
-        location.total_sales || 0,
-        location.total_paid || 0,
-        location.total_unpaid || 0,
-        location.products_sold || 0
-      ].join(','))
-    ].join('\n');
+  const columns: ColumnDef<any>[] = [
+    { id: 'location', header: 'Location', alwaysVisible: true, value: (r) => r.location_name, cell: (r) => <span className="font-medium">{r.location_name}</span> },
+    { id: 'invoices', header: 'Invoices', align: 'end', value: (r) => num(r.invoice_count), cell: (r) => <span className="tabular-nums text-muted-foreground">{num(r.invoice_count)}</span> },
+    { id: 'sales', header: 'Sales', align: 'end', value: (r) => num(r.total_sales), cell: (r) => <span className="tabular-nums font-semibold">{formatCurrency(num(r.total_sales))}</span> },
+    {
+      id: 'avg',
+      header: 'Avg invoice',
+      align: 'end',
+      value: (r) => (num(r.invoice_count) ? num(r.total_sales) / num(r.invoice_count) : 0),
+      cell: (r) => <span className="tabular-nums text-muted-foreground">{formatCurrency(num(r.invoice_count) ? num(r.total_sales) / num(r.invoice_count) : 0)}</span>,
+    },
+    {
+      id: 'returns',
+      header: 'Returns',
+      align: 'end',
+      value: (r) => num(r.total_credit_notes),
+      cell: (r) => (num(r.total_credit_notes) ? <span className="tabular-nums text-orange-600">−{formatCurrency(num(r.total_credit_notes))}</span> : <span className="text-muted-foreground/50">—</span>),
+    },
+    {
+      id: 'profit',
+      header: 'Gross profit',
+      align: 'end',
+      value: (r) => num(r.gross_profit),
+      cell: (r) => (
+        <div>
+          <p className="tabular-nums font-medium">{formatCurrency(num(r.gross_profit))}</p>
+          {margin(r) !== null && <p className="text-xs tabular-nums text-muted-foreground">{margin(r)!.toFixed(1)}%</p>}
+        </div>
+      ),
+    },
+    { id: 'paid', header: 'Collected', align: 'end', value: (r) => num(r.total_paid), cell: (r) => <span className="tabular-nums">{formatCurrency(num(r.total_paid))}</span> },
+    {
+      id: 'unpaid',
+      header: 'Unpaid',
+      align: 'end',
+      value: (r) => num(r.total_unpaid),
+      cell: (r) => <span className={`tabular-nums ${num(r.total_unpaid) > 0.009 ? 'font-medium text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{formatCurrency(num(r.total_unpaid))}</span>,
+    },
+    { id: 'products', header: 'Products', align: 'end', defaultHidden: true, value: (r) => num(r.products_sold), cell: (r) => <span className="tabular-nums text-muted-foreground">{num(r.products_sold)}</span> },
+  ];
 
-    const blob = new Blob([csvData], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `location-sales-report-${fromDate}-to-${toDate}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="text-center py-8">Loading location sales report...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <Alert className="border-red-200 bg-red-50">
-          <AlertCircle className="h-4 w-4 text-red-600" />
-          <AlertDescription>
-            Failed to load location sales report. Please try again.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  const collectionRate = num(s.total_sales) > 0 ? (num(s.total_paid) / num(s.total_sales)) * 100 : 0;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Location Sales Report</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Sales performance by location for selected dates
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-          <div className="flex gap-2">
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="px-3 py-2 rounded-md border border-input bg-background text-sm"
-            />
-            <span className="text-sm text-muted-foreground self-center">to</span>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="px-3 py-2 rounded-md border border-input bg-background text-sm"
-            />
-          </div>
-        </div>
-      </div>
+    <Page>
+      <PageHeader icon={MapPin} backTo="/reports" title="Sales by Location" description="Sales, profit and collections per warehouse, store and van" />
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Locations</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold">{summary.total_locations || 0}</p>
-                <p className="text-xs text-muted-foreground mt-1">Active locations</p>
-              </div>
-              <MapPin className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
+      <StatStrip
+        items={[
+          { label: 'Sales', value: formatCurrency(num(s.total_sales)), hint: `${num(s.total_invoices)} invoices` },
+          { label: 'Gross profit', value: formatCurrency(num(s.total_profit)), hint: num(s.total_sales) > 0 ? `${((num(s.total_profit) / num(s.total_sales)) * 100).toFixed(1)}% margin` : undefined },
+          { label: 'Collected', value: formatCurrency(num(s.total_paid)), hint: `${collectionRate.toFixed(0)}% of sales` },
+          { label: 'Returns', value: formatCurrency(num(s.total_credit_notes)) },
+        ]}
+      />
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Invoices</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold">{summary.total_invoices || 0}</p>
-                <p className="text-xs text-muted-foreground mt-1">Across all locations</p>
-              </div>
-              <ShoppingCart className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Sales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold">{formatCurrency(summary.total_sales || 0)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Revenue generated</p>
-              </div>
-              <DollarSign className="h-8 w-8 text-emerald-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Gross Profit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-blue-600">{formatCurrency(summary.total_profit || 0)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Total profit margin</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Sales Returns</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-red-600">{formatCurrency(summary.total_credit_notes || 0)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Total credit notes</p>
-              </div>
-              <AlertCircle className="h-8 w-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Report Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Sales by Location</CardTitle>
-            <Button onClick={exportReport} variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Showing sales data from {summary.date_from} to {summary.date_to}
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Location</TableHead>
-                  <TableHead className="text-right">Invoices</TableHead>
-                  <TableHead className="text-right">Total Sales</TableHead>
-                  <TableHead className="text-right">Returns</TableHead>
-                  <TableHead className="text-right">Gross Profit</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Unpaid</TableHead>
-                  <TableHead className="text-right">Products Sold</TableHead>
-                  <TableHead className="text-right">Avg Order Value</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {locations.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      No sales data available for the selected date range
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  locations.map((location: any) => {
-                    const avgOrderValue = location.invoice_count > 0 ? location.total_sales / location.invoice_count : 0;
-                    return (
-                      <TableRow key={location.location_id}>
-                        <TableCell className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="font-medium">{location.location_name}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {location.invoice_count || 0}
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-green-600">
-                          {formatCurrency(location.total_sales || 0)}
-                        </TableCell>
-                        <TableCell className="text-right text-red-600">
-                          {formatCurrency(location.total_credit_notes || 0)}
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-blue-600">
-                          {formatCurrency(location.gross_profit || 0)}
-                        </TableCell>
-                        <TableCell className="text-right text-blue-600">
-                          {formatCurrency(location.total_paid || 0)}
-                        </TableCell>
-                        <TableCell className="text-right text-orange-600">
-                          {formatCurrency(location.total_unpaid || 0)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {location.products_sold || 0}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(avgOrderValue)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Insights */}
-      {locations.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-blue-600" />
-                Top Performing Location
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(() => {
-                const topLocation = locations.reduce((max: any, loc: any) =>
-                  (loc.total_sales || 0) > (max.total_sales || 0) ? loc : max,
-                  locations[0]
-                );
-                return (
-                  <div>
-                    <p className="text-lg font-semibold">{topLocation.location_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatCurrency(topLocation.total_sales || 0)} in sales
-                    </p>
-                  </div>
-                );
-              })()}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-orange-600" />
-                Collection Rate
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(() => {
-                const collectionRate = summary.total_sales > 0
-                  ? ((summary.total_paid / summary.total_sales) * 100).toFixed(2)
-                  : '0.00';
-                return (
-                  <div>
-                    <p className="text-lg font-semibold">{collectionRate}%</p>
-                    <p className="text-sm text-muted-foreground">
-                      Of total sales collected
-                    </p>
-                  </div>
-                );
-              })()}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
+      <DataTable
+        data={rows}
+        columns={columns}
+        rowKey={(r) => r.location_id}
+        loading={isLoading}
+        defaultSort={{ id: 'sales', dir: 'desc' }}
+        searchPlaceholder="Search location…"
+        storageKey="location-sales"
+        exportFileName={`location-sales-${range.from}-${range.to}`}
+        emptyTitle="No active locations"
+        filters={<DateRangeFilter from={range.from} to={range.to} onChange={setRange} clearable={false} />}
+        footer={(list) => ({
+          location: <span className="text-xs font-medium text-muted-foreground">{list.length} locations</span>,
+          invoices: list.reduce((t, r) => t + num(r.invoice_count), 0),
+          sales: formatCurrency(list.reduce((t, r) => t + num(r.total_sales), 0)),
+          returns: formatCurrency(list.reduce((t, r) => t + num(r.total_credit_notes), 0)),
+          profit: formatCurrency(list.reduce((t, r) => t + num(r.gross_profit), 0)),
+          paid: formatCurrency(list.reduce((t, r) => t + num(r.total_paid), 0)),
+          unpaid: formatCurrency(list.reduce((t, r) => t + num(r.total_unpaid), 0)),
+        })}
+      />
+    </Page>
   );
 }

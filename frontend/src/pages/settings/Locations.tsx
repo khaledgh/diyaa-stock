@@ -7,9 +7,10 @@ import * as z from 'zod';
 import { toast } from 'sonner';
 import { Plus, Edit, Trash2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ColumnDef, DataTable } from '@/components/data-table/DataTable';
+import { StatusBadge, Page, PageHeader, RowAction, RowActions } from '@/components/layout/Page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -17,14 +18,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { locationApi, vanApi } from '@/lib/api';
 import { Combobox } from '@/components/ui/combobox';
 
@@ -179,97 +172,63 @@ export default function Locations() {
     return option?.label || type;
   };
 
-  return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">{t('locations.title') || 'Locations'}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t('locations.subtitle') || 'Manage warehouses, branches, and van locations'}
-          </p>
+  const columns: ColumnDef<Location>[] = [
+    {
+      id: 'name',
+      header: t('locations.name') || 'Name',
+      alwaysVisible: true,
+      value: (l) => l.name,
+      cell: (l) => (
+        <div className="min-w-0">
+          <p className="truncate font-medium">{l.name}</p>
+          {l.address && <p className="truncate text-xs text-muted-foreground">{l.address}</p>}
         </div>
-        <Button onClick={() => handleOpenDialog()} className="w-full sm:w-auto">
-          <Plus className="mr-2 h-4 w-4" />
-          {t('locations.addNew') || 'Add Location'}
-        </Button>
-      </div>
+      ),
+    },
+    { id: 'type', header: t('locations.type') || 'Type', value: (l) => getTypeLabel(l.type), cell: (l) => <StatusBadge tone={l.type === 'van' ? 'violet' : 'blue'} dot={false}>{getTypeLabel(l.type)}</StatusBadge> },
+    { id: 'van', header: t('locations.van') || 'Van', value: (l) => l.van_name, cell: (l) => <span className="text-muted-foreground">{l.type === 'van' && l.van_name ? l.van_name : '—'}</span> },
+    { id: 'phone', header: t('locations.phone') || 'Phone', value: (l) => l.phone, cell: (l) => <span className="tabular-nums text-muted-foreground" dir="ltr">{l.phone || '—'}</span> },
+    {
+      id: 'actions',
+      header: '',
+      alwaysVisible: true,
+      sortable: false,
+      align: 'end',
+      cell: (l) => (
+        <RowActions>
+          <RowAction label="Edit" icon={Edit} onClick={() => handleOpenDialog(l)} />
+          <RowAction label="Delete" icon={Trash2} tone="danger" onClick={() => handleDelete(l.id)} />
+        </RowActions>
+      ),
+    },
+  ];
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            <h2 className="text-lg font-semibold">{t('locations.list') || 'All Locations'}</h2>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8">{t('common.loading') || 'Loading...'}</div>
-          ) : (
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
-              <div className="inline-block min-w-full align-middle">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('locations.name') || 'Name'}</TableHead>
-                      <TableHead className="hidden md:table-cell">{t('locations.type') || 'Type'}</TableHead>
-                      <TableHead className="hidden xl:table-cell">{t('locations.van') || 'Van'}</TableHead>
-                      <TableHead className="hidden lg:table-cell">{t('locations.address') || 'Address'}</TableHead>
-                      <TableHead className="hidden sm:table-cell">{t('locations.phone') || 'Phone'}</TableHead>
-                      <TableHead className="text-right">{t('common.actions') || 'Actions'}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {locations?.map((location: Location) => (
-                      <TableRow key={location.id}>
-                        <TableCell className="font-medium">
-                          <div>
-                            <div>{location.name}</div>
-                            <div className="md:hidden text-xs text-muted-foreground mt-1">
-                              {getTypeLabel(location.type)}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                            {getTypeLabel(location.type)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="hidden xl:table-cell">
-                          {location.type === 'van' && location.van_name ? (
-                            <span className="text-sm font-medium">{location.van_name}</span>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">{location.address || '-'}</TableCell>
-                        <TableCell className="hidden sm:table-cell">{location.phone || '-'}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenDialog(location)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(location.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+  return (
+    <Page>
+      <PageHeader
+        icon={MapPin}
+        title={t('locations.title') || 'Locations'}
+        description={t('locations.subtitle') || 'Manage warehouses, branches, and van locations'}
+        actions={
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="me-1.5 h-4 w-4" />
+            {t('locations.addNew') || 'Add Location'}
+          </Button>
+        }
+      />
+
+      <DataTable
+        data={locations || []}
+        columns={columns}
+        rowKey={(l) => l.id}
+        loading={isLoading}
+        defaultSort={{ id: 'name', dir: 'asc' }}
+        searchPlaceholder="Search name, address, phone…"
+        onRowClick={(l) => handleOpenDialog(l)}
+        storageKey="locations"
+        exportFileName="locations"
+        emptyTitle="No locations yet"
+      />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
@@ -386,6 +345,6 @@ export default function Locations() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </Page>
   );
 }

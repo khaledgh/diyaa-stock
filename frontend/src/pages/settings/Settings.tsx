@@ -95,12 +95,12 @@ export default function Settings() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 sm:px-6 sm:py-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-            <SettingsIcon className="h-7 w-7" />
+          <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
+            <SettingsIcon className="h-5 w-5" />
             {t('settings.title') || 'Settings'}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -174,7 +174,7 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Company Name (English) <span className="text-red-500">*</span></Label>
                   <Input
@@ -267,7 +267,7 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Invoice Number Prefix</Label>
                   <Input
@@ -348,7 +348,7 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Language</Label>
                   <select
@@ -475,7 +475,7 @@ export default function Settings() {
                       onError={(e) => { e.currentTarget.style.display = 'none'; }}
                     />
                   )}
-                  <h1 className="text-2xl font-bold">{settings.company_name || 'Company Name'}</h1>
+                  <h1 className="text-xl font-semibold tracking-tight">{settings.company_name || 'Company Name'}</h1>
                   {settings.company_name_ar && (
                     <p className="text-lg text-muted-foreground" dir="rtl">{settings.company_name_ar}</p>
                   )}
