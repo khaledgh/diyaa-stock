@@ -257,6 +257,10 @@ export default function InvoiceFormNew() {
 
     if (field === 'product_id') {
       const prod = products?.find((p: any) => p.id.toString() === value);
+      if (prod && invoiceItems.some((other, i) => i !== index && other.product_id === prod.id)) {
+        toast.error(`${prod.name_ar || prod.name_en || 'This product'} is already on this invoice`);
+        return;
+      }
       if (prod) {
         item.product_id = prod.id;
         item.product_name = prod.name_ar || prod.name_en || prod.name;
@@ -301,6 +305,18 @@ export default function InvoiceFormNew() {
           }
         }
       }
+    }
+
+    // One line per product (also catches lines filled in by the AI assistant or an older edit).
+    const seen = new Set<number>();
+    const duplicate = invoiceItems.find((item) => {
+      if (!item.product_id) return false;
+      if (seen.has(item.product_id)) return true;
+      seen.add(item.product_id);
+      return false;
+    });
+    if (duplicate) {
+      newErrors.items = `${duplicate.product_name} appears more than once — combine the quantities into one line`;
     }
 
     if (paidAmount && Number(paidAmount) < 0) {
@@ -393,6 +409,18 @@ export default function InvoiceFormNew() {
     if (!value) return;
     const prod = products?.find((p: any) => p.id.toString() === value);
     if (!prod) return;
+    setProductSearch('');
+    setSelectedProduct('');
+
+    // Already on the invoice: bump that line instead of adding a second one.
+    const existingIndex = invoiceItems.findIndex((item) => item.product_id === prod.id);
+    if (existingIndex !== -1) {
+      const existing = invoiceItems[existingIndex];
+      handleItemChange(existingIndex, 'quantity', (Number(existing.quantity) || 0) + 1);
+      toast.info(`${existing.product_name} is already on this invoice — quantity increased`);
+      return;
+    }
+
     const price = isPurchase ? prod.cost_price : prod.unit_price;
     const newItem: InvoiceItem = {
       product_id: prod.id,
