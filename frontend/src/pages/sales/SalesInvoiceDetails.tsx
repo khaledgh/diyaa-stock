@@ -335,7 +335,7 @@ export default function SalesInvoiceDetails() {
   );
 
   return (
-    <Page className="max-w-6xl">
+    <Page>
       <div className="print:hidden">
         <PageHeader
           backTo="/invoices/sales"

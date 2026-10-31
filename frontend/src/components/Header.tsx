@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronDown, Globe, LogOut, Menu, Moon, Sun } from 'lucide-react';
+import { Check, ChevronDown, Globe, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Sun } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import {
@@ -59,7 +59,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const { t, i18n } = useTranslation();
   const location = useLocation();
   const { user, logout } = useAuthStore();
-  const { theme, toggleTheme, language, setLanguage } = useSettingsStore();
+  const { theme, toggleTheme, language, setLanguage, sidebarCollapsed, toggleSidebar } = useSettingsStore();
 
   const segment = location.pathname.split('/')[1] || 'dashboard';
   const titleKey = pageTitles[segment];
@@ -76,6 +76,20 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <button type="button" onClick={onMenuClick} className={`${iconButton} md:hidden`} aria-label="Open menu">
             <Menu className="h-5 w-5" />
           </button>
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className={`${iconButton} hidden md:inline-flex`}
+            aria-label={sidebarCollapsed ? 'Open sidebar' : 'Close sidebar'}
+            title={sidebarCollapsed ? 'Open sidebar (Ctrl+B)' : 'Close sidebar (Ctrl+B)'}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-[18px] w-[18px] rtl:-scale-x-100" strokeWidth={1.75} />
+            ) : (
+              <PanelLeftClose className="h-[18px] w-[18px] rtl:-scale-x-100" strokeWidth={1.75} />
+            )}
+          </button>
+          <div className="mx-1 hidden h-5 w-px bg-border md:block" aria-hidden />
           {titleKey && <h2 className="truncate text-sm font-medium text-muted-foreground">{t(`nav.${titleKey}`)}</h2>}
         </div>
 

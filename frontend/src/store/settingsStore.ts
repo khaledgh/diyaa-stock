@@ -9,6 +9,8 @@ interface SettingsState {
   setLanguage: (lang: 'en' | 'ar') => void;
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -17,6 +19,8 @@ export const useSettingsStore = create<SettingsState>()(
       language: 'en',
       direction: 'ltr',
       theme: 'light',
+      sidebarCollapsed: false,
+      toggleSidebar: () => set({ sidebarCollapsed: !get().sidebarCollapsed }),
       setLanguage: (lang) => {
         const direction = lang === 'ar' ? 'rtl' : 'ltr';
         document.documentElement.dir = direction;
