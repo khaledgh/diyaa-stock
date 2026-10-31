@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { FileSpreadsheet, FileText, Users } from 'lucide-react';
+import { FileText, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { reportApi } from '@/lib/api';
 import { formatCurrency, toLocalISODate } from '@/lib/utils';
-import { exportSalesByCustomer } from '@/lib/exportExcel';
 import { exportSalesByCustomerPDF } from '@/lib/exportPDF';
 import { ColumnDef, DataTable, DateRangeFilter, FilterSelect } from '@/components/data-table/DataTable';
 import { Page, PageHeader, StatStrip } from '@/components/layout/Page';
@@ -77,9 +76,6 @@ export default function SalesByCustomer() {
         description="Who buys the most, and who still owes"
         actions={
           <>
-            <Button variant="outline" disabled={!rows.length} onClick={() => exportSalesByCustomer(rows, range.from, range.to)}>
-              <FileSpreadsheet className="me-1.5 h-4 w-4" /> Excel
-            </Button>
             <Button variant="outline" disabled={!rows.length} onClick={() => exportSalesByCustomerPDF(rows, range.from, range.to)}>
               <FileText className="me-1.5 h-4 w-4" /> PDF
             </Button>

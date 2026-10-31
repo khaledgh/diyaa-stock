@@ -6,16 +6,18 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
+import { Package, Save, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { Page, PageHeader } from '@/components/layout/Page';
+import { formatCurrency } from '@/lib/utils';
 import { productApi, categoryApi, productTypeApi } from '@/lib/api';
 import { Combobox } from '@/components/ui/combobox';
 
 const productSchema = z.object({
-  sku: z.string().min(1, 'SKU is required').max(50, 'SKU must be less than 50 characters'),
+  sku: z.string().max(50, 'SKU must be less than 50 characters'),
   barcode: z.string().max(50, 'Barcode must be less than 50 characters').optional(),
   name_en: z.string().min(1, 'Product name is required').max(200, 'Name must be less than 200 characters'),
   name_ar: z.string().max(200, 'Name must be less than 200 characters').optional(),
@@ -149,232 +151,167 @@ export default function ProductForm() {
     return <div className="text-center py-8">{t('common.loading')}</div>;
   }
 
+  const unitPrice = parseFloat(watch('unit_price') || '0') || 0;
+  const costPrice = parseFloat(watch('cost_price') || '0') || 0;
+  const isActive = watch('is_active') === 1;
+  const profit = unitPrice - costPrice;
+  const margin = unitPrice > 0 ? (profit / unitPrice) * 100 : null;
+  const saving = isSubmitting || createMutation.isPending || updateMutation.isPending;
+
+  const FieldError = ({ message }: { message?: string }) =>
+    message ? (
+      <p className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+        <AlertCircle className="h-3 w-3" />
+        {message}
+      </p>
+    ) : null;
+
   return (
-    <div className="space-y-6 p-6 max-w-5xl mx-auto">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/products')}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">
-            {isEditing ? t('products.editProduct') : t('products.addProduct')}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {isEditing ? 'Update product information' : 'Add a new product to your inventory'}
-          </p>
-        </div>
-      </div>
+    <Page className="max-w-6xl">
+      <PageHeader
+        backTo="/products"
+        icon={Package}
+        title={isEditing ? t('products.editProduct') : t('products.addProduct')}
+        description={isEditing ? 'Update product details, prices and stock alerts' : 'Add a new product to your catalog'}
+      />
 
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Product Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="sku">{t('products.sku')} *</Label>
-                <Input
-                  id="sku"
-                  {...register('sku')}
-                  className={`h-11 ${errors.sku ? 'border-red-500' : ''}`}
-                />
-                {errors.sku && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.sku.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="barcode">{t('products.barcode')}</Label>
-                <Input
-                  id="barcode"
-                  {...register('barcode')}
-                  className={`h-11 ${errors.barcode ? 'border-red-500' : ''}`}
-                />
-                {errors.barcode && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.barcode.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
+      <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0 space-y-4">
+          <Card>
+            <div className="border-b px-5 py-3">
+              <h2 className="text-sm font-semibold">Basic information</h2>
+            </div>
+            <CardContent className="grid gap-4 p-5 sm:grid-cols-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="name_en">{t('products.nameEn')} *</Label>
-                <Input
-                  id="name_en"
-                  {...register('name_en')}
-                  className={`h-11 ${errors.name_en ? 'border-red-500' : ''}`}
-                />
-                {errors.name_en && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.name_en.message}
-                  </p>
-                )}
+                <Input id="name_en" {...register('name_en')} className={errors.name_en ? 'border-red-500' : ''} placeholder="e.g. Labneh 2kg" />
+                <FieldError message={errors.name_en?.message} />
               </div>
-
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="name_ar">{t('products.nameAr')}</Label>
-                <Input
-                  id="name_ar"
-                  {...register('name_ar')}
-                  className={`h-11 ${errors.name_ar ? 'border-red-500' : ''}`}
-                />
-                {errors.name_ar && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.name_ar.message}
-                  </p>
-                )}
+                <Input id="name_ar" dir="rtl" {...register('name_ar')} className={errors.name_ar ? 'border-red-500' : ''} placeholder="الاسم بالعربية" />
+                <FieldError message={errors.name_ar?.message} />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="category_id">{t('products.category')}</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="sku">{t('products.sku')}</Label>
+                <Input id="sku" {...register('sku')} className={`font-mono ${errors.sku ? 'border-red-500' : ''}`} placeholder="Optional" />
+                <FieldError message={errors.sku?.message} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="barcode">{t('products.barcode')}</Label>
+                <Input id="barcode" {...register('barcode')} className={`font-mono ${errors.barcode ? 'border-red-500' : ''}`} placeholder="Optional" />
+                <FieldError message={errors.barcode?.message} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t('products.category')}</Label>
                 <Combobox
-                  options={[
-                    { value: '', label: 'Select category...' },
-                    ...(categories?.map((cat: any) => ({
-                      value: cat.id.toString(),
-                      label: cat.name_en,
-                    })) || [])
-                  ]}
+                  options={(categories?.map((cat: any) => ({ value: cat.id.toString(), label: cat.name_ar ? `${cat.name_en} · ${cat.name_ar}` : cat.name_en })) || [])}
                   value={categoryId}
                   onChange={(value) => setValue('category_id', value)}
-                  placeholder="Select category"
+                  placeholder="No category"
                   searchPlaceholder="Search categories..."
                   emptyText="No categories found"
+                  clearable
                 />
-                {errors.category_id && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.category_id.message}
-                  </p>
-                )}
+                <FieldError message={errors.category_id?.message} />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="type_id">{t('products.type')}</Label>
+              <div className="space-y-1.5">
+                <Label>{t('products.type')}</Label>
                 <Combobox
-                  options={[
-                    { value: '', label: 'Select type...' },
-                    ...(productTypes?.map((type: any) => ({
-                      value: type.id.toString(),
-                      label: type.name_en,
-                    })) || [])
-                  ]}
+                  options={(productTypes?.map((type: any) => ({ value: type.id.toString(), label: type.name_ar ? `${type.name_en} · ${type.name_ar}` : type.name_en })) || [])}
                   value={typeId}
                   onChange={(value) => setValue('type_id', value)}
-                  placeholder="Select product type"
+                  placeholder="No type"
                   searchPlaceholder="Search types..."
                   emptyText="No types found"
+                  clearable
                 />
-                {errors.type_id && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.type_id.message}
-                  </p>
-                )}
+                <FieldError message={errors.type_id?.message} />
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="unit">{t('products.unit')}</Label>
-                <Input
-                  id="unit"
-                  {...register('unit')}
-                  className={`h-11 ${errors.unit ? 'border-red-500' : ''}`}
-                />
-                {errors.unit && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.unit.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="unit_price">{t('products.unitPrice')} *</Label>
-                <Input
-                  id="unit_price"
-                  type="number"
-                  step="0.01"
-                  {...register('unit_price')}
-                  className={`h-11 ${errors.unit_price ? 'border-red-500' : ''}`}
-                />
-                {errors.unit_price && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.unit_price.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
+          <Card>
+            <div className="border-b px-5 py-3">
+              <h2 className="text-sm font-semibold">Pricing & stock</h2>
+            </div>
+            <CardContent className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="space-y-1.5">
                 <Label htmlFor="cost_price">{t('products.costPrice')} *</Label>
-                <Input
-                  id="cost_price"
-                  type="number"
-                  step="0.01"
-                  {...register('cost_price')}
-                  className={`h-11 ${errors.cost_price ? 'border-red-500' : ''}`}
-                />
-                {errors.cost_price && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.cost_price.message}
-                  </p>
-                )}
+                <Input id="cost_price" type="number" step="0.01" min="0" {...register('cost_price')} className={`text-end tabular-nums ${errors.cost_price ? 'border-red-500' : ''}`} />
+                <FieldError message={errors.cost_price?.message} />
               </div>
-
-              <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="unit_price">{t('products.unitPrice')} *</Label>
+                <Input id="unit_price" type="number" step="0.01" min="0" {...register('unit_price')} className={`text-end tabular-nums ${errors.unit_price ? 'border-red-500' : ''}`} />
+                <FieldError message={errors.unit_price?.message} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="unit">{t('products.unit')} *</Label>
+                <Input id="unit" {...register('unit')} className={errors.unit ? 'border-red-500' : ''} placeholder="piece, kg, box…" />
+                <FieldError message={errors.unit?.message} />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="min_stock_level">{t('products.minStock')}</Label>
-                <Input
-                  id="min_stock_level"
-                  type="number"
-                  {...register('min_stock_level')}
-                  className={`h-11 ${errors.min_stock_level ? 'border-red-500' : ''}`}
-                />
-                {errors.min_stock_level && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.min_stock_level.message}
-                  </p>
-                )}
+                <Input id="min_stock_level" type="number" min="0" {...register('min_stock_level')} className={`text-end tabular-nums ${errors.min_stock_level ? 'border-red-500' : ''}`} />
+                <p className="text-xs text-muted-foreground">0 uses the default alert level (10)</p>
+                <FieldError message={errors.min_stock_level?.message} />
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div>
+          <Card className="lg:sticky lg:top-4">
+            <CardContent className="space-y-4 p-5">
+              <div className="space-y-1.5">
+                <Label>{t('common.status')}</Label>
+                <div className="grid grid-cols-2 rounded-lg bg-muted p-1" role="radiogroup" aria-label={t('common.status')}>
+                  {[
+                    { v: 1, label: t('common.active') },
+                    { v: 0, label: t('common.inactive') },
+                  ].map((o) => (
+                    <button
+                      key={o.v}
+                      type="button"
+                      role="radio"
+                      aria-checked={(isActive ? 1 : 0) === o.v}
+                      onClick={() => setValue('is_active', o.v, { shouldDirty: true })}
+                      className={`rounded-md py-1.5 text-sm font-medium transition-colors ${(isActive ? 1 : 0) === o.v ? 'bg-card shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">{isActive ? 'Available in POS and invoices' : 'Hidden from POS and new invoices'}</p>
+              </div>
+
+              <dl className="space-y-2 rounded-lg bg-muted/40 p-3 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Profit per unit</dt>
+                  <dd className={`font-semibold tabular-nums ${profit < 0 ? 'text-red-600 dark:text-red-400' : ''}`}>{formatCurrency(profit)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Margin</dt>
+                  <dd className={`font-semibold tabular-nums ${margin !== null && margin < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                    {margin === null ? '—' : `${margin.toFixed(1)}%`}
+                  </dd>
+                </div>
+              </dl>
 
               <div className="space-y-2">
-                <Label htmlFor="is_active">{t('common.status')}</Label>
-                <select
-                  id="is_active"
-                  {...register('is_active', { valueAsNumber: true })}
-                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <option value={1}>{t('common.active')}</option>
-                  <option value={0}>{t('common.inactive')}</option>
-                </select>
+                <Button type="submit" disabled={saving} className="w-full">
+                  <Save className="me-1.5 h-4 w-4" />
+                  {saving ? 'Saving…' : t('common.save')}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => navigate('/products')} className="w-full text-muted-foreground">
+                  {t('common.cancel')}
+                </Button>
               </div>
-            </div>
-
-            <div className="flex justify-end gap-4 mt-8">
-              <Button type="button" variant="outline" onClick={() => navigate('/products')} size="lg">
-                {t('common.cancel')}
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={isSubmitting || createMutation.isPending || updateMutation.isPending}
-                size="lg"
-                className="min-w-32"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {isSubmitting ? 'Saving...' : t('common.save')}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </form>
-    </div>
+    </Page>
   );
 }

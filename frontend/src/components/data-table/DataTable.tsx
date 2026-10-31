@@ -1,4 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import * as XLSX from 'xlsx';
 import {
   ArrowDown,
   ArrowUp,
@@ -6,15 +8,18 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Check,
   ChevronsUpDown,
   Columns3,
-  Download,
+  FileSpreadsheet,
   Inbox,
+  Printer,
   Search,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/ui/date-picker';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -93,10 +98,14 @@ interface DataTableProps<T> {
   /** Totals row: cell content per column id; receives the rows after search/sort (all pages). */
   footer?: (rows: T[]) => Partial<Record<string, ReactNode>>;
   exportFileName?: string;
+  /** Heading on printed pages (defaults to a title made from exportFileName). */
+  printTitle?: string;
   className?: string;
   /** Remember column visibility under this key. */
   storageKey?: string;
 }
+
+const prettyTitle = (name: string) => name.replace(/[-_]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase());
 
 const alignClass = { start: 'text-start', end: 'text-end', center: 'text-center' } as const;
 
@@ -128,21 +137,111 @@ function readHidden(storageKey: string | undefined, columns: ColumnDef<any>[]) {
   }
 }
 
-function exportCsv<T>(rows: T[], columns: ColumnDef<T>[], fileName: string) {
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T|$)/;
+
+function headerText(c: ColumnDef<any>) {
+  return typeof c.header === 'string' ? c.header : c.id;
+}
+
+function nodeText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  try {
+    return renderToStaticMarkup(<>{node}</>)
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  } catch {
+    return '';
+  }
+}
+
+/** Excel export of the rows the user is looking at (all pages, after search/sort/filters). */
+function exportExcel<T>(rows: T[], columns: ColumnDef<T>[], fileName: string, footerCells?: Partial<Record<string, ReactNode>>) {
   const exportable = columns.filter((c) => c.value);
-  const escape = (v: unknown) => {
-    const s = v == null ? '' : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  const header = exportable.map(headerText);
+  const body = rows.map((r) =>
+    exportable.map((c) => {
+      const v = c.value!(r);
+      if (typeof v === 'string' && ISO_DATE.test(v)) {
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? v : d;
+      }
+      return v ?? '';
+    })
+  );
+  const aoa: unknown[][] = [header, ...body];
+  if (footerCells) aoa.push(exportable.map((c) => nodeText(footerCells[c.id])));
+  const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: 'yyyy-mm-dd' });
+  ws['!cols'] = exportable.map((c, i) => ({
+    wch: Math.min(
+      40,
+      Math.max(headerText(c).length, ...body.slice(0, 200).map((row) => (row[i] instanceof Date ? 10 : String(row[i] ?? '').length))) + 2
+    ),
+  }));
+  if (body.length) {
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: body.length, c: exportable.length - 1 } }) };
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Data');
+  XLSX.writeFile(wb, `${fileName}.xlsx`);
+}
+
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
+
+/** Prints the table on its own clean page (title, date, filters, rows, totals) via a hidden iframe. */
+function printTable<T>(rows: T[], columns: ColumnDef<T>[], title: string, subtitle: string, footerCells?: Partial<Record<string, ReactNode>>) {
+  const printable = columns.filter((c) => c.value || (c.id !== 'actions' && typeof c.header === 'string' && c.header));
+  const cellHtml = (c: ColumnDef<T>, r: T) => {
+    try {
+      return renderToStaticMarkup(<>{c.cell(r)}</>);
+    } catch {
+      return escapeHtml(String(c.value?.(r) ?? ''));
+    }
   };
-  const header = exportable.map((c) => escape(typeof c.header === 'string' ? c.header : c.id)).join(',');
-  const body = rows.map((r) => exportable.map((c) => escape(c.value!(r))).join(',')).join('\n');
-  const blob = new Blob(['﻿' + header + '\n' + body], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${fileName}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const align = (c: ColumnDef<T>) => (c.align === 'end' ? 'right' : c.align === 'center' ? 'center' : 'left');
+  const dir = document.documentElement.dir || 'ltr';
+  const styles = `
+    @page { margin: 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Inter, 'Segoe UI', Tahoma, Arial, sans-serif; color: #0f172a; font-size: 11px; margin: 0; }
+    h1 { font-size: 18px; margin: 0 0 2px; }
+    .meta { color: #64748b; font-size: 11px; margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #64748b; background: #f1f5f9; padding: 7px 8px; border-bottom: 1px solid #cbd5e1; }
+    td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    tr { break-inside: avoid; }
+    thead { display: table-header-group; }
+    tfoot td { font-weight: 600; border-top: 2px solid #94a3b8; background: #f8fafc; }
+    td p { margin: 0; }
+    td .text-xs, td .text-muted-foreground { color: #64748b; font-size: 10px; }
+    td button { all: unset; }
+    svg { display: none; }`;
+  const head = printable.map((c) => `<th style="text-align:${align(c)}">${escapeHtml(headerText(c))}</th>`).join('');
+  const bodyRows = rows.map((r) => `<tr>${printable.map((c) => `<td style="text-align:${align(c)}">${cellHtml(c, r)}</td>`).join('')}</tr>`).join('');
+  const foot = footerCells
+    ? `<tfoot><tr>${printable.map((c) => `<td style="text-align:${align(c)}">${escapeHtml(nodeText(footerCells[c.id]))}</td>`).join('')}</tr></tfoot>`
+    : '';
+  const html = `<!doctype html><html dir="${dir}"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${styles}</style></head>
+    <body><h1>${escapeHtml(title)}</h1><div class="meta">${escapeHtml(subtitle)}</div>
+    <table><thead><tr>${head}</tr></thead><tbody>${bodyRows}</tbody>${foot}</table></body></html>`;
+
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.appendChild(frame);
+  const win = frame.contentWindow!;
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => {
+    win.focus();
+    win.print();
+    setTimeout(() => frame.remove(), 1000);
+  }, 150);
 }
 
 export function DataTable<T>({
@@ -170,6 +269,7 @@ export function DataTable<T>({
   emptyDescription,
   footer,
   exportFileName,
+  printTitle,
   className,
   storageKey,
 }: DataTableProps<T>) {
@@ -278,7 +378,7 @@ export function DataTable<T>({
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder={searchPlaceholder}
                   aria-label={searchPlaceholder}
-                  className="h-8 w-full rounded-md border border-input bg-background pe-8 ps-8 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-8 w-full rounded-md border border-input bg-background pe-8 ps-8 text-sm transition-colors placeholder:text-muted-foreground hover:border-ring/50 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20"
                 />
                 {searchInput && (
                   <button
@@ -302,14 +402,39 @@ export function DataTable<T>({
           <div className="flex items-center gap-2">
             {toolbarEnd}
             {exportFileName && (
-              <button
-                type="button"
-                onClick={() => exportCsv(processed, visibleColumns, exportFileName)}
-                disabled={!processed.length}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-background px-2.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
-              >
-                <Download className="h-3.5 w-3.5" /> CSV
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    printTable(
+                      processed,
+                      visibleColumns,
+                      printTitle || prettyTitle(exportFileName),
+                      [
+                        `Printed ${new Date().toLocaleString()}`,
+                        `${processed.length} row${processed.length === 1 ? '' : 's'}`,
+                        debouncedSearch ? `Search: "${debouncedSearch}"` : '',
+                        activeFilterCount ? `${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} applied` : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' · '),
+                      footer && processed.length ? footer(processed) : undefined
+                    )
+                  }
+                  disabled={!processed.length}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-background px-2.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+                >
+                  <Printer className="h-3.5 w-3.5" /> Print
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportExcel(processed, visibleColumns, exportFileName, footer && processed.length ? footer(processed) : undefined)}
+                  disabled={!processed.length}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-background px-2.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Excel
+                </button>
+              </>
             )}
             {hideableColumns.length > 1 && (
               <DropdownMenu>
@@ -503,7 +628,7 @@ function PageButton({ label, onClick, disabled, children }: { label: string; onC
   );
 }
 
-/** Compact select used in table toolbars. */
+/** Filter chip that opens a menu of options (searchable when the list is long). */
 export function FilterSelect({
   label,
   value,
@@ -517,23 +642,94 @@ export function FilterSelect({
   options: { value: string; label: string }[];
   allLabel?: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const selected = options.find((o) => o.value === value);
+  const searchable = options.length > 7;
+  const visible = query ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase())) : options;
+  const choose = (v: string) => {
+    onChange(v);
+    setOpen(false);
+    setQuery('');
+  };
+
   return (
-    <label className={cn('relative inline-flex h-8 items-center rounded-md border text-xs', value ? 'border-primary/40 bg-primary/5' : 'border-dashed bg-background')}>
-      <span className="ps-2.5 text-muted-foreground">{label}:</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-full max-w-[160px] cursor-pointer appearance-none truncate bg-transparent bg-none pe-6 ps-1 font-medium text-foreground focus-visible:outline-none"
-      >
-        <option value="">{allLabel}</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <ChevronsUpDown className="pointer-events-none absolute end-1.5 h-3 w-3 text-muted-foreground" aria-hidden />
-    </label>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(''); }}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            'inline-flex h-8 max-w-[220px] items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors',
+            value ? 'border-primary/40 bg-primary/5' : 'border-dashed bg-background hover:border-ring/50',
+            open && 'border-ring ring-2 ring-ring/20'
+          )}
+        >
+          <span className="shrink-0 text-muted-foreground">{label}:</span>
+          <span className="truncate font-medium" dir="auto">{selected ? selected.label : allLabel}</span>
+          {value ? (
+            <span
+              role="button"
+              tabIndex={-1}
+              aria-label={`Clear ${label}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                choose('');
+              }}
+              className="-me-1 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </span>
+          ) : (
+            <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 p-1">
+        {searchable && (
+          <div className="relative mb-1 border-b pb-1">
+            <Search className="pointer-events-none absolute start-2 top-1/2 h-3.5 w-3.5 -translate-y-[60%] text-muted-foreground" aria-hidden />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={`Search ${label.toLowerCase()}…`}
+              className="h-8 w-full rounded-md bg-transparent pe-2 ps-7 text-xs outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+        )}
+        <div className="scroll-thin max-h-64 overflow-y-auto" role="listbox" aria-label={label}>
+          {!query && (
+            <FilterOption selected={!value} onClick={() => choose('')}>
+              {allLabel}
+            </FilterOption>
+          )}
+          {visible.map((o) => (
+            <FilterOption key={o.value} selected={o.value === value} onClick={() => choose(o.value)}>
+              {o.label}
+            </FilterOption>
+          ))}
+          {visible.length === 0 && <p className="px-2 py-3 text-center text-xs text-muted-foreground">No matches</p>}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function FilterOption({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={selected}
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-primary/10',
+        selected && 'font-medium text-primary'
+      )}
+    >
+      <span className="min-w-0 flex-1 truncate" dir="auto">{children}</span>
+      <Check className={cn('h-3.5 w-3.5 shrink-0', selected ? 'opacity-100' : 'opacity-0')} aria-hidden />
+    </button>
   );
 }
 

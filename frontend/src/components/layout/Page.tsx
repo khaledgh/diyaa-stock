@@ -59,9 +59,9 @@ const toneClass: Record<BadgeTone, string> = {
   gray: 'bg-muted text-muted-foreground ring-border',
 };
 
-export function StatusBadge({ tone = 'gray', children, dot = true }: { tone?: BadgeTone; children: ReactNode; dot?: boolean }) {
+export function StatusBadge({ tone = 'gray', children, dot = true, className }: { tone?: BadgeTone; children: ReactNode; dot?: boolean; className?: string }) {
   return (
-    <span className={cn('inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset', toneClass[tone])}>
+    <span className={cn('inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset', toneClass[tone], className)}>
       {dot && <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" aria-hidden />}
       {children}
     </span>

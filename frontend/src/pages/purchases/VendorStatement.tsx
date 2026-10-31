@@ -1,21 +1,19 @@
 import { useState, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useReactToPrint } from 'react-to-print';
+import { usePrint } from '@/lib/print';
 import {
-  ArrowLeft,
   Printer,
-  Calendar,
   FileText,
   CreditCard,
   Receipt
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { reportApi } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { DateRangePicker } from '@/components/ui/date-picker';
+import { Page, PageHeader } from '@/components/layout/Page';
 
 
 export default function VendorStatement() {
@@ -80,10 +78,7 @@ export default function VendorStatement() {
     }
   };
 
-  const handlePrint = useReactToPrint({
-    content: () => printRef.current,
-    documentTitle: `Statement_${statement?.vendor?.name || 'Vendor'}_${dateRange.to_date}`,
-  });
+  const handlePrint = usePrint(printRef, `Statement_${statement?.vendor?.name || 'Vendor'}_${dateRange.to_date}`);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -124,25 +119,21 @@ export default function VendorStatement() {
   }) || [];
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 sm:px-6 sm:py-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <Link to="/vendors">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">
-              Vendor Statement
-            </h1>
-            <p className="text-muted-foreground">
-              {statement?.vendor?.name} • {statement?.vendor?.phone}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+    <Page>
+      <PageHeader
+        backTo="/vendors"
+        icon={FileText}
+        title="Vendor Statement"
+        description={statement?.vendor?.name}
+        actions={
+          <>
+            <DateRangePicker
+              size="default"
+              clearable={false}
+              value={{ from: dateRange.from_date, to: dateRange.to_date }}
+              onChange={(r) => setDateRange({ ...dateRange, from_date: r.from, to_date: r.to })}
+            />
+
           <Button
             variant="outline"
             onClick={handleExportPDF}
@@ -156,80 +147,51 @@ export default function VendorStatement() {
             <Printer className="h-4 w-4" />
             Print Statement
           </Button>
-        </div>
-      </div>
-
-      {/* Date Range Filter */}
-      <Card>
-        <CardContent className="py-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Period:</span>
-            <DateRangePicker
-              size="default"
-              clearable={false}
-              value={{ from: dateRange.from_date, to: dateRange.to_date }}
-              onChange={(r) => setDateRange({ ...dateRange, from_date: r.from, to_date: r.to })}
-            />
-          </div>
-        </CardContent>
-      </Card>
+          </>
+        }
+      />
 
       {/* Printable Statement */}
-      <div ref={printRef} className="bg-white dark:bg-card rounded-lg print:shadow-none">
+      <div ref={printRef} className="overflow-hidden rounded-lg border bg-card shadow-sm print:border-0 print:shadow-none">
         {/* Statement Header */}
-        <div className="p-6 border-b">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-xl font-bold">{statement?.vendor?.name}</h2>
-              <p className="text-muted-foreground">{statement?.vendor?.phone}</p>
-              <p className="text-muted-foreground">{statement?.vendor?.address}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground">Statement Period</p>
-              <p className="font-medium">
-                {formatDate(dateRange.from_date)} - {formatDate(dateRange.to_date)}
-              </p>
-            </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3 text-sm">
+          <div className="min-w-0">
+            <span className="font-semibold" dir="auto">{statement?.vendor?.name}</span>
+            {[statement?.vendor?.phone, statement?.vendor?.address].filter(Boolean).map((v: string) => (
+              <span key={v} className="ms-2 text-muted-foreground">· {v}</span>
+            ))}
           </div>
+          <span className="text-muted-foreground">
+            {formatDate(dateRange.from_date)} – {formatDate(dateRange.to_date)}
+          </span>
         </div>
 
         {/* Balance Summary */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-6 bg-muted/30">
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">Opening Balance</p>
-            <p className="text-lg font-semibold">
-              {formatCurrency(statement?.opening_balance || 0)}
-            </p>
+        <div className="grid grid-cols-2 border-b sm:grid-cols-5 sm:divide-x rtl:sm:divide-x-reverse">
+          <div className="px-5 py-3">
+            <p className="text-xs text-muted-foreground">Opening balance</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums">{formatCurrency(statement?.opening_balance || 0)}</p>
           </div>
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">Total Bills</p>
-            <p className="text-lg font-semibold text-red-600">
-              +{formatCurrency(statement?.total_bills || 0)}
-            </p>
+          <div className="px-5 py-3">
+            <p className="text-xs text-muted-foreground">Bills</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums">{formatCurrency(statement?.total_bills || 0)}</p>
           </div>
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">Payments</p>
-            <p className="text-lg font-semibold text-green-600">
-              -{formatCurrency(statement?.total_payments || 0)}
-            </p>
+          <div className="px-5 py-3">
+            <p className="text-xs text-muted-foreground">Payments</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(statement?.total_payments || 0)}</p>
           </div>
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">Credit Notes</p>
-            <p className="text-lg font-semibold text-blue-600">
-              -{formatCurrency(statement?.total_credit_notes || 0)}
-            </p>
+          <div className="px-5 py-3">
+            <p className="text-xs text-muted-foreground">Returns</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-orange-600">{formatCurrency(statement?.total_credit_notes || 0)}</p>
           </div>
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">Closing Balance</p>
-            <p className="text-xl font-bold text-primary">
-              {formatCurrency(statement?.closing_balance || 0)}
-            </p>
+          <div className="px-5 py-3">
+            <p className="text-xs text-muted-foreground">Closing balance</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-primary">{formatCurrency(statement?.closing_balance || 0)}</p>
           </div>
         </div>
 
         {/* Transactions Table */}
-        <div className="p-6">
+        <div>
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
@@ -304,6 +266,6 @@ export default function VendorStatement() {
           <p>Generated on {new Date().toLocaleDateString()}</p>
         </div>
       </div>
-    </div>
+    </Page>
   );
 }

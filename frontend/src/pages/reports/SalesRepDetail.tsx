@@ -1,7 +1,7 @@
 import { useRef, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { useReactToPrint } from 'react-to-print';
+import { usePrint } from '@/lib/print';
 import { ArrowLeft, Download, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -84,10 +84,7 @@ export default function SalesRepDetail() {
   });
 
   const rep = data?.rep;
-  const handlePrint = useReactToPrint({
-    content: () => printRef.current,
-    documentTitle: `Sales_Rep_${rep?.name || id}_${from}_${to}`,
-  });
+  const handlePrint = usePrint(printRef, `Sales_Rep_${rep?.name || id}_${from}_${to}`);
 
   const handleExport = () => {
     if (!data) return;
@@ -193,7 +190,7 @@ export default function SalesRepDetail() {
         </div>
 
         <Tabs defaultValue="products">
-          <TabsList className="print:hidden flex-wrap h-auto">
+          <TabsList className="print:hidden">
             <TabsTrigger value="products">Products ({data.products.length})</TabsTrigger>
             <TabsTrigger value="customers">Customers ({data.customers.length})</TabsTrigger>
             <TabsTrigger value="locations">Locations ({data.locations.length})</TabsTrigger>

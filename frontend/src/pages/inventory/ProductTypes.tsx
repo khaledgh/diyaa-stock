@@ -125,7 +125,7 @@ export default function ProductTypes() {
       cell: (r) => (
         <div className="min-w-0">
           <p className="truncate font-medium">{r.name_en}</p>
-          {r.name_ar && <p className="truncate text-xs text-muted-foreground" dir="rtl">{r.name_ar}</p>}
+          {r.name_ar && <p className="truncate text-xs text-muted-foreground" dir="auto">{r.name_ar}</p>}
         </div>
       ),
     },
@@ -146,7 +146,7 @@ export default function ProductTypes() {
   ];
 
   return (
-    <Page className="max-w-5xl">
+    <Page>
       <PageHeader
         icon={Shapes}
         title="Product Types"

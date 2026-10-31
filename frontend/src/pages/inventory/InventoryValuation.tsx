@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { FileSpreadsheet, FileText, Warehouse } from 'lucide-react';
+import { FileText, Warehouse } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { reportApi } from '@/lib/api';
 import { formatCurrency, formatQuantity } from '@/lib/utils';
-import { exportInventoryValuation } from '@/lib/exportExcel';
 import { exportInventoryValuationPDF } from '@/lib/exportPDF';
 import { ColumnDef, DataTable, FilterSelect } from '@/components/data-table/DataTable';
 import { Page, PageHeader, StatStrip } from '@/components/layout/Page';
@@ -84,9 +83,6 @@ export default function InventoryValuation() {
         backTo="/reports"
         actions={
           <>
-            <Button variant="outline" disabled={!products.length} onClick={() => exportInventoryValuation(report?.products || [])}>
-              <FileSpreadsheet className="me-1.5 h-4 w-4" /> Excel
-            </Button>
             <Button variant="outline" disabled={!products.length} onClick={async () => await exportInventoryValuationPDF(report?.products || [])}>
               <FileText className="me-1.5 h-4 w-4" /> PDF
             </Button>

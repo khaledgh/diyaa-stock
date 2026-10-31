@@ -384,7 +384,7 @@ export default function Users() {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <Tabs defaultValue="basic" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList>
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
                 <TabsTrigger value="employee">Employee Info</TabsTrigger>
                 <TabsTrigger value="assignment">Location Assignment</TabsTrigger>
@@ -398,7 +398,7 @@ export default function Users() {
                     value={formData.full_name}
                     onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                     required
-                    className="h-11"
+                   
                   />
                 </div>
 
@@ -410,7 +410,7 @@ export default function Users() {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
-                    className="h-11"
+                   
                   />
                 </div>
 
@@ -424,7 +424,7 @@ export default function Users() {
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     required={!editingUser}
-                    className="h-11"
+                   
                   />
                 </div>
 
@@ -434,7 +434,7 @@ export default function Users() {
                     id="role"
                     value={formData.role}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <option value="user">User - Basic access</option>
                     <option value="employee">Employee - Staff member</option>
@@ -462,7 +462,7 @@ export default function Users() {
                       max="100"
                       value={formData.commission_rate}
                       onChange={(e) => setFormData({ ...formData, commission_rate: Number(e.target.value) })}
-                      className="h-11"
+                     
                       placeholder="e.g. 5.5"
                     />
                     <p className="text-xs text-muted-foreground">Percentage of sales value given as commission/profit.</p>
@@ -475,7 +475,7 @@ export default function Users() {
                     id="is_active"
                     value={formData.is_active}
                     onChange={(e) => setFormData({ ...formData, is_active: Number(e.target.value) })}
-                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <option value={1}>Active</option>
                     <option value={0}>Inactive</option>
@@ -492,7 +492,7 @@ export default function Users() {
                       type="tel"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="h-11"
+                     
                       placeholder="e.g. +1234567890"
                     />
                   </div>
@@ -503,7 +503,7 @@ export default function Users() {
                       id="position"
                       value={formData.position}
                       onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                      className="h-11"
+                     
                       placeholder="e.g. Sales Representative"
                     />
                   </div>
@@ -521,7 +521,7 @@ export default function Users() {
                       step="0.01"
                       value={formData.salary}
                       onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
-                      className="h-11"
+                     
                       placeholder="e.g. 50000"
                     />
                   </div>
@@ -546,7 +546,7 @@ export default function Users() {
                     id="location_id"
                     value={formData.location_id}
                     onChange={(e) => setFormData({ ...formData, location_id: e.target.value })}
-                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <option value="">No primary location</option>
                     {locations?.map((location: any) => (
@@ -566,7 +566,7 @@ export default function Users() {
                     id="location_mode"
                     value={formData.location_mode}
                     onChange={(e) => setFormData({ ...formData, location_mode: e.target.value })}
-                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <option value="manual">Manual Selection (Sales Choice)</option>
                     <option value="fixed">Fixed Location (Always Primary)</option>

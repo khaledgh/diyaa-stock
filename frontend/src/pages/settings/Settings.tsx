@@ -115,20 +115,20 @@ export default function Settings() {
 
       {/* Tabbed Interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto gap-2 p-1 bg-muted/50">
-          <TabsTrigger value="company" className="flex items-center gap-2 py-3">
+        <TabsList>
+          <TabsTrigger value="company">
             <Building2 className="h-4 w-4" />
             <span className="hidden sm:inline">Company</span>
           </TabsTrigger>
-          <TabsTrigger value="invoice" className="flex items-center gap-2 py-3">
+          <TabsTrigger value="invoice">
             <Receipt className="h-4 w-4" />
             <span className="hidden sm:inline">Invoices</span>
           </TabsTrigger>
-          <TabsTrigger value="system" className="flex items-center gap-2 py-3">
+          <TabsTrigger value="system">
             <Globe className="h-4 w-4" />
             <span className="hidden sm:inline">System</span>
           </TabsTrigger>
-          <TabsTrigger value="templates" className="flex items-center gap-2 py-3">
+          <TabsTrigger value="templates">
             <Palette className="h-4 w-4" />
             <span className="hidden sm:inline">Templates</span>
           </TabsTrigger>

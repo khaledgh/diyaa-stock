@@ -2,15 +2,15 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Save, X, FileText, ArrowLeft, Loader2, Search } from 'lucide-react';
+import { Save, FileText, Loader2, Truck, Undo2, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent } from '@/components/ui/card';
+import { Page, PageHeader } from '@/components/layout/Page';
 import { Combobox } from '@/components/ui/combobox';
 import { creditNoteApi, vendorApi, locationApi, invoiceApi, customerApi, stockApi } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 
 export default function CreditNoteForm() {
     const navigate = useNavigate();
@@ -93,10 +93,10 @@ export default function CreditNoteForm() {
                 status: 'finalized',
                 limit: 50
             });
-            console.log('Invoice API response:', response.data);
-            const invoices = response.data.data?.data || response.data.data || response.data || [];
-            console.log('Parsed invoices:', invoices);
-            return invoices;
+            // Sales list responses nest under "invoices", purchases under "data".
+            const payload = response.data.invoices || response.data.data || response.data;
+            const invoices = Array.isArray(payload) ? payload : payload?.data;
+            return Array.isArray(invoices) ? invoices : [];
         },
         enabled: !isEditMode,
     });
@@ -303,230 +303,219 @@ export default function CreditNoteForm() {
 
     const totalAmount = formData.items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
 
+    const selectedInvoiceId = formData.type === 'purchase' ? formData.purchase_invoice_id : formData.sales_invoice_id;
+    const returnLocation = locations.find(l => l.id.toString() === formData.location_id)?.name;
+    const returnedUnits = formData.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+    const typeOptions = [
+        { value: 'purchase', title: 'Purchase return', hint: 'Goods sent back to a vendor', icon: Truck },
+        { value: 'sales', title: 'Sales return', hint: 'Goods returned by a customer', icon: Undo2 },
+    ] as const;
+
     return (
-        <div className="p-4 md:p-6 mx-auto space-y-6">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => navigate('/credit-notes')}>
-                        <ArrowLeft className="h-5 w-5" />
-                    </Button>
-                    <div>
-                        <h1 className="text-xl font-semibold tracking-tight">{isEditMode ? 'Edit Credit Note' : 'New Credit Note'}</h1>
-                        <p className="text-sm text-muted-foreground">Record product returns and adjustments</p>
-                    </div>
-                </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => navigate('/credit-notes')}>
-                        <X className="h-4 w-4 mr-2" />
-                        Cancel
-                    </Button>
-                    <Button onClick={handleSubmit} disabled={mutation.isPending}>
-                        {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                        Save Credit Note
-                    </Button>
-                </div>
-            </div>
+        <Page className="max-w-[1400px]">
+            <PageHeader
+                backTo="/credit-notes"
+                icon={FileText}
+                title={isEditMode ? 'Edit Credit Note' : 'New Credit Note'}
+                description="Record returned goods against an invoice"
+                actions={
+                    <>
+                        <Button variant="outline" onClick={() => navigate('/credit-notes')}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleSubmit} disabled={mutation.isPending}>
+                            {mutation.isPending ? <Loader2 className="me-1.5 h-4 w-4 animate-spin" /> : <Save className="me-1.5 h-4 w-4" />}
+                            Save Credit Note
+                        </Button>
+                    </>
+                }
+            />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="lg:col-span-2 space-y-6">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="min-w-0 space-y-4">
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Credit Note Type & Source</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="col-span-2">
-                                    <Label>Type *</Label>
-                                    <div className="flex gap-4 mt-1">
-                                        <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-muted transition-colors flex-1">
-                                            <input
-                                                type="radio"
-                                                name="type"
-                                                checked={formData.type === 'purchase'}
-                                                onChange={() => setFormData(prev => ({ ...prev, type: 'purchase', items: [], purchase_invoice_id: '', sales_invoice_id: '' }))}
-                                                disabled={isEditMode}
-                                            />
-                                            <span className="font-medium text-sm">Purchase Return (Vendor)</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-muted transition-colors flex-1">
-                                            <input
-                                                type="radio"
-                                                name="type"
-                                                checked={formData.type === 'sales'}
-                                                onChange={() => setFormData(prev => ({ ...prev, type: 'sales', items: [], purchase_invoice_id: '', sales_invoice_id: '' }))}
-                                                disabled={isEditMode}
-                                            />
-                                            <span className="font-medium text-sm">Sales Return (Customer)</span>
-                                        </label>
-                                    </div>
-                                </div>
+                        <CardContent className="space-y-4 p-5">
+                            <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Credit note type">
+                                {typeOptions.map((opt) => {
+                                    const active = formData.type === opt.value;
+                                    return (
+                                        <button
+                                            key={opt.value}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={active}
+                                            disabled={isEditMode}
+                                            onClick={() => setFormData(prev => ({ ...prev, type: opt.value, items: [], purchase_invoice_id: '', sales_invoice_id: '' }))}
+                                            className={`flex items-center gap-3 rounded-lg border p-3 text-start transition-colors disabled:cursor-not-allowed ${active ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-muted/50 disabled:opacity-50'}`}
+                                        >
+                                            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                                                <opt.icon className="h-4 w-4" aria-hidden />
+                                            </span>
+                                            <span>
+                                                <span className="block text-sm font-medium">{opt.title}</span>
+                                                <span className="block text-xs text-muted-foreground">{opt.hint}</span>
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
 
-                                <div className="col-span-2 sm:col-span-1">
-                                    <Label>Source Invoice *</Label>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                    <Label>Source invoice *</Label>
                                     {isLoadingInvoices ? (
-                                        <div className="flex items-center gap-2 p-2 border rounded-md bg-muted">
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                            <span className="text-sm text-muted-foreground">Loading invoices...</span>
+                                        <div className="flex h-9 items-center gap-2 rounded-md border bg-muted/40 px-3 text-sm text-muted-foreground">
+                                            <Loader2 className="h-4 w-4 animate-spin" /> Loading invoices…
                                         </div>
                                     ) : invoicesError ? (
-                                        <div className="p-2 border border-red-200 rounded-md bg-red-50 text-red-600 text-sm">
-                                            Failed to load invoices. Check console for details.
+                                        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-500/10 dark:text-red-300">
+                                            Couldn't load invoices. Try again.
                                         </div>
                                     ) : (
                                         <Combobox
                                             options={invoiceOptions}
-                                            value={formData.type === 'purchase' ? formData.purchase_invoice_id : formData.sales_invoice_id}
+                                            value={selectedInvoiceId}
                                             onChange={handleInvoiceChange}
-                                            placeholder={invoiceOptions.length === 0 ? 'No finalized invoices found' : `Select ${formData.type} invoice...`}
-                                            searchPlaceholder="Search by number..."
+                                            placeholder={invoiceOptions.length === 0 ? 'No finalized invoices found' : `Select ${formData.type} invoice…`}
+                                            searchPlaceholder="Search by invoice number…"
                                             onSearchChange={setInvoiceSearchTerm}
                                             disabled={isEditMode}
                                         />
                                     )}
                                     {!isLoadingInvoices && !invoicesError && invoiceOptions.length === 0 && (
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            No finalized {formData.type} invoices available. Create an invoice first.
-                                        </p>
+                                        <p className="text-xs text-muted-foreground">No finalized {formData.type} invoices yet.</p>
                                     )}
                                 </div>
-
-                                <div className="col-span-2 sm:col-span-1">
-                                    <Label>Return Location</Label>
-                                    <Input
-                                        value={locations.find(l => l.id.toString() === formData.location_id)?.name || 'Select invoice first'}
-                                        disabled
-                                    />
+                                <div className="space-y-1.5">
+                                    <Label>Return location</Label>
+                                    <div className={`flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm ${returnLocation ? '' : 'text-muted-foreground'}`}>
+                                        {returnLocation || 'Set from the invoice'}
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle>Returned Items</CardTitle>
-                            <p className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                                Only items with returnable balance are shown
-                            </p>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="pl-6">Product</TableHead>
-                                        <TableHead className="text-right">Inv Qty</TableHead>
-                                        <TableHead className="text-right">Loc Stock</TableHead>
-                                        <TableHead className="text-center w-32">Return Qty</TableHead>
-                                        <TableHead className="text-right pr-6">Price</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
+                    <Card className="overflow-hidden">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
+                            <h2 className="text-sm font-semibold">
+                                Returned items
+                                {formData.items.length > 0 && <span className="ms-1.5 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{formData.items.length}</span>}
+                            </h2>
+                            <span className="text-xs text-muted-foreground">Only items that can still be returned are listed</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/40 text-xs text-muted-foreground">
+                                    <tr>
+                                        <th className="px-5 py-2 text-start font-medium">Product</th>
+                                        <th className="px-3 py-2 text-end font-medium">Invoiced</th>
+                                        <th className="px-3 py-2 text-end font-medium">{formData.type === 'purchase' ? 'In stock' : 'Returnable'}</th>
+                                        <th className="px-3 py-2 text-center font-medium">Return qty</th>
+                                        <th className="px-3 py-2 text-end font-medium">Price</th>
+                                        <th className="px-5 py-2 text-end font-medium">Line total</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y">
                                     {formData.items.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={formData.type === 'purchase' ? 6 : 5} className="text-center py-12 text-muted-foreground">
-                                                {formData.purchase_invoice_id || formData.sales_invoice_id
-                                                    ? 'No returnable items found in this invoice'
-                                                    : 'Select an invoice to load items'}
-                                            </TableCell>
-                                        </TableRow>
+                                        <tr>
+                                            <td colSpan={6} className="px-5 py-12 text-center">
+                                                <Undo2 className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" aria-hidden />
+                                                <p className="text-sm text-muted-foreground">
+                                                    {selectedInvoiceId ? 'Nothing left to return on this invoice' : 'Choose a source invoice to load its items'}
+                                                </p>
+                                            </td>
+                                        </tr>
                                     ) : (
                                         formData.items.map((item, index) => {
                                             const maxAllowed = formData.type === 'purchase'
                                                 ? Math.min(item.returnable_qty, item.current_stock)
                                                 : item.returnable_qty;
-
+                                            const qty = Number(item.quantity) || 0;
                                             return (
-                                                <TableRow key={index} className="hover:bg-muted/30">
-                                                    <TableCell className="pl-6">
-                                                        <div className="font-medium text-sm">{item.product_name}</div>
-                                                        <div className="text-[10px] text-muted-foreground">ID: {item.product_id}</div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right text-sm font-mono">{item.invoice_qty}</TableCell>
-                                                    <TableCell className="text-right">
+                                                <tr key={index} className="hover:bg-muted/30">
+                                                    <td className="px-5 py-2.5">
+                                                        <p className="font-medium" dir="auto">{item.product_name}</p>
+                                                        <p className="text-xs text-muted-foreground">Max {maxAllowed}</p>
+                                                    </td>
+                                                    <td className="px-3 py-2.5 text-end tabular-nums text-muted-foreground">{item.invoice_qty}</td>
+                                                    <td className="px-3 py-2.5 text-end">
                                                         <button
                                                             type="button"
-                                                            onClick={() => handleQuantityChange(index, item.current_stock.toString())}
-                                                            className={`hover:underline font-bold font-mono ${item.current_stock <= 0 ? 'text-red-500' : 'text-orange-600'}`}
-                                                            title="Click to fill current stock"
+                                                            onClick={() => handleQuantityChange(index, String(maxAllowed))}
+                                                            className={`rounded px-1.5 py-0.5 tabular-nums font-medium hover:bg-primary/10 hover:text-primary ${formData.type === 'purchase' && item.current_stock <= 0 ? 'text-red-600' : ''}`}
+                                                            title="Return the maximum"
                                                         >
-                                                            {item.current_stock}
+                                                            {formData.type === 'purchase' ? item.current_stock : item.returnable_qty}
                                                         </button>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex flex-col items-center">
-                                                            <Input
-                                                                type="number"
-                                                                value={item.quantity || ''}
-                                                                onChange={(e) => handleQuantityChange(index, e.target.value)}
-                                                                className="h-8 text-center font-bold w-20"
-                                                                min="0"
-                                                                max={maxAllowed}
-                                                                placeholder="0"
-                                                            />
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right pr-6 font-mono text-sm">
-                                                        {formatCurrency(item.unit_price)}
-                                                    </TableCell>
-                                                </TableRow>
+                                                    </td>
+                                                    <td className="px-3 py-2.5">
+                                                        <Input
+                                                            type="number"
+                                                            value={item.quantity || ''}
+                                                            onChange={(e) => handleQuantityChange(index, e.target.value)}
+                                                            className="mx-auto h-8 w-20 text-center tabular-nums"
+                                                            min="0"
+                                                            max={maxAllowed}
+                                                            placeholder="0"
+                                                            aria-label={`Return quantity for ${item.product_name}`}
+                                                        />
+                                                    </td>
+                                                    <td className="px-3 py-2.5 text-end tabular-nums text-muted-foreground">{formatCurrency(item.unit_price)}</td>
+                                                    <td className="px-5 py-2.5 text-end tabular-nums font-medium">{qty > 0 ? formatCurrency(qty * item.unit_price) : '—'}</td>
+                                                </tr>
                                             );
                                         })
                                     )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
+                                </tbody>
+                            </table>
+                        </div>
                     </Card>
                 </div>
 
-                <div className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Summary</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-2 text-sm">
+                <div>
+                    <Card className="lg:sticky lg:top-4">
+                        <div className="border-b px-5 py-3">
+                            <h2 className="text-sm font-semibold">Summary</h2>
+                        </div>
+                        <CardContent className="space-y-4 p-5">
+                            <dl className="space-y-2 rounded-lg bg-muted/40 p-3 text-sm">
                                 <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Return Date:</span>
-                                    <span className="font-medium">{formData.credit_note_date}</span>
+                                    <dt className="text-muted-foreground">Return date</dt>
+                                    <dd className="font-medium">{formatDate(formData.credit_note_date)}</dd>
                                 </div>
-                                <div className="flex justify-between border-t pt-2">
-                                    <span className="text-muted-foreground">Total Return Value:</span>
-                                    <span className="text-xl font-bold text-primary">{formatCurrency(totalAmount)}</span>
+                                <div className="flex justify-between">
+                                    <dt className="text-muted-foreground">Units returned</dt>
+                                    <dd className="font-medium tabular-nums">{returnedUnits}</dd>
                                 </div>
-                            </div>
+                                <div className="flex items-center justify-between border-t pt-2">
+                                    <dt className="font-medium">Return value</dt>
+                                    <dd className="text-lg font-semibold tabular-nums text-primary">{formatCurrency(totalAmount)}</dd>
+                                </div>
+                            </dl>
 
-                            <div className="space-y-2 pt-4">
-                                <Label>Notes / Reason</Label>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="cn-notes">Reason / notes</Label>
                                 <textarea
-                                    className="w-full text-sm p-3 border rounded-md focus:ring-2 focus:ring-primary outline-none"
-                                    rows={4}
-                                    placeholder="Explain why these items are being returned..."
+                                    id="cn-notes"
+                                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground"
+                                    rows={3}
+                                    placeholder="Why are these items being returned?"
                                     value={formData.notes}
                                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                                 />
                             </div>
-                        </CardContent>
-                    </Card>
 
-                    <Card className="bg-muted/50 border-none shadow-none">
-                        <CardContent className="pt-6 space-y-2 text-xs text-muted-foreground">
-                            <p className="flex gap-2">
-                                <Search className="h-3 w-3 shrink-0" />
-                                <span>Invoice quantities are pre-loaded from the original transaction.</span>
-                            </p>
-                            <p className="flex gap-2">
-                                <FileText className="h-3 w-3 shrink-0" />
-                                <span>Balance shows remaining quantity that hasn't been returned yet.</span>
-                            </p>
-                            {formData.type === 'purchase' && (
-                                <p className="flex gap-2 text-orange-600">
-                                    <Loader2 className="h-3 w-3 shrink-0" />
-                                    <span>For vendor returns, you cannot return more than current available stock.</span>
-                                </p>
-                            )}
+                            <ul className="space-y-1.5 border-t pt-3 text-xs text-muted-foreground">
+                                <li className="flex gap-2"><Info className="mt-0.5 h-3 w-3 shrink-0" />Quantities come from the original invoice, minus anything already returned.</li>
+                                {formData.type === 'purchase' && (
+                                    <li className="flex gap-2 text-amber-700 dark:text-amber-300"><Info className="mt-0.5 h-3 w-3 shrink-0" />You can't return more to a vendor than you currently have in stock.</li>
+                                )}
+                            </ul>
                         </CardContent>
                     </Card>
                 </div>
             </div>
-        </div>
+        </Page>
     );
 }

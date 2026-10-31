@@ -98,7 +98,11 @@ export function Combobox({
       <PopoverContent className="w-[max(var(--radix-popover-trigger-width),14rem)] p-0" align="start">
         <Command shouldFilter={!onSearchChange}>
           <CommandInput placeholder={searchPlaceholder} value={search} onValueChange={handleSearchChange} />
-          <CommandEmpty>{emptyText}</CommandEmpty>
+          {realOptions.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">{emptyText}</p>
+          ) : (
+            <CommandEmpty>{emptyText}</CommandEmpty>
+          )}
           <CommandGroup className="scroll-thin max-h-64 overflow-auto">
             {realOptions.map((option, index) => {
               const selected = value === option.value

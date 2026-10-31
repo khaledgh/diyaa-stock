@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { useReactToPrint } from 'react-to-print';
+import { usePrint } from '@/lib/print';
 import { ArrowLeft, Banknote, ChevronRight, CircleDollarSign, Download, HandCoins, Info, Printer, TrendingUp, UserRound, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -28,10 +28,7 @@ export default function SalesRepsReport() {
   const s = report?.summary || {};
   const totalCommission = basis === 'collected' ? s.commission_on_collected : s.commission_on_sales;
 
-  const handlePrint = useReactToPrint({
-    content: () => printRef.current,
-    documentTitle: `Sales_Reps_${from}_${to}`,
-  });
+  const handlePrint = usePrint(printRef, `Sales_Reps_${from}_${to}`);
 
   const handleExport = () =>
     exportToExcel(

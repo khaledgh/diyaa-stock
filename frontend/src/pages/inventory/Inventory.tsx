@@ -203,7 +203,7 @@ export default function Inventory() {
         if (s === 'out') return <StatusBadge tone="red">Out of stock</StatusBadge>;
         if (s === 'low') {
           const n = lowLocations(r);
-          return <StatusBadge tone="amber">{locationFilter ? 'Low' : `Low at ${n} location${n > 1 ? 's' : ''}`}</StatusBadge>;
+          return <StatusBadge tone="amber" className="normal-case">{locationFilter ? 'Low' : `Low at ${n} location${n > 1 ? 's' : ''}`}</StatusBadge>;
         }
         return <StatusBadge tone="green">In stock</StatusBadge>;
       },
