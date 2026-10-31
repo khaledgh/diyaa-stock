@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
@@ -203,9 +203,12 @@ export default function ProductForm() {
                 <FieldError message={errors.barcode?.message} />
               </div>
               <div className="space-y-1.5">
-                <Label>{t('products.category')}</Label>
+                <div className="flex items-center justify-between">
+                  <Label>{t('products.category')}</Label>
+                  <Link to="/categories" className="text-xs font-medium text-primary hover:underline">Manage</Link>
+                </div>
                 <Combobox
-                  options={(categories?.map((cat: any) => ({ value: cat.id.toString(), label: cat.name_ar ? `${cat.name_en} · ${cat.name_ar}` : cat.name_en })) || [])}
+                  options={(categories?.map((cat: any) => ({ value: cat.id.toString(), label: cat.name_ar && cat.name_ar !== cat.name_en ? `${cat.name_en} · ${cat.name_ar}` : cat.name_en })) || [])}
                   value={categoryId}
                   onChange={(value) => setValue('category_id', value)}
                   placeholder="No category"
@@ -216,9 +219,12 @@ export default function ProductForm() {
                 <FieldError message={errors.category_id?.message} />
               </div>
               <div className="space-y-1.5">
-                <Label>{t('products.type')}</Label>
+                <div className="flex items-center justify-between">
+                  <Label>{t('products.type')}</Label>
+                  <Link to="/product-types" className="text-xs font-medium text-primary hover:underline">Manage</Link>
+                </div>
                 <Combobox
-                  options={(productTypes?.map((type: any) => ({ value: type.id.toString(), label: type.name_ar ? `${type.name_en} · ${type.name_ar}` : type.name_en })) || [])}
+                  options={(productTypes?.map((type: any) => ({ value: type.id.toString(), label: type.name_ar && type.name_ar !== type.name_en ? `${type.name_en} · ${type.name_ar}` : type.name_en })) || [])}
                   value={typeId}
                   onChange={(value) => setValue('type_id', value)}
                   placeholder="No type"

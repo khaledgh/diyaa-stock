@@ -33,6 +33,8 @@ interface NavLeaf {
   name: string;
   href: string;
   icon?: LucideIcon;
+  /** Permission to check when it differs from the page name. */
+  permission?: string;
 }
 
 interface NavSection {
@@ -67,6 +69,7 @@ const navigation: NavGroup[] = [
         children: [
           { name: 'products', href: '/products' },
           { name: 'categories', href: '/categories' },
+          { name: 'product-types', href: '/product-types', permission: 'categories' },
           { name: 'inventory', href: '/inventory' },
           { name: 'transfers', href: '/transfers' },
         ],
@@ -267,7 +270,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   const renderSection = (section: NavSection) => {
-    const children = section.children.filter((c) => canView(c.name));
+    const children = section.children.filter((c) => canView(c.permission ?? c.name));
     if (children.length === 0) return null;
     if (rail) return renderRailSection(section, children);
     const open = !!expanded[section.key];
@@ -370,7 +373,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <nav className={cn('scroll-thin flex-1 overflow-y-auto py-3', rail ? 'space-y-3 px-2' : 'space-y-5 px-3')} aria-label="Main">
           {navigation.map((group, gi) => {
             const visible = group.entries.filter((e) =>
-              isSection(e) ? e.children.some((c) => canView(c.name)) : canView(e.name)
+              isSection(e) ? e.children.some((c) => canView(c.permission ?? c.name)) : canView(e.name)
             );
             if (visible.length === 0) return null;
             return (
